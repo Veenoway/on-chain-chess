@@ -616,7 +616,6 @@ export default function ChessMultisynqApp() {
       // Joindre en tant que joueur
       session.view.joinPlayer(address, playerId);
 
-      // Attendre un peu pour la synchronisation puis mettre à jour l'état local
       setTimeout(() => {
         setGameState((prev) => ({
           ...prev,
@@ -744,7 +743,7 @@ export default function ChessMultisynqApp() {
     onPieceDrop: onPieceDrop,
     boardOrientation: playerColor, // useState
     arePiecesDraggable: gameState.isActive, // useState
-    boardWidth: 480,
+    boardWidth: 580,
     animationDuration: 200,
     showBoardNotation: true,
     // + styles personnalisés
@@ -838,8 +837,8 @@ export default function ChessMultisynqApp() {
 
   // Interface de jeu
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-[#0f0f0f]/100 to-[#0f0f0f]/80 p-4">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -856,28 +855,29 @@ export default function ChessMultisynqApp() {
           <div className="flex gap-2">
             <button
               onClick={() => setGameFlow("welcome")}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-[#836EF9] text-white rounded transition-colors"
             >
-              🏠 Accueil
+              Home
             </button>
-            <button
-              onClick={handleNewGame}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-            >
-              🔄 Nouvelle partie
-            </button>
+            {gameState.isActive && (
+              <button
+                onClick={handleNewGame}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                New Game
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
           {/* Panel de gauche - Infos joueurs */}
-          <div className="lg:col-span-1 space-y-4">
+          {/* <div className="lg:col-span-1 space-y-4">
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
               <h3 className="text-lg font-semibold text-white mb-3">
                 👥 Joueurs ({gameState.players.length}/{gameState.maxPlayers})
               </h3>
 
-              {/* Debug info */}
               {process.env.NODE_ENV === "development" && (
                 <div className="mb-2 p-2 bg-gray-800 rounded text-xs text-gray-300">
                   Debug:{" "}
@@ -935,60 +935,113 @@ export default function ChessMultisynqApp() {
                   onClick={handleStartGame}
                   className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                 >
-                  🚀 Démarrer la partie
+                  Start Game
                 </button>
               )}
             </div>
-
-            {/* Timer */}
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-              <h3 className="text-lg font-semibold text-white mb-3">
-                ⏱️ Temps
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Vous:</span>
-                  <span className="text-white font-mono">
-                    {Math.floor(getCurrentPlayerTime() / 60)}:
-                    {(getCurrentPlayerTime() % 60).toString().padStart(2, "0")}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Adversaire:</span>
-                  <span className="text-white font-mono">
-                    {Math.floor(getOpponentTime() / 60)}:
-                    {(getOpponentTime() % 60).toString().padStart(2, "0")}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          </div> */}
 
           {/* Panel central - Échiquier */}
-          <div className="lg:col-span-2">
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-              <div className="lg:col-span-2">
-                <div className="rounded-xl p-4">
+          <div className="lg:col-span-4">
+            <div className="">
+              <div className="lg:col-span-3">
+                <div className="rounded-xl">
                   {/* Pièces capturées par l'adversaire (en haut) */}
-                  <CapturedPieces
-                    fen={fen}
-                    playerColor={playerColor}
-                    isOpponent={true}
-                  />
+                  <div className="flex justify-between items-center mb-3">
+                    {gameState.players.map((player, i) =>
+                      player.id !== currentPlayerId ? (
+                        <div
+                          key={player.id}
+                          className="p-3 rounded-lg border bg-white/5 border-white/10"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-white">
+                                {player.color === "white" ? "⚪" : "⚫"}
+                                {player.wallet.slice(0, 6)}...
+                                {player.wallet.slice(-4)}
+                              </div>
+                              <div className="text-sm text-gray-300">
+                                {player.connected ? "Online" : "Offline"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="flex items-center justify-between"
+                          key={player.id || i}
+                        >
+                          <div>
+                            <div className="font-medium text-white flex items-center gap-1">
+                              <span className="animate-[bounce_1s_infinite]  text-2xl">
+                                .
+                              </span>
+                              <span className="animate-[bounce_1s_infinite_0.2s] text-2xl">
+                                .
+                              </span>
+                              <span className="animate-[bounce_1s_infinite_0.4s]  text-2xl">
+                                .
+                              </span>
+                              Waiting for opponent
+                            </div>
+                            <div className="text-sm text-gray-300">Offline</div>
+                          </div>
+                        </div>
+                      )
+                    )}
+                    <CapturedPieces
+                      fen={fen}
+                      playerColor={playerColor}
+                      isOpponent={true}
+                    />
+                    <div className="bg-white/10 backdrop-blur-md rounded px-2 py-1 border border-white/20">
+                      <span className="text-white text-2xl font-bold">
+                        {Math.floor(getOpponentTime() / 60)}:
+                        {(getOpponentTime() % 60).toString().padStart(2, "0")}
+                      </span>
+                    </div>
+                  </div>
 
-                  <div className="aspect-square max-w-full mx-auto">
+                  <div className="aspect-square max-w-full w-full mx-auto">
                     <Chessboard options={chessboardOptions} />
                   </div>
 
-                  {/* Pièces capturées par le joueur (en bas) */}
-                  <CapturedPieces
-                    fen={fen}
-                    playerColor={playerColor}
-                    isOpponent={false}
-                  />
+                  <div className="flex justify-between items-center mt-3">
+                    {gameState.players.map((player) =>
+                      player.id === currentPlayerId ? (
+                        <div key={player.id} className="rounded-lg ">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-white">
+                                {player.color === "white" ? "⚪ " : "⚫ "}
+                                {player.wallet.slice(0, 6)}...
+                                {player.wallet.slice(-4)} (You)
+                              </div>
+                              <div className="text-sm text-gray-300">
+                                {player.connected ? "Online" : "Offline"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                    <CapturedPieces
+                      fen={fen}
+                      playerColor={playerColor}
+                      isOpponent={false}
+                    />
+                    <div className="bg-white/10 backdrop-blur-md rounded px-2 py-1 border border-white/20">
+                      <span className="text-white text-2xl font-bold">
+                        {Math.floor(getCurrentPlayerTime() / 60)}:
+                        {(getCurrentPlayerTime() % 60)
+                          .toString()
+                          .padStart(2, "0")}
+                      </span>
+                    </div>
+                  </div>
 
-                  {/* Status du jeu */}
-                  <div className="mt-4 text-center">
+                  {/* <div className="mt-4 text-center">
                     {gameState.gameResult.type ? (
                       <div className="p-3 bg-yellow-500/20 border border-yellow-400 rounded-lg">
                         <p className="text-yellow-200 font-semibold">
@@ -1010,25 +1063,27 @@ export default function ChessMultisynqApp() {
                         </p>
                       </div>
                     )}
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>
           </div>
 
           {/* Panel de droite - Chat */}
-          <div className="lg:col-span-1">
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 h-full flex flex-col">
-              <h3 className="text-lg font-semibold text-white mb-3">💬 Chat</h3>
+          <div className="lg:col-span-2">
+            <div className="bg-[#1e1e1e]/90 backdrop-blur-md rounded p-5 border-2 border-white/10 h-full flex flex-col">
+              <h3 className="text-2xl font-semibold text-white mb-5">
+                Nads Chat
+              </h3>
 
-              <div className="flex-1 space-y-2 overflow-y-auto max-h-96 mb-4">
+              <div className="flex-1 space-y-2 overflow-y-auto max-h-[634px] mb-4">
                 {gameState.messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`p-2 rounded-lg ${
+                    className={`p-2 rounded ${
                       msg.playerId === currentPlayerId
-                        ? "bg-blue-500/20 border border-blue-400 ml-2"
-                        : "bg-white/5 border border-white/10 mr-2"
+                        ? "bg-[#836EF9]/40 border border-[#836EF9] ml-2"
+                        : "bg-[#836EF9]/20 border border-[#836EF9]/80 mr-2"
                     }`}
                   >
                     <div className="text-xs text-gray-400 mb-1">
@@ -1040,21 +1095,21 @@ export default function ChessMultisynqApp() {
                 ))}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-auto">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                   placeholder="Tapez votre message..."
-                  className="flex-1 p-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 text-sm focus:ring-2 focus:ring-blue-400"
+                  className="flex-1 p-2 bg-[#836EF9]/40 border border-[#836EF9]/80 rounded text-white placeholder-gray-400 text-sm focus:ring-2"
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim()}
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg transition-colors"
+                  className="px-3 py-2 bg-[#836EF9] border border-[#836EF9]/80  text-white rounded-lg transition-colors"
                 >
-                  📤
+                  Send
                 </button>
               </div>
             </div>
