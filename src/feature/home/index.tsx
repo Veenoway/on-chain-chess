@@ -17,6 +17,13 @@ export default function ChessMultisynqApp() {
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
   const [playerId] = useState(Date.now().toString());
 
+  // États pour le flow UX
+  const [gameFlow, setGameFlow] = useState<"welcome" | "lobby" | "game">(
+    "welcome"
+  );
+  const [roomInput, setRoomInput] = useState("");
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+
   // États pour les timers individuels
   const [whiteTime, setWhiteTime] = useState(600); // 10 minutes par défaut
   const [blackTime, setBlackTime] = useState(600); // 10 minutes par défaut
@@ -75,6 +82,110 @@ export default function ChessMultisynqApp() {
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
   };
 
+  // Flow UX - Vérifier la connexion wallet et les paramètres URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomName = urlParams.get("room");
+
+    if (roomName && isConnected) {
+      // Si on a un lien de room et qu'on est connecté, aller directement au jeu
+      initializeGameFromURL();
+    } else if (roomName && !isConnected) {
+      // Si on a un lien mais pas connecté, rester sur welcome pour forcer la connexion
+      setGameFlow("welcome");
+    } else if (isConnected) {
+      // Si connecté mais pas de room, aller au lobby
+      setGameFlow("lobby");
+    } else {
+      // Sinon, écran de bienvenue
+      setGameFlow("welcome");
+    }
+  }, [isConnected]);
+
+  // Créer une nouvelle room
+  const createNewRoom = () => {
+    if (!isConnected) return;
+
+    setIsCreatingRoom(true);
+    const roomName = `chess-${Math.random().toString(36).substring(2, 8)}`;
+    const roomPassword = Math.random().toString(36).substring(2, 6);
+
+    // Mettre à jour l'URL
+    const newUrl = `${window.location.pathname}?room=${roomName}&password=${roomPassword}`;
+    window.history.pushState({}, "", newUrl);
+
+    // Initialiser la room
+    setSessionInfo({ name: roomName, password: roomPassword });
+    initializeNewRoom(roomName);
+    setGameFlow("game");
+    setIsCreatingRoom(false);
+  };
+
+  // Rejoindre une room existante
+  const joinRoom = () => {
+    if (!isConnected || !roomInput.trim()) return;
+
+    const roomName = roomInput.trim();
+    const roomPassword = ""; // Pour simplifier, pas de password pour rejoindre
+
+    // Mettre à jour l'URL
+    const newUrl = `${window.location.pathname}?room=${roomName}&password=${roomPassword}`;
+    window.history.pushState({}, "", newUrl);
+
+    // Rejoindre la room
+    setSessionInfo({ name: roomName, password: roomPassword });
+    determinePlayerColor(roomName);
+    setGameFlow("game");
+  };
+
+  // Initialiser le jeu depuis l'URL
+  const initializeGameFromURL = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomName = urlParams.get("room");
+    let roomPassword = urlParams.get("password");
+
+    if (!roomName) return;
+
+    if (!roomPassword) {
+      roomPassword = Math.random().toString(36).substring(2, 6);
+    }
+
+    setSessionInfo({ name: roomName, password: roomPassword });
+    console.log("🎯 Session:", { name: roomName, password: roomPassword });
+
+    // Déterminer la couleur du joueur
+    determinePlayerColor(roomName);
+    setGameFlow("game");
+  };
+
+  // Initialiser une nouvelle room
+  const initializeNewRoom = (roomName: string) => {
+    const roomKey = `chess-room-${roomName}`;
+    const newRoom = {
+      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      player1Id: playerId,
+      player1Color: "white",
+      player1Wallet: address,
+      player2Id: null,
+      player2Color: null,
+      player2Wallet: null,
+      playerCount: 1,
+      turn: "w",
+      isActive: false,
+      lastMoveTime: null,
+      whiteTime: gameTimeLimit,
+      blackTime: gameTimeLimit,
+      gameTimeLimit: gameTimeLimit,
+      gameNumber: 1,
+      lastGameWinner: null,
+      messages: [],
+    };
+    localStorage.setItem(roomKey, JSON.stringify(newRoom));
+    setPlayerColor("white");
+    setConnectionStatus("En attente d'un adversaire...");
+    console.log("🆕 Nouvelle room créée - Joueur 1 (Blanc)");
+  };
+
   // Sélecteur de temps de partie
   const selectGameTime = (minutes: number) => {
     const seconds = minutes * 60;
@@ -83,7 +194,7 @@ export default function ChessMultisynqApp() {
     setBlackTime(seconds);
     setShowTimeSelector(false);
 
-    // Sauvegarder dans la room
+    // Sauvegarder dans la room et forcer la synchronisation
     const roomKey = `chess-room-${sessionInfo.name}`;
     const existingRoom = localStorage.getItem(roomKey);
 
@@ -94,37 +205,21 @@ export default function ChessMultisynqApp() {
         gameTimeLimit: seconds,
         whiteTime: seconds,
         blackTime: seconds,
+        // Maintenir tous les autres champs pour éviter la perte de données
+        player1Id: roomData.player1Id,
+        player2Id: roomData.player2Id,
+        player1Color: roomData.player1Color,
+        player2Color: roomData.player2Color,
+        player1Wallet: roomData.player1Wallet,
+        player2Wallet: roomData.player2Wallet,
+        messages: roomData.messages || [],
       };
       localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+      console.log("⏰ Temps synchronisé dans la room:", updatedRoom);
     }
 
     console.log(`⏰ Temps de partie sélectionné: ${minutes} minutes`);
   };
-
-  // Générer une session unique au démarrage
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    let roomName = urlParams.get("room");
-    let roomPassword = urlParams.get("password");
-
-    if (!roomName) {
-      roomName = `chess-${Math.random().toString(36).substring(2, 8)}`;
-    }
-
-    if (!roomPassword) {
-      roomPassword = Math.random().toString(36).substring(2, 6);
-    }
-
-    setSessionInfo({ name: roomName, password: roomPassword });
-    console.log("🎯 Session:", { name: roomName, password: roomPassword });
-
-    // Mettre à jour l'URL
-    const newUrl = `${window.location.pathname}?room=${roomName}&password=${roomPassword}`;
-    window.history.replaceState({}, "", newUrl);
-
-    // Déterminer la couleur du joueur
-    determinePlayerColor(roomName);
-  }, []);
 
   // Déterminer la couleur du joueur basé sur l'ordre d'arrivée et les parties précédentes
   const determinePlayerColor = (roomName: string) => {
@@ -134,6 +229,23 @@ export default function ChessMultisynqApp() {
     if (existingRoom) {
       const roomData = JSON.parse(existingRoom);
       console.log("🏠 Room existante trouvée:", roomData);
+
+      // Synchroniser le temps de jeu depuis la room existante
+      if (roomData.gameTimeLimit) {
+        setGameTimeLimit(roomData.gameTimeLimit);
+        setWhiteTime(roomData.whiteTime || roomData.gameTimeLimit);
+        setBlackTime(roomData.blackTime || roomData.gameTimeLimit);
+        console.log(
+          "⏰ Temps synchronisé depuis la room:",
+          roomData.gameTimeLimit
+        );
+      }
+
+      // Synchroniser les messages depuis la room existante
+      if (roomData.messages) {
+        setMessages(roomData.messages);
+        console.log("💬 Messages synchronisés:", roomData.messages.length);
+      }
 
       // Vérifier si c'est un joueur existant
       const isPlayer1 = roomData.player1Id === playerId;
@@ -172,12 +284,13 @@ export default function ChessMultisynqApp() {
           ...roomData,
           player1Id: playerId,
           player1Color,
+          player1Wallet: address,
           playerCount: 1,
         };
         localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
         console.log("🎯 Nouveau joueur 1 avec couleur:", player1Color);
       } else if (!roomData.player2Id) {
-        // Nouveau joueur 2
+        // Nouveau joueur 2 - hériter des paramètres de la room
         const player2Color =
           roomData.player1Color === "white" ? "black" : "white";
         setPlayerColor(player2Color);
@@ -186,6 +299,7 @@ export default function ChessMultisynqApp() {
           ...roomData,
           player2Id: playerId,
           player2Color,
+          player2Wallet: address,
           playerCount: 2,
         };
         localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
@@ -204,14 +318,20 @@ export default function ChessMultisynqApp() {
         fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         player1Id: playerId,
         player1Color: "white",
+        player1Wallet: address,
         player2Id: null,
         player2Color: null,
+        player2Wallet: null,
         playerCount: 1,
         turn: "w",
         isActive: false,
         startTime: null,
+        whiteTime: gameTimeLimit,
+        blackTime: gameTimeLimit,
+        gameTimeLimit: gameTimeLimit,
         gameNumber: 1,
         lastGameWinner: null,
+        messages: [],
       };
       localStorage.setItem(roomKey, JSON.stringify(newRoom));
       console.log("🆕 Nouvelle room créée - Joueur 1 (Blanc)");
@@ -246,6 +366,14 @@ export default function ChessMultisynqApp() {
         if (roomData.blackTime !== blackTime) {
           console.log("⏰ Mise à jour blackTime:", roomData.blackTime);
           setBlackTime(roomData.blackTime);
+        }
+
+        if (
+          roomData.gameTimeLimit &&
+          roomData.gameTimeLimit !== gameTimeLimit
+        ) {
+          console.log("⏰ Mise à jour gameTimeLimit:", roomData.gameTimeLimit);
+          setGameTimeLimit(roomData.gameTimeLimit);
         }
 
         if (roomData.lastMoveTime !== lastMoveTime) {
@@ -295,9 +423,24 @@ export default function ChessMultisynqApp() {
         }
 
         // Synchroniser les messages du chat
-        if (roomData.messages && roomData.messages.length !== messages.length) {
-          console.log("💬 Synchronisation des messages:", roomData.messages);
-          setMessages(roomData.messages);
+        if (roomData.messages) {
+          // Vérifier si les messages sont différents (par longueur et dernière timestamp)
+          const currentLastMessage = messages[messages.length - 1];
+          const roomLastMessage =
+            roomData.messages[roomData.messages.length - 1];
+
+          const messagesDifferent =
+            roomData.messages.length !== messages.length ||
+            (roomLastMessage &&
+              currentLastMessage &&
+              roomLastMessage.timestamp !== currentLastMessage.timestamp) ||
+            (!currentLastMessage && roomLastMessage) ||
+            (currentLastMessage && !roomLastMessage);
+
+          if (messagesDifferent) {
+            console.log("💬 Synchronisation des messages:", roomData.messages);
+            setMessages(roomData.messages);
+          }
         }
 
         // Mettre à jour le statut selon les joueurs connectés
@@ -337,6 +480,10 @@ export default function ChessMultisynqApp() {
           setBlackTime(parsed.blackTime);
         }
 
+        if (parsed.gameTimeLimit && parsed.gameTimeLimit !== gameTimeLimit) {
+          setGameTimeLimit(parsed.gameTimeLimit);
+        }
+
         // Synchroniser état du jeu
         if (parsed.isActive !== isGameActive) {
           console.log("🔄 Polling: État jeu différent détecté");
@@ -359,9 +506,22 @@ export default function ChessMultisynqApp() {
         }
 
         // Synchroniser les messages
-        if (parsed.messages && parsed.messages.length !== messages.length) {
-          console.log("🔄 Polling: Messages différents détectés");
-          setMessages(parsed.messages);
+        if (parsed.messages) {
+          const currentLastMessage = messages[messages.length - 1];
+          const parsedLastMessage = parsed.messages[parsed.messages.length - 1];
+
+          const messagesDifferent =
+            parsed.messages.length !== messages.length ||
+            (parsedLastMessage &&
+              currentLastMessage &&
+              parsedLastMessage.timestamp !== currentLastMessage.timestamp) ||
+            (!currentLastMessage && parsedLastMessage) ||
+            (currentLastMessage && !parsedLastMessage);
+
+          if (messagesDifferent) {
+            console.log("🔄 Polling: Messages différents détectés");
+            setMessages(parsed.messages);
+          }
         }
       }
     }, 1000); // Vérifier toutes les secondes
@@ -376,6 +536,7 @@ export default function ChessMultisynqApp() {
     isGameActive,
     whiteTime,
     blackTime,
+    gameTimeLimit,
     lastMoveTime,
     gameResult,
     drawOffer,
@@ -479,12 +640,18 @@ export default function ChessMultisynqApp() {
         isActive: gameActive,
         lastMoveTime: moveTime || roomData.lastMoveTime,
         turn: gameRef.current.turn(),
-        // Maintenir les données des joueurs
+        // Maintenir les données des joueurs et tous les paramètres existants
         player1Id: roomData.player1Id,
         player2Id: roomData.player2Id,
         player1Color: roomData.player1Color,
         player2Color: roomData.player2Color,
+        player1Wallet: roomData.player1Wallet,
+        player2Wallet: roomData.player2Wallet,
         playerCount: roomData.player1Id && roomData.player2Id ? 2 : 1,
+        whiteTime: roomData.whiteTime,
+        blackTime: roomData.blackTime,
+        gameTimeLimit: roomData.gameTimeLimit,
+        messages: roomData.messages || [],
       };
       localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
       console.log("💾 État synchronisé:", updatedRoom);
@@ -825,8 +992,19 @@ export default function ChessMultisynqApp() {
       const updatedRoom = {
         ...roomData,
         messages: updatedMessages,
+        // Maintenir explicitement tous les champs critiques
+        player1Id: roomData.player1Id,
+        player2Id: roomData.player2Id,
+        player1Color: roomData.player1Color,
+        player2Color: roomData.player2Color,
+        player1Wallet: roomData.player1Wallet,
+        player2Wallet: roomData.player2Wallet,
+        gameTimeLimit: roomData.gameTimeLimit,
+        whiteTime: roomData.whiteTime,
+        blackTime: roomData.blackTime,
       };
       localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+      console.log("💬 Message envoyé et room synchronisée:", message.message);
       setNewMessage("");
     }
   };
@@ -845,6 +1023,282 @@ export default function ChessMultisynqApp() {
   // Calculer l'avantage matériel actuel
   const materialAdvantage = calculateMaterialAdvantage();
 
+  // Écran de bienvenue - Connexion wallet obligatoire
+  if (gameFlow === "welcome") {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-gray-800 rounded-xl p-8 text-center shadow-2xl">
+            <div className="mb-8">
+              <h1 className="text-4xl font-bold mb-2">♔ Chess Game</h1>
+              <p className="text-gray-400">
+                Multiplayer chess with real-time sync
+              </p>
+            </div>
+
+            {/* Connexion wallet requise */}
+            <div className="mb-8">
+              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+
+              <h2 className="text-xl font-semibold mb-2">
+                Connect Your Wallet
+              </h2>
+              <p className="text-gray-400 text-sm mb-6">
+                Connect your wallet to create or join chess games and chat with
+                other players.
+              </p>
+
+              <WalletConnection />
+
+              {!isConnected && (
+                <div className="mt-4 p-3 bg-blue-900/30 rounded-lg border border-blue-700">
+                  <p className="text-blue-300 text-xs">
+                    🔒 Wallet connection is required to ensure secure gameplay
+                    and player identification.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Features */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="bg-gray-700/50 rounded-lg p-3">
+                <div className="text-green-400 mb-1">⚡</div>
+                <div className="font-semibold">Real-time Sync</div>
+                <div className="text-gray-400">Instant move updates</div>
+              </div>
+              <div className="bg-gray-700/50 rounded-lg p-3">
+                <div className="text-blue-400 mb-1">💬</div>
+                <div className="font-semibold">Chat System</div>
+                <div className="text-gray-400">Talk with opponents</div>
+              </div>
+              <div className="bg-gray-700/50 rounded-lg p-3">
+                <div className="text-purple-400 mb-1">⏰</div>
+                <div className="font-semibold">Timed Games</div>
+                <div className="text-gray-400">3, 5, 10, 15 minutes</div>
+              </div>
+              <div className="bg-gray-700/50 rounded-lg p-3">
+                <div className="text-orange-400 mb-1">🔗</div>
+                <div className="font-semibold">Share Links</div>
+                <div className="text-gray-400">Invite friends easily</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Écran lobby - Créer ou rejoindre une room
+  if (gameFlow === "lobby") {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white">
+        {/* Header avec wallet connecté */}
+        <div className="bg-gray-800 border-b border-gray-700 p-4">
+          <div className="max-w-4xl mx-auto flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <h1 className="text-2xl font-bold">♔ Chess Game</h1>
+              <div className="text-sm text-gray-400">Welcome to the lobby</div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm">{formatWalletAddress(address!)}</span>
+              </div>
+              <button
+                onClick={() => setGameFlow("welcome")}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main lobby content */}
+        <div className="max-w-4xl mx-auto p-8">
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Créer une nouvelle partie */}
+            <div className="bg-gray-800 rounded-xl p-6">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold mb-2">Create New Game</h2>
+                <p className="text-gray-400 text-sm">
+                  Start a new chess game and invite opponents
+                </p>
+              </div>
+
+              {/* Sélection du temps */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-3">
+                  Game Duration (per player)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setGameTimeLimit(180)}
+                    className={`p-3 rounded-lg border transition-colors ${
+                      gameTimeLimit === 180
+                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
+                        : "border-gray-600 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="font-semibold">3 min</div>
+                    <div className="text-xs text-gray-400">Rapid</div>
+                  </button>
+                  <button
+                    onClick={() => setGameTimeLimit(300)}
+                    className={`p-3 rounded-lg border transition-colors ${
+                      gameTimeLimit === 300
+                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
+                        : "border-gray-600 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="font-semibold">5 min</div>
+                    <div className="text-xs text-gray-400">Blitz</div>
+                  </button>
+                  <button
+                    onClick={() => setGameTimeLimit(600)}
+                    className={`p-3 rounded-lg border transition-colors ${
+                      gameTimeLimit === 600
+                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
+                        : "border-gray-600 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="font-semibold">10 min</div>
+                    <div className="text-xs text-gray-400">Standard</div>
+                  </button>
+                  <button
+                    onClick={() => setGameTimeLimit(900)}
+                    className={`p-3 rounded-lg border transition-colors ${
+                      gameTimeLimit === 900
+                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
+                        : "border-gray-600 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="font-semibold">15 min</div>
+                    <div className="text-xs text-gray-400">Long</div>
+                  </button>
+                </div>
+              </div>
+
+              <button
+                onClick={createNewRoom}
+                disabled={isCreatingRoom}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-lg font-semibold transition-colors"
+              >
+                {isCreatingRoom ? "Creating..." : "🚀 Create Game"}
+              </button>
+            </div>
+
+            {/* Rejoindre une partie */}
+            <div className="bg-gray-800 rounded-xl p-6">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold mb-2">Join Existing Game</h2>
+                <p className="text-gray-400 text-sm">
+                  Enter a room code to join an ongoing game
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <label
+                  htmlFor="roomInput"
+                  className="block text-sm font-medium mb-2"
+                >
+                  Room Code
+                </label>
+                <input
+                  id="roomInput"
+                  type="text"
+                  value={roomInput}
+                  onChange={(e) => setRoomInput(e.target.value)}
+                  placeholder="Enter room code (e.g., chess-abc123)"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 Get the room code from a friend&apos;s invitation link
+                </p>
+              </div>
+
+              <button
+                onClick={joinRoom}
+                disabled={!roomInput.trim()}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-lg font-semibold transition-colors"
+              >
+                🔗 Join Game
+              </button>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="mt-8 bg-gray-800/50 rounded-xl p-6">
+            <h3 className="font-bold mb-4 text-center">🎯 How to Play</h3>
+            <div className="grid md:grid-cols-3 gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-2xl mb-2">1️⃣</div>
+                <div className="font-semibold mb-1">Create or Join</div>
+                <div className="text-gray-400">
+                  Start a new game or join with a room code
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl mb-2">2️⃣</div>
+                <div className="font-semibold mb-1">Share & Play</div>
+                <div className="text-gray-400">
+                  Invite friends with the link and start playing
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl mb-2">3️⃣</div>
+                <div className="font-semibold mb-1">Chat & Enjoy</div>
+                <div className="text-gray-400">
+                  Use the chat system and have fun!
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Interface de jeu - Seulement si gameFlow === "game"
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Sélecteur de temps modal */}
@@ -891,6 +1345,12 @@ export default function ChessMultisynqApp() {
       <div className="bg-gray-800 border-b border-gray-700 p-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setGameFlow("lobby")}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              ← Back to Lobby
+            </button>
             <h1 className="text-2xl font-bold">♔ Chess Game</h1>
             <div className="text-sm text-gray-400">
               Room: <span className="text-blue-400">{sessionInfo.name}</span>

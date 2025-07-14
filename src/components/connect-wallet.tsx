@@ -22,7 +22,6 @@ export function WalletConnection() {
     if (isConnecting || isInitialLoading) return "Loading...";
     return `${address?.slice(0, 6)}...${address?.slice(-4)}`;
   };
-  console.log("chainID;", chainId);
   const isWrongNetwork = chainId !== 10143;
 
   const handleSwitchNetwork = async () => {

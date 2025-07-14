@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@chrisoakman/chessboardjs": "^1.0.0",
+    "@multisynq/client": "^1.0.4",
     "@radix-ui/react-dialog": "^1.1.6",
     "@reown/appkit-adapter-wagmi": "^1.6.8",
     "chess.js": "^1.4.0",
