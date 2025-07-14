@@ -4,6 +4,7 @@ import { Chess } from "chess.js";
 import { useEffect, useRef, useState } from "react";
 import { Chessboard, type PieceDropHandlerArgs } from "react-chessboard";
 import { useAccount } from "wagmi";
+import CapturedPieces from "./chessboard";
 
 interface Player {
   id: string;
@@ -738,7 +739,6 @@ export default function ChessMultisynqApp() {
       ? gameState.blackTime
       : gameState.whiteTime;
   };
-
   const chessboardOptions = {
     position: fen, // useState
     onPieceDrop: onPieceDrop,
@@ -967,33 +967,51 @@ export default function ChessMultisynqApp() {
           {/* Panel central - Échiquier */}
           <div className="lg:col-span-2">
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-              <div className="aspect-square max-w-full mx-auto">
-                <Chessboard options={chessboardOptions} />
-              </div>
+              <div className="lg:col-span-2">
+                <div className="rounded-xl p-4">
+                  {/* Pièces capturées par l'adversaire (en haut) */}
+                  <CapturedPieces
+                    fen={fen}
+                    playerColor={playerColor}
+                    isOpponent={true}
+                  />
 
-              {/* Status du jeu */}
-              <div className="mt-4 text-center">
-                {gameState.gameResult.type ? (
-                  <div className="p-3 bg-yellow-500/20 border border-yellow-400 rounded-lg">
-                    <p className="text-yellow-200 font-semibold">
-                      {gameState.gameResult.message || "Partie terminée"}
-                    </p>
+                  <div className="aspect-square max-w-full mx-auto">
+                    <Chessboard options={chessboardOptions} />
                   </div>
-                ) : gameState.isActive ? (
-                  <div className="p-3 bg-green-500/20 border border-green-400 rounded-lg">
-                    <p className="text-green-200">
-                      {gameState.turn === "w"
-                        ? "⚪ Trait aux blancs"
-                        : "⚫ Trait aux noirs"}
-                    </p>
+
+                  {/* Pièces capturées par le joueur (en bas) */}
+                  <CapturedPieces
+                    fen={fen}
+                    playerColor={playerColor}
+                    isOpponent={false}
+                  />
+
+                  {/* Status du jeu */}
+                  <div className="mt-4 text-center">
+                    {gameState.gameResult.type ? (
+                      <div className="p-3 bg-yellow-500/20 border border-yellow-400 rounded-lg">
+                        <p className="text-yellow-200 font-semibold">
+                          {gameState.gameResult.message || "Partie terminée"}
+                        </p>
+                      </div>
+                    ) : gameState.isActive ? (
+                      <div className="p-3 bg-green-500/20 border border-green-400 rounded-lg">
+                        <p className="text-green-200">
+                          {gameState.turn === "w"
+                            ? "⚪ Trait aux blancs"
+                            : "⚫ Trait aux noirs"}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-blue-500/20 border border-blue-400 rounded-lg">
+                        <p className="text-blue-200">
+                          En attente du début de partie
+                        </p>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="p-3 bg-blue-500/20 border border-blue-400 rounded-lg">
-                    <p className="text-blue-200">
-                      En attente du début de partie
-                    </p>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
