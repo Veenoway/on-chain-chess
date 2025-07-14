@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react/no-direct-mutation-state */
 "use client";
 import { WalletConnection } from "@/components/connect-wallet";
 import { Chess } from "chess.js";
@@ -49,7 +52,6 @@ interface GameState {
 }
 
 // Variables globales pour partager l'état avec Multisynq
-let globalGameState: GameState;
 let globalSetGameState: (state: GameState) => void;
 
 export default function ChessMultisynqApp() {
@@ -82,7 +84,7 @@ export default function ChessMultisynqApp() {
   const [newMessage, setNewMessage] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("Prêt à jouer");
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
-  const [multisynqSession, setMultisynqSession] = useState<any>(null);
+  const [, setMultisynqSession] = useState<any>(null);
   const [multisynqView, setMultisynqView] = useState<any>(null);
   const [multisynqReady, setMultisynqReady] = useState(false);
   const [fen, setFen] = useState(
@@ -166,7 +168,6 @@ export default function ChessMultisynqApp() {
 
   // Synchroniser les variables globales
   useEffect(() => {
-    globalGameState = gameState;
     globalSetGameState = setGameState;
   }, [gameState]);
 
@@ -279,9 +280,14 @@ export default function ChessMultisynqApp() {
           this.publish(this.sessionId, "game-state", this.state);
         }
 
-        handleMove(data) {
+        handleMove(data: {
+          from: any;
+          to: any;
+          promotion: any;
+          playerId: any;
+        }) {
           console.log("🏃 Traitement mouvement:", data);
-          const { from, to, promotion, playerId } = data;
+          const { from, to, promotion } = data;
 
           const chess = new Chess(this.state.fen);
 
@@ -330,7 +336,7 @@ export default function ChessMultisynqApp() {
           }
         }
 
-        handlePlayerJoin(data) {
+        handlePlayerJoin(data: { playerId: any; wallet: any }) {
           console.log("👤 Joueur rejoint:", data);
           console.log("👥 Joueurs actuels:", this.state.players);
 
@@ -338,7 +344,7 @@ export default function ChessMultisynqApp() {
 
           // Vérifier si le joueur existe déjà
           const existingPlayerIndex = this.state.players.findIndex(
-            (p) => p.wallet === wallet
+            (p: { wallet: any }) => p.wallet === wallet
           );
 
           if (existingPlayerIndex >= 0) {
@@ -349,7 +355,7 @@ export default function ChessMultisynqApp() {
           } else if (this.state.players.length < this.state.maxPlayers) {
             // Assigner une couleur disponible
             const hasWhitePlayer = this.state.players.some(
-              (p) => p.color === "white"
+              (p: { color: string }) => p.color === "white"
             );
             const color = hasWhitePlayer ? "black" : "white";
 
@@ -371,7 +377,11 @@ export default function ChessMultisynqApp() {
           this.publish(this.sessionId, "game-state", this.state);
         }
 
-        handleChatMessage(message) {
+        handleChatMessage(message: {
+          message: string;
+          playerId: string;
+          playerWallet: string;
+        }) {
           console.log("💬 Message chat:", message);
           this.state.messages.push({
             ...message,
@@ -408,7 +418,7 @@ export default function ChessMultisynqApp() {
 
       // Définir la vue Chess
       class ChessView extends Multisynq.View {
-        constructor(model) {
+        constructor(model: any) {
           super(model);
           console.log("👁️ Initialisation ChessView");
 
@@ -416,11 +426,21 @@ export default function ChessMultisynqApp() {
           this.subscribe(this.sessionId, "game-state", "updateGameState");
         }
 
-        updateGameState(newState) {
+        updateGameState(newState: {
+          players: any;
+          messages: any;
+          fen: any;
+          isActive: undefined;
+          turn: any;
+          roomName: any;
+          roomPassword: any;
+        }) {
           console.log("🔄 Mise à jour état jeu:", newState);
           if (globalSetGameState) {
             // Forcer la mise à jour avec toutes les propriétés
-            globalSetGameState((prevState) => ({
+            // @ts-ignore
+
+            globalSetGameState((prevState: GameState) => ({
               ...prevState,
               ...newState,
               // S'assurer que les propriétés importantes sont bien mises à jour
@@ -439,7 +459,7 @@ export default function ChessMultisynqApp() {
         }
 
         // Méthodes pour envoyer des actions
-        makeMove(from, to, playerId, promotion) {
+        makeMove(from: any, to: any, playerId: any, promotion: any) {
           console.log("📤 Envoi mouvement:", { from, to, playerId });
           this.publish(this.sessionId, "move", {
             from,
@@ -449,12 +469,12 @@ export default function ChessMultisynqApp() {
           });
         }
 
-        joinPlayer(wallet, playerId) {
+        joinPlayer(wallet: any, playerId: any) {
           console.log("📤 Envoi join player:", { wallet, playerId });
           this.publish(this.sessionId, "join-player", { wallet, playerId });
         }
 
-        sendMessage(message, playerId, playerWallet) {
+        sendMessage(message: any, playerId: any, playerWallet: any) {
           console.log("📤 Envoi message:", { message, playerId });
           this.publish(this.sessionId, "chat-message", {
             message,
@@ -517,8 +537,8 @@ export default function ChessMultisynqApp() {
       const session = await Multisynq.Session.join({
         apiKey,
         appId: "com.onchainchess-novee.game",
-        model: ChessModel, // Passer la classe directement
-        view: ChessView, // Passer la classe directement
+        model: (window as any).ChessModel,
+        view: (window as any).ChessView,
         name: roomName,
         password: password,
       });
@@ -616,6 +636,7 @@ export default function ChessMultisynqApp() {
       // Joindre en tant que joueur
       session.view.joinPlayer(address, playerId);
 
+      // Attendre un peu pour la synchronisation puis mettre à jour l'état local
       setTimeout(() => {
         setGameState((prev) => ({
           ...prev,
@@ -698,27 +719,11 @@ export default function ChessMultisynqApp() {
     setNewMessage("");
   };
 
-  // Démarrer la partie
-  const handleStartGame = () => {
-    if (!multisynqView) return;
-    multisynqView.startGame();
-  };
-
-  // Nouvelle partie
   const handleNewGame = () => {
     if (!multisynqView) return;
     multisynqView.resetGame();
   };
 
-  // Déterminer l'orientation de l'échiquier
-  const getBoardOrientation = (): "white" | "black" => {
-    const currentPlayer = gameState.players.find(
-      (p) => p.id === currentPlayerId
-    );
-    return currentPlayer?.color === "black" ? "black" : "white";
-  };
-
-  // Calcul du temps restant
   const getCurrentPlayerTime = (): number => {
     const currentPlayer = gameState.players.find(
       (p) => p.id === currentPlayerId
@@ -759,7 +764,7 @@ export default function ChessMultisynqApp() {
               ♔ Chess Multi
             </h1>
             <p className="text-blue-200">
-              Jeu d'échecs en temps réel avec Multisynq
+              Jeu d&apos;échecs en temps réel avec Multisynq
             </p>
           </div>
 
@@ -810,7 +815,8 @@ export default function ChessMultisynqApp() {
                       className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-400"
                     />
                     <p className="text-xs text-blue-300">
-                      Format: "chess-abc123" ou "chess-abc123:motdepasse"
+                      Format: &quot;chess-abc123&quot; ou
+                      &quot;chess-abc123:motdepasse&quot;
                     </p>
                     <button
                       onClick={handleJoinRoom}
@@ -871,76 +877,6 @@ export default function ChessMultisynqApp() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-          {/* Panel de gauche - Infos joueurs */}
-          {/* <div className="lg:col-span-1 space-y-4">
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-              <h3 className="text-lg font-semibold text-white mb-3">
-                👥 Joueurs ({gameState.players.length}/{gameState.maxPlayers})
-              </h3>
-
-              {process.env.NODE_ENV === "development" && (
-                <div className="mb-2 p-2 bg-gray-800 rounded text-xs text-gray-300">
-                  Debug:{" "}
-                  {JSON.stringify(
-                    gameState.players.map((p) => ({
-                      id: p.id.slice(-4),
-                      wallet: p.wallet.slice(-4),
-                      color: p.color,
-                    }))
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                {gameState.players.map((player) => (
-                  <div
-                    key={player.id}
-                    className={`p-3 rounded-lg border ${
-                      player.id === currentPlayerId
-                        ? "bg-blue-500/20 border-blue-400"
-                        : "bg-white/5 border-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-white">
-                          {player.color === "white" ? "⚪" : "⚫"}
-                          {player.wallet.slice(0, 6)}...
-                          {player.wallet.slice(-4)}
-                          {player.id === currentPlayerId && " (Vous)"}
-                        </div>
-                        <div className="text-sm text-gray-300">
-                          {player.connected ? "🟢 En ligne" : "🔴 Hors ligne"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {gameState.players.length < 2 && (
-                  <div className="p-3 bg-yellow-500/20 border border-yellow-400 rounded-lg">
-                    <p className="text-yellow-200 text-sm">
-                      En attente d'un adversaire... ({gameState.players.length}
-                      /2)
-                    </p>
-                    <p className="text-yellow-100 text-xs mt-1">
-                      Partagez ce lien pour inviter quelqu'un !
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {gameState.players.length >= 2 && !gameState.isActive && (
-                <button
-                  onClick={handleStartGame}
-                  className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  Start Game
-                </button>
-              )}
-            </div>
-          </div> */}
-
           {/* Panel central - Échiquier */}
           <div className="lg:col-span-4">
             <div className="">
