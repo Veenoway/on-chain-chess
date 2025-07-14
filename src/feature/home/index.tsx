@@ -1,24 +1,47 @@
 // ChessApp avec session dynamique et synchronisation
 "use client";
+import { WalletConnection } from "@/components/connect-wallet";
 import { Chess } from "chess.js";
 import { useEffect, useRef, useState } from "react";
 import { Chessboard, type PieceDropHandlerArgs } from "react-chessboard";
+import { useAccount } from "wagmi";
 
 export default function ChessMultisynqApp() {
+  // États pour l'interface
   const [fen, setFen] = useState(
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   );
   const [sessionInfo, setSessionInfo] = useState({ name: "", password: "" });
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState("Prêt à jouer");
   const [isGameActive, setIsGameActive] = useState(false);
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
-  const [playerId] = useState(Date.now().toString()); // ID unique pour chaque joueur
+  const [playerId] = useState(Date.now().toString());
+
+  // États pour les timers individuels
+  const [whiteTime, setWhiteTime] = useState(600); // 10 minutes par défaut
+  const [blackTime, setBlackTime] = useState(600); // 10 minutes par défaut
+  const [gameTimeLimit, setGameTimeLimit] = useState(600); // Temps sélectionné
+  const [showTimeSelector, setShowTimeSelector] = useState(false);
+  const [lastMoveTime, setLastMoveTime] = useState<number | null>(null);
+
+  // États pour le chat
+  const [messages, setMessages] = useState<
+    Array<{
+      id: string;
+      playerId: string;
+      playerWallet: string;
+      message: string;
+      timestamp: number;
+    }>
+  >([]);
+  const [newMessage, setNewMessage] = useState("");
+
+  // Wallet connection
+  const { address, isConnected } = useAccount();
 
   // États pour les fins de partie
   const [gameResult, setGameResult] = useState<{
-    type: "abandoned" | "draw" | "checkmate" | "stalemate" | null;
+    type: "abandoned" | "draw" | "checkmate" | "stalemate" | "timeout" | null;
     winner?: "white" | "black" | "draw";
     message?: string;
   }>({ type: null });
@@ -29,6 +52,54 @@ export default function ChessMultisynqApp() {
 
   const gameRef = useRef(new Chess());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Valeurs des pièces pour le calcul de l'avantage matériel
+  const pieceValues: { [key: string]: number } = {
+    p: 1, // pion
+    n: 3, // cavalier
+    b: 3, // fou
+    r: 5, // tour
+    q: 9, // dame
+    k: 0, // roi (ne compte pas)
+  };
+
+  // Fonction pour tronquer l'adresse wallet
+  const formatWalletAddress = (address: string) => {
+    return `${address?.slice(0, 6)}...${address?.slice(-4)}`;
+  };
+
+  // Fonction pour formater le temps en MM:SS
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Sélecteur de temps de partie
+  const selectGameTime = (minutes: number) => {
+    const seconds = minutes * 60;
+    setGameTimeLimit(seconds);
+    setWhiteTime(seconds);
+    setBlackTime(seconds);
+    setShowTimeSelector(false);
+
+    // Sauvegarder dans la room
+    const roomKey = `chess-room-${sessionInfo.name}`;
+    const existingRoom = localStorage.getItem(roomKey);
+
+    if (existingRoom) {
+      const roomData = JSON.parse(existingRoom);
+      const updatedRoom = {
+        ...roomData,
+        gameTimeLimit: seconds,
+        whiteTime: seconds,
+        blackTime: seconds,
+      };
+      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+    }
+
+    console.log(`⏰ Temps de partie sélectionné: ${minutes} minutes`);
+  };
 
   // Générer une session unique au démarrage
   useEffect(() => {
@@ -159,9 +230,6 @@ export default function ChessMultisynqApp() {
           console.log("📱 Mise à jour FEN:", roomData.fen);
           setFen(roomData.fen);
           gameRef.current.load(roomData.fen);
-
-          // Forcer le re-render en mettant à jour un état
-          setElapsedTime((prev) => prev); // Trigger re-render
         }
 
         if (roomData.isActive !== isGameActive) {
@@ -169,9 +237,20 @@ export default function ChessMultisynqApp() {
           setIsGameActive(roomData.isActive);
         }
 
-        if (roomData.startTime && roomData.startTime !== startTime) {
-          console.log("⏰ Mise à jour startTime:", roomData.startTime);
-          setStartTime(roomData.startTime);
+        // Synchroniser les timers
+        if (roomData.whiteTime !== whiteTime) {
+          console.log("⏰ Mise à jour whiteTime:", roomData.whiteTime);
+          setWhiteTime(roomData.whiteTime);
+        }
+
+        if (roomData.blackTime !== blackTime) {
+          console.log("⏰ Mise à jour blackTime:", roomData.blackTime);
+          setBlackTime(roomData.blackTime);
+        }
+
+        if (roomData.lastMoveTime !== lastMoveTime) {
+          console.log("⏰ Mise à jour lastMoveTime:", roomData.lastMoveTime);
+          setLastMoveTime(roomData.lastMoveTime);
         }
 
         // Synchroniser les fins de partie
@@ -215,6 +294,12 @@ export default function ChessMultisynqApp() {
           setPlayerColor(roomData.player2Color);
         }
 
+        // Synchroniser les messages du chat
+        if (roomData.messages && roomData.messages.length !== messages.length) {
+          console.log("💬 Synchronisation des messages:", roomData.messages);
+          setMessages(roomData.messages);
+        }
+
         // Mettre à jour le statut selon les joueurs connectés
         const player1Connected = !!roomData.player1Id;
         const player2Connected = !!roomData.player2Id;
@@ -243,10 +328,13 @@ export default function ChessMultisynqApp() {
           gameRef.current.load(parsed.fen);
         }
 
-        // Synchroniser timer
-        if (parsed.startTime !== startTime) {
-          console.log("🔄 Polling: Timer différent détecté");
-          setStartTime(parsed.startTime);
+        // Synchroniser timers
+        if (parsed.whiteTime !== whiteTime) {
+          setWhiteTime(parsed.whiteTime);
+        }
+
+        if (parsed.blackTime !== blackTime) {
+          setBlackTime(parsed.blackTime);
         }
 
         // Synchroniser état du jeu
@@ -269,6 +357,12 @@ export default function ChessMultisynqApp() {
           console.log("🔄 Polling: Couleur joueur 2 différente");
           setPlayerColor(parsed.player2Color);
         }
+
+        // Synchroniser les messages
+        if (parsed.messages && parsed.messages.length !== messages.length) {
+          console.log("🔄 Polling: Messages différents détectés");
+          setMessages(parsed.messages);
+        }
       }
     }, 1000); // Vérifier toutes les secondes
 
@@ -280,18 +374,63 @@ export default function ChessMultisynqApp() {
     sessionInfo.name,
     fen,
     isGameActive,
-    startTime,
+    whiteTime,
+    blackTime,
+    lastMoveTime,
     gameResult,
     drawOffer,
     playerColor,
     playerId,
+    messages.length,
   ]);
 
-  // Timer pour le jeu
+  // Timer principal pour décompter le temps
   useEffect(() => {
-    if (startTime && isGameActive) {
+    if (isGameActive && lastMoveTime) {
       timerRef.current = setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+        const currentTurn = gameRef.current.turn();
+
+        if (currentTurn === "w") {
+          const newWhiteTime = Math.max(0, whiteTime - 1);
+          setWhiteTime(newWhiteTime);
+
+          // Vérifier si le temps est écoulé
+          if (newWhiteTime <= 0) {
+            const result = {
+              type: "timeout" as const,
+              winner: "black" as const,
+              message:
+                "Les Blancs ont dépassé le temps limite ! Les Noirs gagnent !",
+            };
+            setGameResult(result);
+            setIsGameActive(false);
+            syncGameEndState(result);
+            return;
+          }
+
+          // Synchroniser le nouveau temps
+          syncTimers(newWhiteTime, blackTime, lastMoveTime);
+        } else {
+          const newBlackTime = Math.max(0, blackTime - 1);
+          setBlackTime(newBlackTime);
+
+          // Vérifier si le temps est écoulé
+          if (newBlackTime <= 0) {
+            const result = {
+              type: "timeout" as const,
+              winner: "white" as const,
+              message:
+                "Les Noirs ont dépassé le temps limite ! Les Blancs gagnent !",
+            };
+            setGameResult(result);
+            setIsGameActive(false);
+            syncGameEndState(result);
+            return;
+          }
+
+          // Synchroniser le nouveau temps
+          syncTimers(whiteTime, newBlackTime, lastMoveTime);
+        }
       }, 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -300,13 +439,34 @@ export default function ChessMultisynqApp() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [startTime, isGameActive]);
+  }, [isGameActive, lastMoveTime, whiteTime, blackTime]);
+
+  // Synchroniser les timers avec localStorage
+  const syncTimers = (
+    newWhiteTime: number,
+    newBlackTime: number,
+    moveTime: number
+  ) => {
+    const roomKey = `chess-room-${sessionInfo.name}`;
+    const existingRoom = localStorage.getItem(roomKey);
+
+    if (existingRoom) {
+      const roomData = JSON.parse(existingRoom);
+      const updatedRoom = {
+        ...roomData,
+        whiteTime: newWhiteTime,
+        blackTime: newBlackTime,
+        lastMoveTime: moveTime,
+      };
+      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+    }
+  };
 
   // Synchroniser les changements avec localStorage
   const syncGameState = (
     newFen: string,
     gameActive: boolean,
-    gameStartTime: number | null = null
+    moveTime: number | null = null
   ) => {
     const roomKey = `chess-room-${sessionInfo.name}`;
     const existingRoom = localStorage.getItem(roomKey);
@@ -317,7 +477,7 @@ export default function ChessMultisynqApp() {
         ...roomData,
         fen: newFen,
         isActive: gameActive,
-        startTime: gameStartTime || roomData.startTime,
+        lastMoveTime: moveTime || roomData.lastMoveTime,
         turn: gameRef.current.turn(),
         // Maintenir les données des joueurs
         player1Id: roomData.player1Id,
@@ -334,12 +494,11 @@ export default function ChessMultisynqApp() {
   // Commencer une partie
   const startGame = () => {
     const now = Date.now();
-    setStartTime(now);
-    setElapsedTime(0);
+    setLastMoveTime(now);
     setIsGameActive(true);
     setConnectionStatus("Partie en cours");
     syncGameState(fen, true, now);
-    console.log("🚀 Partie démarrée");
+    console.log("🚀 Partie démarrée avec timers");
   };
 
   // Gérer les mouvements
@@ -389,7 +548,9 @@ export default function ChessMultisynqApp() {
 
       if (move) {
         const newFen = gameRef.current.fen();
+        const now = Date.now();
         setFen(newFen);
+        setLastMoveTime(now); // Important: réinitialiser le timer pour le prochain joueur
         console.log("✅ Mouvement valide:", move);
         console.log("📋 Nouveau FEN:", newFen);
 
@@ -397,7 +558,7 @@ export default function ChessMultisynqApp() {
         if (!isGameActive) {
           startGame();
         } else {
-          syncGameState(newFen, isGameActive);
+          syncGameState(newFen, isGameActive, now);
         }
 
         return true;
@@ -409,35 +570,6 @@ export default function ChessMultisynqApp() {
       console.warn("❌ Erreur de mouvement:", error);
       return false;
     }
-  };
-
-  // Fonction helper pour les boutons de test
-  const makeTestMove = (from: string, to: string) => {
-    // Pour les tests, on simule juste le mouvement directement
-    try {
-      const move = gameRef.current.move({
-        from: from,
-        to: to,
-        promotion: "q",
-      });
-
-      if (move) {
-        const newFen = gameRef.current.fen();
-        setFen(newFen);
-        console.log("✅ Test mouvement valide:", move);
-
-        if (!isGameActive) {
-          startGame();
-        } else {
-          syncGameState(newFen, isGameActive);
-        }
-
-        return true;
-      }
-    } catch (error) {
-      console.warn("❌ Test mouvement invalide:", error);
-    }
-    return false;
   };
 
   // Fonctions pour les fins de partie
@@ -525,8 +657,9 @@ export default function ChessMultisynqApp() {
       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     setFen(initialFen);
     setIsGameActive(false);
-    setStartTime(null);
-    setElapsedTime(0);
+    setLastMoveTime(null);
+    setWhiteTime(gameTimeLimit); // Reset aux temps sélectionnés
+    setBlackTime(gameTimeLimit); // Reset aux temps sélectionnés
     setGameResult({ type: null });
     setDrawOffer({ offered: false, by: null });
     setConnectionStatus("Prêt à jouer");
@@ -553,7 +686,9 @@ export default function ChessMultisynqApp() {
         ...roomData,
         fen: initialFen,
         isActive: false,
-        startTime: null,
+        lastMoveTime: null,
+        whiteTime: gameTimeLimit,
+        blackTime: gameTimeLimit,
         gameResult: null,
         drawOffer: { offered: false, by: null },
         turn: "w",
@@ -570,10 +705,87 @@ export default function ChessMultisynqApp() {
     }
   };
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, "0")}`;
+  // Calculer l'avantage matériel
+  const calculateMaterialAdvantage = () => {
+    const board = gameRef.current.board();
+    const whitePieces: string[] = [];
+    const blackPieces: string[] = [];
+
+    // Compter les pièces sur l'échiquier
+    board.forEach((row) => {
+      row.forEach((square) => {
+        if (square) {
+          if (square.color === "w") {
+            whitePieces.push(square.type.toUpperCase());
+          } else {
+            blackPieces.push(square.type.toLowerCase());
+          }
+        }
+      });
+    });
+
+    // Calculer l'avantage
+    const whiteCaptured: string[] = [];
+    const blackCaptured: string[] = [];
+
+    // Compter chaque type de pièce
+    const pieceCount = {
+      white: { Q: 0, R: 0, B: 0, N: 0, P: 0 },
+      black: { q: 0, r: 0, b: 0, n: 0, p: 0 },
+    };
+
+    // Compter les pièces actuellement sur l'échiquier
+    whitePieces.forEach((piece) => {
+      if (piece !== "K")
+        pieceCount.white[piece as keyof typeof pieceCount.white]++;
+    });
+    blackPieces.forEach((piece) => {
+      if (piece !== "k")
+        pieceCount.black[piece as keyof typeof pieceCount.black]++;
+    });
+
+    // Pièces de départ par type
+    const startingCount = {
+      white: { Q: 1, R: 2, B: 2, N: 2, P: 8 },
+      black: { q: 1, r: 2, b: 2, n: 2, p: 8 },
+    };
+
+    // Calculer les pièces capturées
+    Object.entries(startingCount.white).forEach(([pieceType, startCount]) => {
+      const currentCount =
+        pieceCount.white[pieceType as keyof typeof pieceCount.white];
+      const captured = startCount - currentCount;
+      for (let i = 0; i < captured; i++) {
+        blackCaptured.push(pieceType); // Pièces blanches capturées = avantage noir
+      }
+    });
+
+    Object.entries(startingCount.black).forEach(([pieceType, startCount]) => {
+      const currentCount =
+        pieceCount.black[pieceType as keyof typeof pieceCount.black];
+      const captured = startCount - currentCount;
+      for (let i = 0; i < captured; i++) {
+        whiteCaptured.push(pieceType); // Pièces noires capturées = avantage blanc
+      }
+    });
+
+    const whiteCapturedValue = whiteCaptured.reduce(
+      (sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0),
+      0
+    );
+    const blackCapturedValue = blackCaptured.reduce(
+      (sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0),
+      0
+    );
+
+    return {
+      whiteAdvantage: whiteCapturedValue - blackCapturedValue,
+      blackAdvantage: blackCapturedValue - whiteCapturedValue,
+      whiteCaptured,
+      blackCaptured,
+      whiteCapturedValue,
+      blackCapturedValue,
+    };
   };
 
   const sessionLink =
@@ -592,256 +804,622 @@ export default function ChessMultisynqApp() {
     );
   };
 
+  // Fonction pour envoyer un message
+  const sendMessage = () => {
+    if (!newMessage.trim() || !isConnected || !address) return;
+
+    const message = {
+      id: Date.now().toString(),
+      playerId,
+      playerWallet: address,
+      message: newMessage.trim(),
+      timestamp: Date.now(),
+    };
+
+    const roomKey = `chess-room-${sessionInfo.name}`;
+    const existingRoom = localStorage.getItem(roomKey);
+
+    if (existingRoom) {
+      const roomData = JSON.parse(existingRoom);
+      const updatedMessages = [...(roomData.messages || []), message];
+      const updatedRoom = {
+        ...roomData,
+        messages: updatedMessages,
+      };
+      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+      setNewMessage("");
+    }
+  };
+
   // Configuration de react-chessboard selon la documentation officielle
   const chessboardOptions = {
     position: fen,
     onPieceDrop: onPieceDrop,
     boardOrientation: playerColor,
     arePiecesDraggable: true,
-    boardWidth: 400,
+    boardWidth: 480,
     animationDuration: 200,
     showBoardNotation: true,
   };
 
+  // Calculer l'avantage matériel actuel
+  const materialAdvantage = calculateMaterialAdvantage();
+
   return (
-    <div className="flex flex-col items-center gap-4 mt-4 text-white">
-      <div className="bg-black/70 p-4 rounded-xl shadow-md w-fit text-center">
-        <p className="mb-1">
-          🔗 Status: <strong>{connectionStatus}</strong>
-        </p>
-        <p className="mb-1">
-          🎯 Room: <strong>{sessionInfo.name}</strong>
-        </p>
-        <p className="mb-1">
-          🔒 Password: <strong>{sessionInfo.password}</strong>
-        </p>
-        <p className="mb-1">🕒 Time: {formatTime(elapsedTime)}</p>
-        <p className="mb-1">
-          🎭 Vous jouez:{" "}
-          <strong>{playerColor === "white" ? "Blancs" : "Noirs"}</strong>
-        </p>
-        <p className="mb-1">
-          🎯 Tour actuel:{" "}
-          <strong>{gameRef.current.turn() === "w" ? "Blancs" : "Noirs"}</strong>
-        </p>
-
-        <div className="flex gap-2 mt-3">
-          <button
-            className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-            onClick={copyInviteLink}
-          >
-            📎 Copier le lien
-          </button>
-
-          <button
-            className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 transition-colors"
-            onClick={startGame}
-            disabled={isGameActive}
-          >
-            🚀 Démarrer
-          </button>
-
-          <button
-            className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 transition-colors"
-            onClick={resetGame}
-          >
-            🔄 Reset
-          </button>
-        </div>
-
-        {/* Boutons de fin de partie */}
-        {isGameActive && !gameResult.type && (
-          <div className="flex gap-2 mt-2">
-            <button
-              className="px-2 py-1 bg-orange-600 rounded hover:bg-orange-700 text-xs transition-colors"
-              onClick={abandonGame}
-            >
-              🏳️ Abandonner
-            </button>
-
-            <button
-              className="px-2 py-1 bg-purple-600 rounded hover:bg-purple-700 text-xs transition-colors"
-              onClick={offerDraw}
-              disabled={drawOffer.offered}
-            >
-              🤝 Proposer nul
-            </button>
-          </div>
-        )}
-
-        {/* Proposition de nul en cours */}
-        {drawOffer.offered && drawOffer.by && drawOffer.by !== playerColor && (
-          <div className="mt-3 p-3 bg-purple-900/50 rounded-lg">
-            <p className="text-sm font-bold text-purple-300 mb-2">
-              🤝 Proposition de nul reçue !
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Sélecteur de temps modal */}
+      {showTimeSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-xl font-bold mb-4 text-center">
+              ⏰ Sélectionner le temps de partie
+            </h3>
+            <p className="text-center mb-6 text-gray-400">
+              Choisissez la durée pour chaque joueur :
             </p>
-            <p className="text-xs mb-3">
-              {drawOffer.by === "white" ? "Les Blancs" : "Les Noirs"} proposent
-              un match nul.
-            </p>
-            <div className="flex gap-2">
+            <div className="space-y-3">
               <button
-                className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 text-xs transition-colors"
+                onClick={() => selectGameTime(3)}
+                className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded transition-colors"
+              >
+                🏃‍♂️ Partie rapide - 3 minutes
+              </button>
+              <button
+                onClick={() => selectGameTime(5)}
+                className="w-full bg-green-600 hover:bg-green-700 py-3 rounded transition-colors"
+              >
+                ⚡ Partie blitz - 5 minutes
+              </button>
+              <button
+                onClick={() => selectGameTime(10)}
+                className="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded transition-colors"
+              >
+                🎯 Partie standard - 10 minutes
+              </button>
+              <button
+                onClick={() => selectGameTime(15)}
+                className="w-full bg-orange-600 hover:bg-orange-700 py-3 rounded transition-colors"
+              >
+                🐌 Partie longue - 15 minutes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header avec informations de connexion */}
+      <div className="bg-gray-800 border-b border-gray-700 p-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold">♔ Chess Game</h1>
+            <div className="text-sm text-gray-400">
+              Room: <span className="text-blue-400">{sessionInfo.name}</span>
+            </div>
+          </div>
+
+          {/* Wallet Connection */}
+          <div className="flex items-center gap-4">
+            <WalletConnection />
+          </div>
+        </div>
+      </div>
+
+      {/* Main Game Layout */}
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Left Panel - Game Info */}
+          <div className="lg:col-span-1 space-y-4">
+            {/* Player Info - Top (Adversaire) */}
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
+                  {playerColor === "white" ? "♚" : "♔"}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold">Adversaire</div>
+                  <div className="text-xs text-gray-400">En attente...</div>
+                </div>
+                {/* Timer adversaire */}
+                <div className="text-right">
+                  <div
+                    className={`text-2xl font-mono ${
+                      (gameRef.current.turn() === "b" &&
+                        playerColor === "white") ||
+                      (gameRef.current.turn() === "w" &&
+                        playerColor === "black")
+                        ? "text-red-400"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {playerColor === "white"
+                      ? formatTime(blackTime)
+                      : formatTime(whiteTime)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {playerColor === "white" ? "Black" : "White"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Pieces captured by opponent */}
+              <div className="flex gap-1 min-h-[24px]">
+                {playerColor === "white"
+                  ? materialAdvantage.blackCaptured.map((piece, index) => (
+                      <span key={index} className="text-lg">
+                        {piece === "Q"
+                          ? "♕"
+                          : piece === "R"
+                          ? "♖"
+                          : piece === "B"
+                          ? "♗"
+                          : piece === "N"
+                          ? "♘"
+                          : "♙"}
+                      </span>
+                    ))
+                  : materialAdvantage.whiteCaptured.map((piece, index) => (
+                      <span key={index} className="text-lg">
+                        {piece === "q"
+                          ? "♛"
+                          : piece === "r"
+                          ? "♜"
+                          : piece === "b"
+                          ? "♝"
+                          : piece === "n"
+                          ? "♞"
+                          : "♟"}
+                      </span>
+                    ))}
+                {((playerColor === "white" &&
+                  materialAdvantage.blackAdvantage > 0) ||
+                  (playerColor === "black" &&
+                    materialAdvantage.whiteAdvantage > 0)) && (
+                  <span className="text-green-400 font-bold text-sm ml-2">
+                    +
+                    {playerColor === "white"
+                      ? materialAdvantage.blackAdvantage
+                      : materialAdvantage.whiteAdvantage}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Game Status */}
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="font-bold mb-3">Game Status</h3>
+              <div className="space-y-2 text-sm">
+                <div>
+                  Status:{" "}
+                  <span className="text-blue-400">{connectionStatus}</span>
+                </div>
+                <div>
+                  Game Time:{" "}
+                  <span className="text-yellow-400">
+                    {formatTime(gameTimeLimit)} per player
+                  </span>
+                </div>
+                <div>
+                  Your Color:{" "}
+                  <span className="text-green-400">
+                    {playerColor === "white" ? "White" : "Black"}
+                  </span>
+                </div>
+                <div>
+                  Turn:{" "}
+                  <span className="text-orange-400">
+                    {gameRef.current.turn() === "w" ? "White" : "Black"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Game Controls */}
+              <div className="flex gap-2 mt-4">
+                <button
+                  className="px-3 py-1 bg-purple-600 rounded hover:bg-purple-700 transition-colors text-xs"
+                  onClick={() => setShowTimeSelector(true)}
+                  disabled={isGameActive}
+                >
+                  ⏰ Time
+                </button>
+                <button
+                  className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 transition-colors text-xs"
+                  onClick={startGame}
+                  disabled={isGameActive}
+                >
+                  🚀 Start
+                </button>
+                <button
+                  className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 transition-colors text-xs"
+                  onClick={resetGame}
+                >
+                  🔄 Reset
+                </button>
+              </div>
+
+              {/* End Game Actions */}
+              {isGameActive && !gameResult.type && (
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="px-2 py-1 bg-orange-600 rounded hover:bg-orange-700 text-xs transition-colors"
+                    onClick={abandonGame}
+                  >
+                    🏳️ Resign
+                  </button>
+                  <button
+                    className="px-2 py-1 bg-purple-600 rounded hover:bg-purple-700 text-xs transition-colors"
+                    onClick={offerDraw}
+                    disabled={drawOffer.offered}
+                  >
+                    🤝 Draw
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Share Game */}
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="font-bold mb-3">Share Game</h3>
+              <button
+                className="w-full px-3 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-sm"
+                onClick={copyInviteLink}
+              >
+                📎 Copy Invite Link
+              </button>
+            </div>
+          </div>
+
+          {/* Center - Chessboard */}
+          <div className="lg:col-span-2">
+            <div className="bg-gray-800 rounded-lg p-4">
+              {/* Top captured pieces */}
+              <div className="flex justify-start items-center mb-4 h-8">
+                {playerColor === "white" ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">♚</span>
+                    <div className="flex gap-1">
+                      {materialAdvantage.blackCaptured.map((piece, index) => (
+                        <span key={index} className="text-xl">
+                          {piece === "Q"
+                            ? "♕"
+                            : piece === "R"
+                            ? "♖"
+                            : piece === "B"
+                            ? "♗"
+                            : piece === "N"
+                            ? "♘"
+                            : "♙"}
+                        </span>
+                      ))}
+                    </div>
+                    {materialAdvantage.blackAdvantage > 0 && (
+                      <span className="text-green-400 font-bold text-sm">
+                        +{materialAdvantage.blackAdvantage}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">♔</span>
+                    <div className="flex gap-1">
+                      {materialAdvantage.whiteCaptured.map((piece, index) => (
+                        <span key={index} className="text-xl">
+                          {piece === "q"
+                            ? "♛"
+                            : piece === "r"
+                            ? "♜"
+                            : piece === "b"
+                            ? "♝"
+                            : piece === "n"
+                            ? "♞"
+                            : "♟"}
+                        </span>
+                      ))}
+                    </div>
+                    {materialAdvantage.whiteAdvantage > 0 && (
+                      <span className="text-green-400 font-bold text-sm">
+                        +{materialAdvantage.whiteAdvantage}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Chessboard */}
+              <div className="flex justify-center">
+                <div style={{ width: "480px", height: "480px" }}>
+                  <Chessboard options={chessboardOptions} />
+                </div>
+              </div>
+
+              {/* Bottom captured pieces */}
+              <div className="flex justify-start items-center mt-4 h-8">
+                {playerColor === "white" ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">♔</span>
+                    <div className="flex gap-1">
+                      {materialAdvantage.whiteCaptured.map((piece, index) => (
+                        <span key={index} className="text-xl">
+                          {piece === "q"
+                            ? "♛"
+                            : piece === "r"
+                            ? "♜"
+                            : piece === "b"
+                            ? "♝"
+                            : piece === "n"
+                            ? "♞"
+                            : "♟"}
+                        </span>
+                      ))}
+                    </div>
+                    {materialAdvantage.whiteAdvantage > 0 && (
+                      <span className="text-green-400 font-bold text-sm">
+                        +{materialAdvantage.whiteAdvantage}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">♚</span>
+                    <div className="flex gap-1">
+                      {materialAdvantage.blackCaptured.map((piece, index) => (
+                        <span key={index} className="text-xl">
+                          {piece === "Q"
+                            ? "♕"
+                            : piece === "R"
+                            ? "♖"
+                            : piece === "B"
+                            ? "♗"
+                            : piece === "N"
+                            ? "♘"
+                            : "♙"}
+                        </span>
+                      ))}
+                    </div>
+                    {materialAdvantage.blackAdvantage > 0 && (
+                      <span className="text-green-400 font-bold text-sm">
+                        +{materialAdvantage.blackAdvantage}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Chat & Player Info */}
+          <div className="lg:col-span-1 space-y-4">
+            {/* Current Player Info */}
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  {playerColor === "white" ? "♔" : "♚"}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold">You</div>
+                  <div className="text-xs text-gray-400">
+                    {isConnected
+                      ? formatWalletAddress(address!)
+                      : "Not connected"}
+                  </div>
+                </div>
+                {/* Mon timer */}
+                <div className="text-right">
+                  <div
+                    className={`text-2xl font-mono ${
+                      (gameRef.current.turn() === "w" &&
+                        playerColor === "white") ||
+                      (gameRef.current.turn() === "b" &&
+                        playerColor === "black")
+                        ? "text-red-400"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {playerColor === "white"
+                      ? formatTime(whiteTime)
+                      : formatTime(blackTime)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {playerColor === "white" ? "White" : "Black"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Your captured pieces */}
+              <div className="flex gap-1 min-h-[24px]">
+                {playerColor === "white"
+                  ? materialAdvantage.whiteCaptured.map((piece, index) => (
+                      <span key={index} className="text-lg">
+                        {piece === "q"
+                          ? "♛"
+                          : piece === "r"
+                          ? "♜"
+                          : piece === "b"
+                          ? "♝"
+                          : piece === "n"
+                          ? "♞"
+                          : "♟"}
+                      </span>
+                    ))
+                  : materialAdvantage.blackCaptured.map((piece, index) => (
+                      <span key={index} className="text-lg">
+                        {piece === "Q"
+                          ? "♕"
+                          : piece === "R"
+                          ? "♖"
+                          : piece === "B"
+                          ? "♗"
+                          : piece === "N"
+                          ? "♘"
+                          : "♙"}
+                      </span>
+                    ))}
+                {((playerColor === "white" &&
+                  materialAdvantage.whiteAdvantage > 0) ||
+                  (playerColor === "black" &&
+                    materialAdvantage.blackAdvantage > 0)) && (
+                  <span className="text-green-400 font-bold text-sm ml-2">
+                    +
+                    {playerColor === "white"
+                      ? materialAdvantage.whiteAdvantage
+                      : materialAdvantage.blackAdvantage}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Chat */}
+            <div className="bg-gray-800 rounded-lg p-4 h-80 flex flex-col">
+              <h3 className="font-bold mb-3">Chat</h3>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+                {messages.map((msg) => (
+                  <div key={msg.id} className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-blue-400">
+                        {msg.playerId === playerId
+                          ? "You"
+                          : formatWalletAddress(msg.playerWallet)}
+                        :
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="text-gray-200 ml-2">{msg.message}</div>
+                  </div>
+                ))}
+                {messages.length === 0 && (
+                  <div className="text-gray-500 text-center text-sm">
+                    No messages yet...
+                  </div>
+                )}
+              </div>
+
+              {/* Message Input */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                  placeholder={
+                    isConnected ? "Type a message..." : "Connect wallet to chat"
+                  }
+                  disabled={!isConnected}
+                  className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!isConnected || !newMessage.trim()}
+                  className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Draw Offer Modal */}
+      {drawOffer.offered && drawOffer.by && drawOffer.by !== playerColor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-xl font-bold mb-4 text-center">
+              🤝 Draw Offer
+            </h3>
+            <p className="text-center mb-4">
+              {drawOffer.by === "white" ? "White" : "Black"} offers a draw.
+            </p>
+            <div className="flex gap-3">
+              <button
                 onClick={acceptDraw}
+                className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded transition-colors"
               >
-                ✅ Accepter
+                ✅ Accept
               </button>
               <button
-                className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 text-xs transition-colors"
                 onClick={declineDraw}
+                className="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded transition-colors"
               >
-                ❌ Refuser
+                ❌ Decline
               </button>
             </div>
           </div>
-        )}
-
-        {/* Attente de réponse */}
-        {drawOffer.offered && drawOffer.by === playerColor && (
-          <div className="mt-3 p-2 bg-yellow-900/50 rounded-lg">
-            <p className="text-xs text-yellow-300">
-              ⏳ En attente de la réponse à votre proposition de nul...
-            </p>
-          </div>
-        )}
-
-        {/* Boutons de test temporaires */}
-        <div className="flex gap-2 mt-2">
-          <button
-            className="px-2 py-1 bg-yellow-600 rounded hover:bg-yellow-700 text-xs"
-            onClick={() => makeTestMove("e2", "e4")}
-            disabled={gameRef.current.turn() !== "w" || playerColor !== "white"}
-          >
-            Test: e2-e4
-          </button>
-          <button
-            className="px-2 py-1 bg-yellow-600 rounded hover:bg-yellow-700 text-xs"
-            onClick={() => makeTestMove("e7", "e5")}
-            disabled={gameRef.current.turn() !== "b" || playerColor !== "black"}
-          >
-            Test: e7-e5
-          </button>
-          <button
-            className="px-2 py-1 bg-yellow-600 rounded hover:bg-yellow-700 text-xs"
-            onClick={() => makeTestMove("g1", "f3")}
-            disabled={gameRef.current.turn() !== "w" || playerColor !== "white"}
-          >
-            Test: g1-f3
-          </button>
         </div>
-      </div>
+      )}
 
-      <div className="w-96 h-96">
-        {/* Debug: afficher le FEN actuel */}
-        <div className="text-xs mb-2 bg-gray-800 p-2 rounded">
-          <strong>FEN actuel:</strong>
-          <br />
-          <code className="text-green-400">{fen}</code>
-          <br />
-          <strong>Tour:</strong>{" "}
-          <span className="text-yellow-400">
-            {gameRef.current.turn() === "w" ? "Blancs" : "Noirs"}
-          </span>
-          {" | "}
-          <strong>Vous:</strong>{" "}
-          <span className="text-blue-400">
-            {playerColor === "white" ? "Blancs" : "Noirs"}
-          </span>
-          {" | "}
-          <strong>Votre tour:</strong>{" "}
-          <span
-            className={
-              (gameRef.current.turn() === "w" && playerColor === "white") ||
-              (gameRef.current.turn() === "b" && playerColor === "black")
-                ? "text-green-400"
-                : "text-red-400"
-            }
-          >
-            {(gameRef.current.turn() === "w" && playerColor === "white") ||
-            (gameRef.current.turn() === "b" && playerColor === "black")
-              ? "OUI"
-              : "NON"}
-          </span>
-        </div>
-
-        {/* Chessboard avec la bonne API options */}
-        <Chessboard options={chessboardOptions} />
-
-        {/* Affichage alternatif simple */}
-        <div className="mt-2 text-xs bg-blue-900/50 p-2 rounded">
-          <strong>Dernière action:</strong>{" "}
-          {gameRef.current.history().slice(-1)[0] || "Aucune"}
-        </div>
-      </div>
-
-      {/* Instructions pour l'utilisateur */}
-      <div className="bg-blue-900/50 p-3 rounded-lg text-center mt-[200px] max-w-md">
-        <p className="text-sm mb-2">
-          <strong>🎮 Jeu d&apos;échecs synchronisé :</strong>
-        </p>
-        <p className="text-xs">
-          Drag &amp; drop les pièces ou utilisez les boutons de test. Copiez le
-          lien pour inviter un adversaire !
-        </p>
-      </div>
-
-      {/* Fin de partie - nouveau système complet */}
+      {/* Game End Modal */}
       {(gameResult.type || gameRef.current.isGameOver()) && (
-        <div className="bg-red-900/70 p-4 rounded-xl text-center">
-          <h2 className="text-xl font-bold mb-2">🏁 Partie terminée !</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4 text-center">
+            <h2 className="text-2xl font-bold mb-4">🏁 Game Over!</h2>
 
-          {/* Abandon */}
-          {gameResult.type === "abandoned" && (
-            <div>
-              <p className="text-lg mb-2">{gameResult.message}</p>
-              <p className="text-sm text-gray-300">Fin par abandon</p>
-            </div>
-          )}
+            {gameResult.type === "abandoned" && (
+              <div>
+                <p className="text-lg mb-2">{gameResult.message}</p>
+                <p className="text-sm text-gray-400">
+                  Game ended by resignation
+                </p>
+              </div>
+            )}
 
-          {/* Nul accepté */}
-          {gameResult.type === "draw" && (
-            <div>
-              <p className="text-lg mb-2">🤝 {gameResult.message}</p>
-              <p className="text-sm text-gray-300">Fin par accord mutuel</p>
-            </div>
-          )}
+            {gameResult.type === "timeout" && (
+              <div>
+                <p className="text-lg mb-2">{gameResult.message}</p>
+                <p className="text-sm text-gray-400">Game ended by timeout</p>
+              </div>
+            )}
 
-          {/* Fins de partie automatiques d'échecs */}
-          {!gameResult.type && gameRef.current.isGameOver() && (
-            <div>
-              {gameRef.current.isCheckmate() && (
-                <div>
-                  <p className="text-lg mb-2">
-                    ♔ Échec et mat !{" "}
-                    {gameRef.current.turn() === "w" ? "Noirs" : "Blancs"}{" "}
-                    gagnent !
-                  </p>
-                  <p className="text-sm text-gray-300">Fin par échec et mat</p>
-                </div>
-              )}
-              {gameRef.current.isDraw() && (
-                <div>
-                  <p className="text-lg mb-2">🤝 Match nul !</p>
-                  <p className="text-sm text-gray-300">
-                    Fin par règles d&apos;échecs
-                  </p>
-                </div>
-              )}
-              {gameRef.current.isStalemate() && (
-                <div>
-                  <p className="text-lg mb-2">🔒 Pat !</p>
-                  <p className="text-sm text-gray-300">Fin par pat</p>
-                </div>
-              )}
-            </div>
-          )}
+            {gameResult.type === "draw" && (
+              <div>
+                <p className="text-lg mb-2">🤝 {gameResult.message}</p>
+                <p className="text-sm text-gray-400">
+                  Game ended by mutual agreement
+                </p>
+              </div>
+            )}
 
-          <button
-            className="mt-4 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-            onClick={resetGame}
-          >
-            🔄 Nouvelle partie (couleurs inversées)
-          </button>
+            {!gameResult.type && gameRef.current.isGameOver() && (
+              <div>
+                {gameRef.current.isCheckmate() && (
+                  <div>
+                    <p className="text-lg mb-2">
+                      ♔ Checkmate!{" "}
+                      {gameRef.current.turn() === "w" ? "Black" : "White"} wins!
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Game ended by checkmate
+                    </p>
+                  </div>
+                )}
+                {gameRef.current.isDraw() && (
+                  <div>
+                    <p className="text-lg mb-2">🤝 Draw!</p>
+                    <p className="text-sm text-gray-400">
+                      Game ended by chess rules
+                    </p>
+                  </div>
+                )}
+                {gameRef.current.isStalemate() && (
+                  <div>
+                    <p className="text-lg mb-2">🔒 Stalemate!</p>
+                    <p className="text-sm text-gray-400">
+                      Game ended by stalemate
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={resetGame}
+              className="mt-6 w-full bg-blue-600 hover:bg-blue-700 py-2 rounded transition-colors"
+            >
+              🔄 New Game (colors swapped)
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -36,6 +36,7 @@ export function WalletConnection() {
   };
 
   const handleDisconnect = async () => {
+    console.log("disconnecting");
     try {
       disconnect();
     } catch (err) {

@@ -1,19 +1,19 @@
 import { Header } from "@/layouts/header";
 import ContextProvider from "@/lib/wagmi/provider";
 import type { Metadata } from "next";
-import { Barriecito } from "next/font/google";
+import { Poppins } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 
-const poppins = Barriecito({
+const poppins = Poppins({
   variable: "--font-beba",
   subsets: ["latin"],
   weight: "400",
 });
 
 export const metadata: Metadata = {
-  title: "Hell Of A Steve | Mint",
-  description: "Mint your Hell Of Steve NFTs on Monad testnet.",
+  title: "Chess Room | Play Chess On Chain",
+  description: "Play Chess Online with your friends.",
 };
 
 export default async function RootLayout({
