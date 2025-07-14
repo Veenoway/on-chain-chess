@@ -739,6 +739,17 @@ export default function ChessMultisynqApp() {
       : gameState.whiteTime;
   };
 
+  const chessboardOptions = {
+    position: fen, // useState
+    onPieceDrop: onPieceDrop,
+    boardOrientation: playerColor, // useState
+    arePiecesDraggable: gameState.isActive, // useState
+    boardWidth: 480,
+    animationDuration: 200,
+    showBoardNotation: true,
+    // + styles personnalisés
+  };
+
   // Interface d'accueil
   if (gameFlow === "welcome") {
     return (
