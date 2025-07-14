@@ -2,7 +2,7 @@
 "use client";
 import { Chess } from "chess.js";
 import { useEffect, useRef, useState } from "react";
-import { Chessboard } from "react-chessboard";
+import { Chessboard, type PieceDropHandlerArgs } from "react-chessboard";
 
 export default function ChessMultisynqApp() {
   const [fen, setFen] = useState(
@@ -14,6 +14,18 @@ export default function ChessMultisynqApp() {
   const [connectionStatus, setConnectionStatus] = useState("Prêt à jouer");
   const [isGameActive, setIsGameActive] = useState(false);
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
+  const [playerId] = useState(Date.now().toString()); // ID unique pour chaque joueur
+
+  // États pour les fins de partie
+  const [gameResult, setGameResult] = useState<{
+    type: "abandoned" | "draw" | "checkmate" | "stalemate" | null;
+    winner?: "white" | "black" | "draw";
+    message?: string;
+  }>({ type: null });
+  const [drawOffer, setDrawOffer] = useState<{
+    offered: boolean;
+    by: "white" | "black" | null;
+  }>({ offered: false, by: null });
 
   const gameRef = useRef(new Chess());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -43,7 +55,7 @@ export default function ChessMultisynqApp() {
     determinePlayerColor(roomName);
   }, []);
 
-  // Déterminer la couleur du joueur basé sur l'ordre d'arrivée
+  // Déterminer la couleur du joueur basé sur l'ordre d'arrivée et les parties précédentes
   const determinePlayerColor = (roomName: string) => {
     const roomKey = `chess-room-${roomName}`;
     const existingRoom = localStorage.getItem(roomKey);
@@ -52,31 +64,61 @@ export default function ChessMultisynqApp() {
       const roomData = JSON.parse(existingRoom);
       console.log("🏠 Room existante trouvée:", roomData);
 
-      // Compter le nombre de joueurs actuels
-      const playerCount = roomData.playerCount || 0;
+      // Vérifier si c'est un joueur existant
+      const isPlayer1 = roomData.player1Id === playerId;
+      const isPlayer2 = roomData.player2Id === playerId;
 
-      if (playerCount === 0) {
-        // Premier joueur = Blanc
-        setPlayerColor("white");
+      if (isPlayer1) {
+        // C'est le joueur 1 - utiliser sa couleur actuelle
+        setPlayerColor(roomData.player1Color || "white");
+        setConnectionStatus(
+          roomData.player2Id
+            ? "Partie prête ! Deux joueurs connectés"
+            : "En attente d'un adversaire..."
+        );
+        console.log(
+          "🎯 Joueur 1 reconnecté avec couleur:",
+          roomData.player1Color || "white"
+        );
+      } else if (isPlayer2) {
+        // C'est le joueur 2 - utiliser sa couleur actuelle
+        setPlayerColor(roomData.player2Color || "black");
+        setConnectionStatus("Partie prête ! Deux joueurs connectés");
+        console.log(
+          "🎯 Joueur 2 reconnecté avec couleur:",
+          roomData.player2Color || "black"
+        );
+      } else if (!roomData.player1Id) {
+        // Nouveau joueur 1
+        const player1Color = roomData.lastGameWinner
+          ? roomData.lastGameWinner === "white"
+            ? "black"
+            : "white"
+          : "white";
+        setPlayerColor(player1Color);
         setConnectionStatus("En attente d'un adversaire...");
         const updatedRoom = {
           ...roomData,
+          player1Id: playerId,
+          player1Color,
           playerCount: 1,
-          whitePlayer: Date.now(), // Timestamp pour identifier
         };
         localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-        console.log("🎯 Joueur 1 (Blanc) rejoint");
-      } else if (playerCount === 1) {
-        // Deuxième joueur = Noir
-        setPlayerColor("black");
+        console.log("🎯 Nouveau joueur 1 avec couleur:", player1Color);
+      } else if (!roomData.player2Id) {
+        // Nouveau joueur 2
+        const player2Color =
+          roomData.player1Color === "white" ? "black" : "white";
+        setPlayerColor(player2Color);
         setConnectionStatus("Partie prête ! Deux joueurs connectés");
         const updatedRoom = {
           ...roomData,
+          player2Id: playerId,
+          player2Color,
           playerCount: 2,
-          blackPlayer: Date.now(), // Timestamp pour identifier
         };
         localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-        console.log("🎯 Joueur 2 (Noir) rejoint");
+        console.log("🎯 Nouveau joueur 2 avec couleur:", player2Color);
       } else {
         // Spectateur ou trop de joueurs
         setPlayerColor("white"); // Par défaut
@@ -84,16 +126,21 @@ export default function ChessMultisynqApp() {
         console.log("👁️ Spectateur");
       }
     } else {
-      // Créer une nouvelle room - premier joueur = Blanc
+      // Créer une nouvelle room - premier joueur = Blanc par défaut
       setPlayerColor("white");
       setConnectionStatus("En attente d'un adversaire...");
       const newRoom = {
         fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        player1Id: playerId,
+        player1Color: "white",
+        player2Id: null,
+        player2Color: null,
         playerCount: 1,
-        whitePlayer: Date.now(),
         turn: "w",
         isActive: false,
         startTime: null,
+        gameNumber: 1,
+        lastGameWinner: null,
       };
       localStorage.setItem(roomKey, JSON.stringify(newRoom));
       console.log("🆕 Nouvelle room créée - Joueur 1 (Blanc)");
@@ -127,10 +174,54 @@ export default function ChessMultisynqApp() {
           setStartTime(roomData.startTime);
         }
 
-        // Mettre à jour le statut selon le nombre de joueurs
-        if (roomData.playerCount === 2) {
+        // Synchroniser les fins de partie
+        if (
+          roomData.gameResult &&
+          roomData.gameResult.type !== gameResult.type
+        ) {
+          console.log("🏁 Fin de partie reçue:", roomData.gameResult);
+          setGameResult(roomData.gameResult);
+          setIsGameActive(false);
+        }
+
+        // Synchroniser les propositions de nul
+        if (
+          roomData.drawOffer &&
+          (roomData.drawOffer.offered !== drawOffer.offered ||
+            roomData.drawOffer.by !== drawOffer.by)
+        ) {
+          console.log("🤝 Proposition de nul reçue:", roomData.drawOffer);
+          setDrawOffer(roomData.drawOffer);
+        }
+
+        // Synchroniser les couleurs des joueurs
+        if (
+          roomData.player1Id === playerId &&
+          roomData.player1Color !== playerColor
+        ) {
+          console.log(
+            "🎭 Mise à jour couleur joueur 1:",
+            roomData.player1Color
+          );
+          setPlayerColor(roomData.player1Color);
+        } else if (
+          roomData.player2Id === playerId &&
+          roomData.player2Color !== playerColor
+        ) {
+          console.log(
+            "🎭 Mise à jour couleur joueur 2:",
+            roomData.player2Color
+          );
+          setPlayerColor(roomData.player2Color);
+        }
+
+        // Mettre à jour le statut selon les joueurs connectés
+        const player1Connected = !!roomData.player1Id;
+        const player2Connected = !!roomData.player2Id;
+
+        if (player1Connected && player2Connected) {
           setConnectionStatus("Partie en cours - 2 joueurs connectés");
-        } else if (roomData.playerCount === 1) {
+        } else if (player1Connected || player2Connected) {
           setConnectionStatus("En attente d'un adversaire...");
         }
       }
@@ -144,10 +235,39 @@ export default function ChessMultisynqApp() {
       const roomData = localStorage.getItem(roomKey);
       if (roomData) {
         const parsed = JSON.parse(roomData);
+
+        // Synchroniser FEN
         if (parsed.fen !== fen) {
           console.log("🔄 Polling: FEN différent détecté");
           setFen(parsed.fen);
           gameRef.current.load(parsed.fen);
+        }
+
+        // Synchroniser timer
+        if (parsed.startTime !== startTime) {
+          console.log("🔄 Polling: Timer différent détecté");
+          setStartTime(parsed.startTime);
+        }
+
+        // Synchroniser état du jeu
+        if (parsed.isActive !== isGameActive) {
+          console.log("🔄 Polling: État jeu différent détecté");
+          setIsGameActive(parsed.isActive);
+        }
+
+        // Synchroniser les couleurs des joueurs
+        if (
+          parsed.player1Id === playerId &&
+          parsed.player1Color !== playerColor
+        ) {
+          console.log("🔄 Polling: Couleur joueur 1 différente");
+          setPlayerColor(parsed.player1Color);
+        } else if (
+          parsed.player2Id === playerId &&
+          parsed.player2Color !== playerColor
+        ) {
+          console.log("🔄 Polling: Couleur joueur 2 différente");
+          setPlayerColor(parsed.player2Color);
         }
       }
     }, 1000); // Vérifier toutes les secondes
@@ -156,7 +276,16 @@ export default function ChessMultisynqApp() {
       window.removeEventListener("storage", handleStorageChange);
       clearInterval(pollInterval);
     };
-  }, [sessionInfo.name, fen, isGameActive, startTime]);
+  }, [
+    sessionInfo.name,
+    fen,
+    isGameActive,
+    startTime,
+    gameResult,
+    drawOffer,
+    playerColor,
+    playerId,
+  ]);
 
   // Timer pour le jeu
   useEffect(() => {
@@ -190,8 +319,15 @@ export default function ChessMultisynqApp() {
         isActive: gameActive,
         startTime: gameStartTime || roomData.startTime,
         turn: gameRef.current.turn(),
+        // Maintenir les données des joueurs
+        player1Id: roomData.player1Id,
+        player2Id: roomData.player2Id,
+        player1Color: roomData.player1Color,
+        player2Color: roomData.player2Color,
+        playerCount: roomData.player1Id && roomData.player2Id ? 2 : 1,
       };
       localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+      console.log("💾 État synchronisé:", updatedRoom);
     }
   };
 
@@ -207,7 +343,7 @@ export default function ChessMultisynqApp() {
   };
 
   // Gérer les mouvements
-  const onPieceDrop = (args: any): boolean => {
+  const onPieceDrop = (args: PieceDropHandlerArgs): boolean => {
     const { sourceSquare, targetSquare } = args;
     if (!targetSquare) return false;
 
@@ -277,10 +413,112 @@ export default function ChessMultisynqApp() {
 
   // Fonction helper pour les boutons de test
   const makeTestMove = (from: string, to: string) => {
-    return onPieceDrop({ sourceSquare: from, targetSquare: to });
+    // Pour les tests, on simule juste le mouvement directement
+    try {
+      const move = gameRef.current.move({
+        from: from,
+        to: to,
+        promotion: "q",
+      });
+
+      if (move) {
+        const newFen = gameRef.current.fen();
+        setFen(newFen);
+        console.log("✅ Test mouvement valide:", move);
+
+        if (!isGameActive) {
+          startGame();
+        } else {
+          syncGameState(newFen, isGameActive);
+        }
+
+        return true;
+      }
+    } catch (error) {
+      console.warn("❌ Test mouvement invalide:", error);
+    }
+    return false;
   };
 
-  // Réinitialiser la partie
+  // Fonctions pour les fins de partie
+  const abandonGame = () => {
+    const winner =
+      playerColor === "white" ? ("black" as const) : ("white" as const);
+    const result = {
+      type: "abandoned" as const,
+      winner,
+      message: `${
+        playerColor === "white" ? "Les Blancs" : "Les Noirs"
+      } abandonnent ! ${winner === "white" ? "Blancs" : "Noirs"} gagnent !`,
+    };
+
+    setGameResult(result);
+    setIsGameActive(false);
+    syncGameEndState(result);
+    console.log("🏳️ Abandon:", result);
+  };
+
+  const offerDraw = () => {
+    const offer = { offered: true, by: playerColor };
+    setDrawOffer(offer);
+    syncDrawOffer(offer);
+    console.log("🤝 Proposition de nul par:", playerColor);
+  };
+
+  const acceptDraw = () => {
+    const result = {
+      type: "draw" as const,
+      winner: "draw" as const,
+      message: "Match nul accepté !",
+    };
+
+    setGameResult(result);
+    setDrawOffer({ offered: false, by: null });
+    setIsGameActive(false);
+    syncGameEndState(result);
+    console.log("✅ Nul accepté");
+  };
+
+  const declineDraw = () => {
+    const offer = { offered: false, by: null };
+    setDrawOffer(offer);
+    syncDrawOffer(offer);
+    console.log("❌ Nul refusé");
+  };
+
+  // Synchroniser l'état de fin de partie
+  const syncGameEndState = (result: typeof gameResult) => {
+    const roomKey = `chess-room-${sessionInfo.name}`;
+    const existingRoom = localStorage.getItem(roomKey);
+
+    if (existingRoom) {
+      const roomData = JSON.parse(existingRoom);
+      const updatedRoom = {
+        ...roomData,
+        gameResult: result,
+        isActive: false,
+        lastGameWinner: result.winner,
+      };
+      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+    }
+  };
+
+  // Synchroniser les propositions de nul
+  const syncDrawOffer = (offer: typeof drawOffer) => {
+    const roomKey = `chess-room-${sessionInfo.name}`;
+    const existingRoom = localStorage.getItem(roomKey);
+
+    if (existingRoom) {
+      const roomData = JSON.parse(existingRoom);
+      const updatedRoom = {
+        ...roomData,
+        drawOffer: offer,
+      };
+      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+    }
+  };
+
+  // Réinitialiser la partie avec inversion des couleurs
   const resetGame = () => {
     gameRef.current.reset();
     const initialFen =
@@ -289,9 +527,47 @@ export default function ChessMultisynqApp() {
     setIsGameActive(false);
     setStartTime(null);
     setElapsedTime(0);
+    setGameResult({ type: null });
+    setDrawOffer({ offered: false, by: null });
     setConnectionStatus("Prêt à jouer");
-    syncGameState(initialFen, false, null);
-    console.log("🔄 Partie réinitialisée");
+
+    // Inverser les couleurs des joueurs après chaque partie
+    const roomKey = `chess-room-${sessionInfo.name}`;
+    const existingRoom = localStorage.getItem(roomKey);
+
+    if (existingRoom) {
+      const roomData = JSON.parse(existingRoom);
+
+      // Inverser les couleurs
+      const newPlayer1Color =
+        roomData.player1Color === "white" ? "black" : "white";
+      const newPlayer2Color =
+        roomData.player2Color === "white" ? "black" : "white";
+
+      // Déterminer ma nouvelle couleur
+      const myNewColor =
+        roomData.player1Id === playerId ? newPlayer1Color : newPlayer2Color;
+      setPlayerColor(myNewColor);
+
+      const updatedRoom = {
+        ...roomData,
+        fen: initialFen,
+        isActive: false,
+        startTime: null,
+        gameResult: null,
+        drawOffer: { offered: false, by: null },
+        turn: "w",
+        player1Color: newPlayer1Color,
+        player2Color: newPlayer2Color,
+        gameNumber: (roomData.gameNumber || 1) + 1,
+      };
+
+      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
+      console.log("🔄 Partie réinitialisée avec couleurs inversées");
+      console.log("🎯 Votre nouvelle couleur:", myNewColor);
+    } else {
+      syncGameState(initialFen, false, null);
+    }
   };
 
   const formatTime = (s: number) => {
@@ -373,6 +649,62 @@ export default function ChessMultisynqApp() {
           </button>
         </div>
 
+        {/* Boutons de fin de partie */}
+        {isGameActive && !gameResult.type && (
+          <div className="flex gap-2 mt-2">
+            <button
+              className="px-2 py-1 bg-orange-600 rounded hover:bg-orange-700 text-xs transition-colors"
+              onClick={abandonGame}
+            >
+              🏳️ Abandonner
+            </button>
+
+            <button
+              className="px-2 py-1 bg-purple-600 rounded hover:bg-purple-700 text-xs transition-colors"
+              onClick={offerDraw}
+              disabled={drawOffer.offered}
+            >
+              🤝 Proposer nul
+            </button>
+          </div>
+        )}
+
+        {/* Proposition de nul en cours */}
+        {drawOffer.offered && drawOffer.by && drawOffer.by !== playerColor && (
+          <div className="mt-3 p-3 bg-purple-900/50 rounded-lg">
+            <p className="text-sm font-bold text-purple-300 mb-2">
+              🤝 Proposition de nul reçue !
+            </p>
+            <p className="text-xs mb-3">
+              {drawOffer.by === "white" ? "Les Blancs" : "Les Noirs"} proposent
+              un match nul.
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 text-xs transition-colors"
+                onClick={acceptDraw}
+              >
+                ✅ Accepter
+              </button>
+              <button
+                className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 text-xs transition-colors"
+                onClick={declineDraw}
+              >
+                ❌ Refuser
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Attente de réponse */}
+        {drawOffer.offered && drawOffer.by === playerColor && (
+          <div className="mt-3 p-2 bg-yellow-900/50 rounded-lg">
+            <p className="text-xs text-yellow-300">
+              ⏳ En attente de la réponse à votre proposition de nul...
+            </p>
+          </div>
+        )}
+
         {/* Boutons de test temporaires */}
         <div className="flex gap-2 mt-2">
           <button
@@ -443,9 +775,9 @@ export default function ChessMultisynqApp() {
       </div>
 
       {/* Instructions pour l'utilisateur */}
-      <div className="bg-blue-900/50 p-3 rounded-lg text-center max-w-md">
+      <div className="bg-blue-900/50 p-3 rounded-lg text-center mt-[200px] max-w-md">
         <p className="text-sm mb-2">
-          <strong>🎮 Jeu d'échecs synchronisé :</strong>
+          <strong>🎮 Jeu d&apos;échecs synchronisé :</strong>
         </p>
         <p className="text-xs">
           Drag &amp; drop les pièces ou utilisez les boutons de test. Copiez le
@@ -453,17 +785,63 @@ export default function ChessMultisynqApp() {
         </p>
       </div>
 
-      {gameRef.current.isGameOver() && (
+      {/* Fin de partie - nouveau système complet */}
+      {(gameResult.type || gameRef.current.isGameOver()) && (
         <div className="bg-red-900/70 p-4 rounded-xl text-center">
           <h2 className="text-xl font-bold mb-2">🏁 Partie terminée !</h2>
-          {gameRef.current.isCheckmate() && (
-            <p>
-              Échec et mat !{" "}
-              {gameRef.current.turn() === "w" ? "Noirs" : "Blancs"} gagnent !
-            </p>
+
+          {/* Abandon */}
+          {gameResult.type === "abandoned" && (
+            <div>
+              <p className="text-lg mb-2">{gameResult.message}</p>
+              <p className="text-sm text-gray-300">Fin par abandon</p>
+            </div>
           )}
-          {gameRef.current.isDraw() && <p>Match nul !</p>}
-          {gameRef.current.isStalemate() && <p>Pat !</p>}
+
+          {/* Nul accepté */}
+          {gameResult.type === "draw" && (
+            <div>
+              <p className="text-lg mb-2">🤝 {gameResult.message}</p>
+              <p className="text-sm text-gray-300">Fin par accord mutuel</p>
+            </div>
+          )}
+
+          {/* Fins de partie automatiques d'échecs */}
+          {!gameResult.type && gameRef.current.isGameOver() && (
+            <div>
+              {gameRef.current.isCheckmate() && (
+                <div>
+                  <p className="text-lg mb-2">
+                    ♔ Échec et mat !{" "}
+                    {gameRef.current.turn() === "w" ? "Noirs" : "Blancs"}{" "}
+                    gagnent !
+                  </p>
+                  <p className="text-sm text-gray-300">Fin par échec et mat</p>
+                </div>
+              )}
+              {gameRef.current.isDraw() && (
+                <div>
+                  <p className="text-lg mb-2">🤝 Match nul !</p>
+                  <p className="text-sm text-gray-300">
+                    Fin par règles d&apos;échecs
+                  </p>
+                </div>
+              )}
+              {gameRef.current.isStalemate() && (
+                <div>
+                  <p className="text-lg mb-2">🔒 Pat !</p>
+                  <p className="text-sm text-gray-300">Fin par pat</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            className="mt-4 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+            onClick={resetGame}
+          >
+            🔄 Nouvelle partie (couleurs inversées)
+          </button>
         </div>
       )}
     </div>
