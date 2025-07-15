@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/lib/shadcn/modal";
 import { Chess } from "chess.js";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Chessboard, type PieceDropHandlerArgs } from "react-chessboard";
 import { useAccount } from "wagmi";
@@ -87,7 +88,7 @@ export default function ChessMultisynqApp() {
     lastGameWinner: null,
     createdAt: Date.now(),
   });
-
+  const router = useRouter();
   const [gameFlow, setGameFlow] = useState<"welcome" | "lobby" | "game">(
     "welcome"
   );
@@ -1597,7 +1598,11 @@ export default function ChessMultisynqApp() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setGameFlow("welcome")}
+              onClick={() => {
+                if (gameState.gameResult.type) {
+                  router.push("/multisynq-test");
+                }
+              }}
               className="px-4 py-2 bg-[#836EF9] text-white rounded transition-colors"
             >
               Home
@@ -1753,77 +1758,6 @@ export default function ChessMultisynqApp() {
                       </span>
                     </div>
                   </div>
-
-                  <div className="mt-4 text-center">
-                    {gameState.isActive ? (
-                      // Partie en cours - Afficher les contrôles de jeu
-                      <div className="space-y-3">
-                        <div className="p-3 bg-green-500/20 border border-green-400 rounded-lg">
-                          <p className="text-green-200">
-                            {gameState.turn === "w"
-                              ? "⚪ White to move"
-                              : "⚫ Black to move"}
-                          </p>
-                        </div>
-
-                        {/* Boutons d'action de jeu */}
-                        <div className="flex gap-2 justify-center">
-                          {gameState.drawOffer.offered &&
-                          gameState.drawOffer.by !==
-                            gameState.players.find(
-                              (p) => p.id === currentPlayerId
-                            )?.color ? (
-                            // Répondre à une offre de match nul
-                            <div className="flex gap-2 items-center">
-                              <span className="text-yellow-200 text-sm">
-                                Draw offer:
-                              </span>
-                              <button
-                                onClick={() => handleRespondDraw(true)}
-                                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
-                              >
-                                Accept
-                              </button>
-                              <button
-                                onClick={() => handleRespondDraw(false)}
-                                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          ) : (
-                            // Boutons normaux pendant la partie
-                            <>
-                              <button
-                                onClick={handleOfferDraw}
-                                disabled={gameState.drawOffer.offered}
-                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded text-sm transition-colors"
-                              >
-                                {gameState.drawOffer.offered
-                                  ? "Draw offer sent"
-                                  : "Offer draw"}
-                              </button>
-                              <button
-                                onClick={handleResign}
-                                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
-                              >
-                                🏳️ Resign
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      // En attente de joueurs
-                      <div className="p-3 bg-blue-500/20 border border-blue-400 rounded-lg">
-                        <p className="text-blue-200">
-                          {gameState.players.length >= 2
-                            ? "Starting game..."
-                            : "Waiting for second player"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
@@ -1832,11 +1766,11 @@ export default function ChessMultisynqApp() {
           {/* Panel de droite - Chat */}
           <div className="lg:col-span-2">
             <div className="bg-[#1e1e1e]/90 backdrop-blur-md rounded p-5 border-2 border-white/10 h-full flex flex-col">
-              <h3 className="text-2xl font-semibold text-white mb-5">
+              <h3 className="text-xl font-semibold text-white mb-3">
                 Nads Chat
               </h3>
 
-              <div className="flex-1 space-y-2 overflow-y-auto max-h-[634px] mb-4">
+              <div className="flex-1 space-y-2 overflow-y-auto max-h-[585px] mb-4">
                 {gameState.messages.map((msg) => (
                   <div
                     key={msg.id}
@@ -1867,11 +1801,72 @@ export default function ChessMultisynqApp() {
                 <button
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim()}
-                  className="px-3 py-2 bg-[#836EF9] border border-[#836EF9]/80  text-white rounded-lg transition-colors"
+                  className="px-3 py-2 bg-[#836EF9] border border-[#836EF9]/80  text-white rounded transition-colors"
                 >
                   Send
                 </button>
               </div>
+              {gameState.isActive ? (
+                // Partie en cours - Afficher les contrôles de jeu
+                <div className="space-y-3 mt-5">
+                  {/* Boutons d'action de jeu */}
+                  <div className="flex gap-2 justify-between w-full">
+                    {gameState.drawOffer.offered &&
+                    gameState.drawOffer.by !==
+                      gameState.players.find((p) => p.id === currentPlayerId)
+                        ?.color ? (
+                      // Répondre à une offre de match nul
+                      <div className="flex items-center w-full justify-between">
+                        <span className="text-yellow-200 text-sm">
+                          Draw offer:
+                        </span>
+                        <div className="flex gap-2 items-center">
+                          <button
+                            onClick={() => handleRespondDraw(true)}
+                            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleRespondDraw(false)}
+                            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Boutons normaux pendant la partie
+                      <div className="grid grid-cols-2 gap-2 w-full">
+                        <button
+                          onClick={handleOfferDraw}
+                          disabled={gameState.drawOffer.offered}
+                          className="px-3 w-full h-[40px] col-span-1  bg-[#836EF9] text-white rounded text-base transition-colors"
+                        >
+                          {gameState.drawOffer.offered
+                            ? "Draw offer sent"
+                            : "Offer draw"}
+                        </button>
+                        <button
+                          onClick={handleResign}
+                          className="px-3 w-full h-[40px] col-span-1 bg-[#2a2a2a] disabled:border-gray-600  border border-[#836EF9] text-white rounded text-base transition-colors"
+                        >
+                          Resign
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                // En attente de joueurs
+                <div className="p-3 bg-blue-500/20 border border-blue-400 rounded-lg">
+                  <p className="text-blue-200">
+                    {gameState.players.length >= 2
+                      ? "Starting game..."
+                      : "Waiting for second player"}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
