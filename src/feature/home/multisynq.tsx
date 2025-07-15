@@ -3,6 +3,13 @@
 /* eslint-disable react/no-direct-mutation-state */
 "use client";
 import { WalletConnection } from "@/components/connect-wallet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/lib/shadcn/modal";
 import { Chess } from "chess.js";
 import { useEffect, useRef, useState } from "react";
 import { Chessboard, type PieceDropHandlerArgs } from "react-chessboard";
@@ -99,6 +106,7 @@ export default function ChessMultisynqApp() {
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   );
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
+  const [showGameEndModal, setShowGameEndModal] = useState(false);
 
   const { address, isConnected } = useAccount();
   const gameRef = useRef(new Chess());
@@ -202,6 +210,15 @@ export default function ChessMultisynqApp() {
       setFen(gameState.fen);
     }
   }, [gameState.fen]);
+
+  // Ouvrir le modal quand la partie se termine
+  useEffect(() => {
+    if (gameState.gameResult.type && !showGameEndModal) {
+      setShowGameEndModal(true);
+    } else if (!gameState.gameResult.type && showGameEndModal) {
+      setShowGameEndModal(false);
+    }
+  }, [gameState.gameResult.type, showGameEndModal]);
 
   useEffect(() => {
     const currentPlayer = gameState.players.find(
@@ -615,7 +632,7 @@ export default function ChessMultisynqApp() {
               this.state.gameResult = {
                 type: "timeout",
                 winner: "black",
-                message: "Temps écoulé ! Les noirs gagnent",
+                message: "Time's up! Black wins",
               };
               this.state.lastGameWinner = "black";
             }
@@ -627,7 +644,7 @@ export default function ChessMultisynqApp() {
               this.state.gameResult = {
                 type: "timeout",
                 winner: "white",
-                message: "Temps écoulé ! Les blancs gagnent",
+                message: "Time's up! White wins",
               };
               this.state.lastGameWinner = "white";
             }
@@ -1083,6 +1100,10 @@ export default function ChessMultisynqApp() {
     }
   };
 
+  const handleCloseGameEndModal = () => {
+    setShowGameEndModal(false);
+  };
+
   // Créer une session Multisynq
   const createMultisynqSession = async (
     roomName: string,
@@ -1302,11 +1323,6 @@ export default function ChessMultisynqApp() {
     setNewMessage("");
   };
 
-  const handleNewGame = () => {
-    if (!multisynqView) return;
-    multisynqView.resetGame();
-  };
-
   const getCurrentPlayerTime = (): number => {
     const currentPlayer = gameState.players.find(
       (p) => p.id === currentPlayerId
@@ -1471,11 +1487,9 @@ export default function ChessMultisynqApp() {
         <div className="max-w-md w-full bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">
-              ♔ Chess Multi
+              MultiSynq x Monad Chess
             </h1>
-            <p className="text-blue-200">
-              Jeu d&apos;échecs en temps réel avec Multisynq
-            </p>
+            <p className="text-blue-200">Real-time chess game with Multisynq</p>
           </div>
 
           <div className="space-y-6">
@@ -1588,14 +1602,6 @@ export default function ChessMultisynqApp() {
             >
               Home
             </button>
-            {(gameState.isActive || gameState.gameResult.type) && (
-              <button
-                onClick={handleNewGame}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                New Game
-              </button>
-            )}
           </div>
         </div>
 
@@ -1749,63 +1755,7 @@ export default function ChessMultisynqApp() {
                   </div>
 
                   <div className="mt-4 text-center">
-                    {gameState.gameResult.type ? (
-                      // Partie terminée - Afficher les options de revanche et nouvelle partie
-                      <div className="space-y-3">
-                        <div className="p-3 bg-yellow-500/20 border border-yellow-400 rounded-lg">
-                          <p className="text-yellow-200 font-semibold">
-                            {gameState.gameResult.message || "Partie terminée"}
-                          </p>
-                        </div>
-
-                        {/* Boutons après la partie */}
-                        <div className="flex gap-2 justify-center">
-                          {gameState.rematchOffer?.offered &&
-                          gameState.rematchOffer?.by !==
-                            gameState.players.find(
-                              (p) => p.id === currentPlayerId
-                            )?.color ? (
-                            // Répondre à une offre de revanche
-                            <div className="flex gap-2 items-center">
-                              <span className="text-blue-200 text-sm">
-                                Rematch offer:
-                              </span>
-                              <button
-                                onClick={() => handleRespondRematch(true)}
-                                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
-                              >
-                                Accept
-                              </button>
-                              <button
-                                onClick={() => handleRespondRematch(false)}
-                                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          ) : (
-                            // Boutons normaux après partie
-                            <>
-                              <button
-                                onClick={handleRequestRematch}
-                                disabled={gameState.rematchOffer?.offered}
-                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded text-sm transition-colors"
-                              >
-                                {gameState.rematchOffer?.offered
-                                  ? "Rematch sent"
-                                  : "Rematch"}
-                              </button>
-                              <button
-                                onClick={handleNewGame}
-                                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
-                              >
-                                🆕 New Game
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ) : gameState.isActive ? (
+                    {gameState.isActive ? (
                       // Partie en cours - Afficher les contrôles de jeu
                       <div className="space-y-3">
                         <div className="p-3 bg-green-500/20 border border-green-400 rounded-lg">
@@ -1925,6 +1875,75 @@ export default function ChessMultisynqApp() {
             </div>
           </div>
         </div>
+
+        {/* Modal de fin de partie */}
+        <Dialog open={showGameEndModal} onOpenChange={setShowGameEndModal}>
+          <DialogContent
+            close={handleCloseGameEndModal}
+            className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-600"
+          >
+            <DialogHeader>
+              <DialogTitle className="text-center text-2xl font-bold text-white">
+                🎯 Partie terminée
+              </DialogTitle>
+              <DialogDescription className="text-center">
+                <div className="p-4 bg-yellow-500/20 border border-yellow-400 rounded-lg my-4">
+                  <p className="text-yellow-200 font-semibold text-lg">
+                    {gameState.gameResult.message || "Partie terminée"}
+                  </p>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {gameState.rematchOffer?.offered &&
+              gameState.rematchOffer?.by !==
+                gameState.players.find((p) => p.id === currentPlayerId)
+                  ?.color ? (
+                // Répondre à une offre de revanche
+                <div className="text-center space-y-3">
+                  <p className="text-blue-200 font-medium">
+                    💫 Demande de revanche reçue
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      onClick={() => handleRespondRematch(true)}
+                      className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      ✅ Accepter
+                    </button>
+                    <button
+                      onClick={() => handleRespondRematch(false)}
+                      className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      ❌ Décliner
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // Boutons normaux après partie
+                <div className="text-center space-y-3">
+                  <button
+                    onClick={handleRequestRematch}
+                    disabled={gameState.rematchOffer?.offered}
+                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  >
+                    {gameState.rematchOffer?.offered
+                      ? "🔄 Demande envoyée..."
+                      : "🔄 Demander une revanche"}
+                  </button>
+
+                  <button
+                    onClick={handleCloseGameEndModal}
+                    className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    🎮 Continuer à regarder
+                  </button>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
