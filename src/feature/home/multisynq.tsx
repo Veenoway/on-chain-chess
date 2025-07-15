@@ -181,6 +181,12 @@ export default function ChessMultisynqApp() {
       setMultisynqSession(session);
       setMultisynqView(session.view);
 
+      // S'assurer que les méthodes sont disponibles
+      console.log(
+        "🔍 Méthodes disponibles (auto-join):",
+        Object.getOwnPropertyNames(session.view)
+      );
+
       // Joindre en tant que joueur
       session.view.joinPlayer(address!, playerId);
 
@@ -351,21 +357,21 @@ export default function ChessMultisynqApp() {
                   this.state.gameResult = {
                     type: "checkmate",
                     winner: chess.turn() === "w" ? "black" : "white",
-                    message: `Échec et mat ! ${
-                      chess.turn() === "w" ? "Noirs" : "Blancs"
-                    } gagnent`,
+                    message: `Checkmate ! ${
+                      chess.turn() === "w" ? "Black" : "White"
+                    } win`,
                   };
                 } else if (chess.isStalemate()) {
                   this.state.gameResult = {
                     type: "stalemate",
                     winner: "draw",
-                    message: "Pat ! Match nul",
+                    message: "Pat ! Draw",
                   };
                 } else if (chess.isDraw()) {
                   this.state.gameResult = {
                     type: "draw",
                     winner: "draw",
-                    message: "Match nul",
+                    message: "Draw",
                   };
                 }
               }
@@ -505,7 +511,7 @@ export default function ChessMultisynqApp() {
         }
 
         handleOfferDraw(data: { playerId: string }) {
-          console.log("🤝 Proposition de match nul:", data);
+          console.log("🤝 Draw offer:", data);
 
           if (!this.state.isActive || this.state.gameResult.type) return;
 
@@ -524,7 +530,7 @@ export default function ChessMultisynqApp() {
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             playerId: data.playerId,
             playerWallet: player.wallet,
-            message: "🤝 Propose un match nul",
+            message: "🤝 Offer draw",
             timestamp: Date.now(),
           });
 
@@ -532,7 +538,7 @@ export default function ChessMultisynqApp() {
         }
 
         handleRespondDraw(data: { playerId: string; accepted: boolean }) {
-          console.log("🤝 Réponse match nul:", data);
+          console.log("🤝 Respond draw:", data);
 
           if (!this.state.drawOffer.offered || this.state.gameResult.type)
             return;
@@ -547,9 +553,7 @@ export default function ChessMultisynqApp() {
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             playerId: data.playerId,
             playerWallet: player.wallet,
-            message: data.accepted
-              ? "✅ Accepte le match nul"
-              : "❌ Refuse le match nul",
+            message: data.accepted ? "✅ Accept draw" : "❌ Decline draw offer",
             timestamp: Date.now(),
           });
 
@@ -559,7 +563,7 @@ export default function ChessMultisynqApp() {
             this.state.gameResult = {
               type: "draw",
               winner: "draw",
-              message: "Match nul accepté",
+              message: "Draw accepted",
             };
             this.state.lastGameWinner = "draw";
           }
@@ -570,7 +574,7 @@ export default function ChessMultisynqApp() {
         }
 
         handleResign(data: { playerId: string }) {
-          console.log("🏳️ Abandon:", data);
+          console.log("🏳️ Resign:", data);
 
           if (!this.state.isActive || this.state.gameResult.type) return;
 
@@ -584,7 +588,7 @@ export default function ChessMultisynqApp() {
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             playerId: data.playerId,
             playerWallet: player.wallet,
-            message: "🏳️ Abandonne la partie",
+            message: "🏳️ Resign",
             timestamp: Date.now(),
           });
 
@@ -593,10 +597,8 @@ export default function ChessMultisynqApp() {
             type: "abandoned",
             winner: player.color === "white" ? "black" : "white",
             message: `${
-              player.color === "white" ? "Blancs" : "Noirs"
-            } abandonnent ! ${
-              player.color === "white" ? "Noirs" : "Blancs"
-            } gagnent`,
+              player.color === "white" ? "White" : "Black"
+            } resign ! ${player.color === "white" ? "Black" : "White"} win`,
           };
           this.state.lastGameWinner =
             player.color === "white" ? "black" : "white";
@@ -605,7 +607,7 @@ export default function ChessMultisynqApp() {
         }
       }
 
-      // Définir la vue Chess
+      // Définir la vue Chess - CORRECTION IMPORTANTE ICI
       class ChessView extends Multisynq.View {
         constructor(model: any) {
           super(model);
@@ -615,20 +617,11 @@ export default function ChessMultisynqApp() {
           this.subscribe(this.sessionId, "game-state", "updateGameState");
         }
 
-        updateGameState(newState: {
-          players: any;
-          messages: any;
-          fen: any;
-          isActive: undefined;
-          turn: any;
-          roomName: any;
-          roomPassword: any;
-        }) {
+        updateGameState(newState: any) {
           console.log("🔄 Mise à jour état jeu:", newState);
-          if (globalSetGameState) {
-            // Forcer la mise à jour avec toutes les propriétés
-            // @ts-ignore
 
+          if (globalSetGameState) {
+            // @ts-ignore
             globalSetGameState((prevState: GameState) => ({
               ...prevState,
               ...newState,
@@ -687,6 +680,7 @@ export default function ChessMultisynqApp() {
           this.publish(this.sessionId, "update-timer", {});
         }
 
+        // CORRECTION: Méthodes correctement définies dans la classe
         offerDraw(playerId: string) {
           console.log("📤 Envoi offer draw:", playerId);
           this.publish(this.sessionId, "offer-draw", { playerId });
@@ -705,7 +699,6 @@ export default function ChessMultisynqApp() {
 
       // Enregistrer les classes avec Multisynq selon la documentation officielle
       ChessModel.register("ChessModel");
-      // Les vues n'ont pas besoin d'être enregistrées
 
       // Stocker les références pour l'utilisation locale
       (window as any).ChessModel = ChessModel;
@@ -714,9 +707,74 @@ export default function ChessMultisynqApp() {
       setMultisynqReady(true);
       setConnectionStatus("✅ Multisynq prêt");
       console.log("✅ Classes Multisynq configurées et enregistrées");
+
+      // Vérifier que les méthodes sont présentes dans la classe
+      console.log(
+        "🔍 Méthodes ChessView:",
+        Object.getOwnPropertyNames(ChessView.prototype)
+      );
     } catch (error) {
       console.error("❌ Erreur lors de la configuration des classes:", error);
       setConnectionStatus("❌ Erreur configuration Multisynq");
+    }
+  };
+
+  // CORRECTION IMPORTANTE: Modifiez aussi les handlers dans votre composant principal
+  const handleOfferDraw = () => {
+    if (!multisynqView || !currentPlayerId) {
+      console.error("❌ multisynqView ou currentPlayerId manquant");
+      return;
+    }
+
+    console.log("🔍 Vérification des méthodes disponibles:", {
+      offerDraw: typeof multisynqView.offerDraw,
+      methods: Object.getOwnPropertyNames(Object.getPrototypeOf(multisynqView)),
+    });
+
+    if (typeof multisynqView.offerDraw === "function") {
+      multisynqView.offerDraw(currentPlayerId);
+      console.log("✅ Offre de match nul envoyée");
+    } else {
+      console.error("❌ offerDraw n'est pas une fonction:", multisynqView);
+      alert(
+        "Erreur: Fonction d'offre de match nul non disponible. Veuillez recharger la page."
+      );
+    }
+  };
+
+  const handleRespondDraw = (accepted: boolean) => {
+    if (!multisynqView || !currentPlayerId) {
+      console.error("❌ multisynqView ou currentPlayerId manquant");
+      return;
+    }
+
+    if (typeof multisynqView.respondDraw === "function") {
+      multisynqView.respondDraw(currentPlayerId, accepted);
+      console.log(`✅ Respond draw: ${accepted ? "accepté" : "refusé"}`);
+    } else {
+      console.error("❌ Respond draw n'est pas une fonction:", multisynqView);
+      alert(
+        "Erreur: Fonction de réponse au draw non disponible. Veuillez recharger la page."
+      );
+    }
+  };
+
+  const handleResign = () => {
+    if (!multisynqView || !currentPlayerId) {
+      console.error("❌ multisynqView ou currentPlayerId manquant");
+      return;
+    }
+
+    if (confirm("Êtes-vous sûr de vouloir abandonner ?")) {
+      if (typeof multisynqView.resign === "function") {
+        multisynqView.resign(currentPlayerId);
+        console.log("✅ Abandon envoyé");
+      } else {
+        console.error("❌ resign n'est pas une fonction:", multisynqView);
+        alert(
+          "Erreur: Fonction d'abandon non disponible. Veuillez recharger la page."
+        );
+      }
     }
   };
 
@@ -765,7 +823,7 @@ export default function ChessMultisynqApp() {
     if (!isConnected || !address || !multisynqReady) return;
 
     setIsCreatingRoom(true);
-    setConnectionStatus("Création de la room...");
+    setConnectionStatus("Creating room...");
 
     try {
       const roomName = `chess-${Math.random().toString(36).substring(2, 8)}`;
@@ -779,6 +837,12 @@ export default function ChessMultisynqApp() {
 
       setMultisynqSession(session);
       setMultisynqView(session.view);
+
+      // S'assurer que les méthodes sont disponibles
+      console.log(
+        "🔍 Méthodes disponibles:",
+        Object.getOwnPropertyNames(session.view)
+      );
 
       // Joindre en tant que premier joueur
       session.view.joinPlayer(address, playerId);
@@ -803,11 +867,11 @@ export default function ChessMultisynqApp() {
       window.history.pushState({}, "", newUrl);
 
       setGameFlow("game");
-      setConnectionStatus(`✅ Room créée: ${roomName}`);
+      setConnectionStatus(`✅ Room created: ${roomName}`);
     } catch (error) {
-      console.error("❌ Erreur création room:", error);
-      setConnectionStatus("❌ Erreur création room");
-      alert("Impossible de créer la room. Vérifiez votre clé API Multisynq.");
+      console.error("❌ Error creating room:", error);
+      setConnectionStatus("❌ Error creating room");
+      alert("Impossible to create the room. Check your Multisynq API key.");
     } finally {
       setIsCreatingRoom(false);
     }
@@ -833,7 +897,7 @@ export default function ChessMultisynqApp() {
 
     const playerId = `player_${Math.random().toString(36).substring(2, 10)}`;
     setCurrentPlayerId(playerId);
-    setConnectionStatus("Connexion à la room...");
+    setConnectionStatus("Connecting to room...");
 
     try {
       // Tenter de rejoindre la session
@@ -841,6 +905,12 @@ export default function ChessMultisynqApp() {
 
       setMultisynqSession(session);
       setMultisynqView(session.view);
+
+      // S'assurer que les méthodes sont disponibles
+      console.log(
+        "🔍 Méthodes disponibles (join):",
+        Object.getOwnPropertyNames(session.view)
+      );
 
       // Joindre en tant que joueur
       session.view.joinPlayer(address, playerId);
@@ -861,24 +931,22 @@ export default function ChessMultisynqApp() {
       window.history.pushState({}, "", newUrl);
 
       setGameFlow("game");
-      setConnectionStatus(`✅ Connecté à: ${roomName}`);
+      setConnectionStatus(`✅ Connected to: ${roomName}`);
     } catch (error) {
-      console.error("❌ Erreur rejoindre room:", error);
-      setConnectionStatus("❌ Room introuvable");
+      console.error("❌ Error joining room:", error);
+      setConnectionStatus("❌ Room not found");
       alert(
-        `Impossible de rejoindre la room "${roomName}". Vérifiez le code${
-          password ? " et le mot de passe" : ""
+        `Impossible to join the room "${roomName}". Check the code${
+          password ? " and the password" : ""
         }.`
       );
     }
   };
 
-  // Gérer les mouvements d'échecs
   const onPieceDrop = (args: PieceDropHandlerArgs): boolean => {
     const { sourceSquare, targetSquare } = args;
     if (!targetSquare || !currentPlayerId || !multisynqView) return false;
 
-    // Vérifier si c'est le tour du joueur
     const currentPlayer = gameState.players.find(
       (p) => p.id === currentPlayerId
     );
@@ -889,11 +957,10 @@ export default function ChessMultisynqApp() {
       (currentTurn === "w" && currentPlayer.color !== "white") ||
       (currentTurn === "b" && currentPlayer.color !== "black")
     ) {
-      console.warn("❌ Ce n'est pas votre tour !");
+      console.warn("❌ It's not your turn!");
       return false;
     }
 
-    // Vérifier le mouvement localement avant de l'envoyer
     const tempGame = new Chess(gameState.fen);
     try {
       const moveResult = tempGame.move({
@@ -903,7 +970,6 @@ export default function ChessMultisynqApp() {
       });
 
       if (moveResult) {
-        // Envoyer le mouvement via Multisynq
         multisynqView.makeMove(
           sourceSquare,
           targetSquare,
@@ -931,23 +997,6 @@ export default function ChessMultisynqApp() {
   const handleNewGame = () => {
     if (!multisynqView) return;
     multisynqView.resetGame();
-  };
-
-  const handleOfferDraw = () => {
-    if (!multisynqView || !currentPlayerId) return;
-    multisynqView.offerDraw(currentPlayerId);
-  };
-
-  const handleRespondDraw = (accepted: boolean) => {
-    if (!multisynqView || !currentPlayerId) return;
-    multisynqView.respondDraw(currentPlayerId, accepted);
-  };
-
-  const handleResign = () => {
-    if (!multisynqView || !currentPlayerId) return;
-    if (confirm("Êtes-vous sûr de vouloir abandonner ?")) {
-      multisynqView.resign(currentPlayerId);
-    }
   };
 
   const getCurrentPlayerTime = (): number => {
@@ -1393,19 +1442,19 @@ export default function ChessMultisynqApp() {
                             // Répondre à une offre de match nul
                             <div className="flex gap-2 items-center">
                               <span className="text-yellow-200 text-sm">
-                                Match nul proposé :
+                                Draw offer:
                               </span>
                               <button
                                 onClick={() => handleRespondDraw(true)}
                                 className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
                               >
-                                Accepter
+                                Accept
                               </button>
                               <button
                                 onClick={() => handleRespondDraw(false)}
                                 className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
                               >
-                                Refuser
+                                Decline
                               </button>
                             </div>
                           ) : (
@@ -1417,14 +1466,14 @@ export default function ChessMultisynqApp() {
                                 className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded text-sm transition-colors"
                               >
                                 {gameState.drawOffer.offered
-                                  ? "Demande envoyée"
-                                  : "Proposer nul"}
+                                  ? "Draw offer sent"
+                                  : "Offer draw"}
                               </button>
                               <button
                                 onClick={handleResign}
                                 className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
                               >
-                                Abandonner
+                                Resign
                               </button>
                             </>
                           )}
@@ -1434,8 +1483,8 @@ export default function ChessMultisynqApp() {
                       <div className="p-3 bg-blue-500/20 border border-blue-400 rounded-lg">
                         <p className="text-blue-200">
                           {gameState.players.length >= 2
-                            ? "Démarrage automatique de la partie..."
-                            : "En attente du second joueur"}
+                            ? "Starting game..."
+                            : "Waiting for second player"}
                         </p>
                       </div>
                     )}
