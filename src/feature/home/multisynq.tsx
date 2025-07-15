@@ -94,6 +94,43 @@ export default function ChessMultisynqApp() {
 
   const { address, isConnected } = useAccount();
   const gameRef = useRef(new Chess());
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Timer fonctionnel - seul le premier joueur gère le timer
+  useEffect(() => {
+    const isFirstPlayer =
+      gameState.players.length > 0 &&
+      gameState.players[0].id === currentPlayerId;
+
+    if (gameState.isActive && !gameState.gameResult.type && isFirstPlayer) {
+      // Démarrer le timer (seulement pour le premier joueur)
+      timerRef.current = setInterval(() => {
+        if (multisynqView) {
+          multisynqView.updateTimer();
+        }
+      }, 1000);
+      console.log("⏰ Timer démarré par le premier joueur");
+    } else {
+      // Arrêter le timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [
+    gameState.isActive,
+    gameState.gameResult.type,
+    gameState.players,
+    currentPlayerId,
+    multisynqView,
+  ]);
 
   // Synchroniser gameRef avec l'état
   useEffect(() => {
@@ -275,6 +312,10 @@ export default function ChessMultisynqApp() {
           this.subscribe(this.sessionId, "chat-message", "handleChatMessage");
           this.subscribe(this.sessionId, "start-game", "handleStartGame");
           this.subscribe(this.sessionId, "reset-game", "handleResetGame");
+          this.subscribe(this.sessionId, "update-timer", "handleUpdateTimer");
+          this.subscribe(this.sessionId, "offer-draw", "handleOfferDraw");
+          this.subscribe(this.sessionId, "respond-draw", "handleRespondDraw");
+          this.subscribe(this.sessionId, "resign", "handleResign");
 
           // Publier l'état initial
           this.publish(this.sessionId, "game-state", this.state);
@@ -336,6 +377,41 @@ export default function ChessMultisynqApp() {
           }
         }
 
+        handleUpdateTimer() {
+          if (!this.state.isActive || this.state.gameResult.type) return;
+
+          // Décrémenter exactement 1 seconde pour le joueur actuel
+          if (this.state.turn === "w") {
+            this.state.whiteTime = Math.max(0, this.state.whiteTime - 1);
+
+            if (this.state.whiteTime <= 0) {
+              this.state.isActive = false;
+              this.state.gameResult = {
+                type: "timeout",
+                winner: "black",
+                message: "Temps écoulé ! Les noirs gagnent",
+              };
+              this.state.lastGameWinner = "black";
+            }
+          } else {
+            this.state.blackTime = Math.max(0, this.state.blackTime - 1);
+
+            if (this.state.blackTime <= 0) {
+              this.state.isActive = false;
+              this.state.gameResult = {
+                type: "timeout",
+                winner: "white",
+                message: "Temps écoulé ! Les blancs gagnent",
+              };
+              this.state.lastGameWinner = "white";
+            }
+          }
+
+          // Mettre à jour le timestamp
+          this.state.lastMoveTime = Date.now();
+          this.publish(this.sessionId, "game-state", this.state);
+        }
+
         handlePlayerJoin(data: { playerId: any; wallet: any }) {
           console.log("👤 Joueur rejoint:", data);
           console.log("👥 Joueurs actuels:", this.state.players);
@@ -371,6 +447,18 @@ export default function ChessMultisynqApp() {
           } else {
             console.warn("⚠️ Room pleine, impossible d'ajouter le joueur");
             return; // Ne pas publier si room pleine
+          }
+
+          // Démarrer automatiquement la partie si 2 joueurs sont présents
+          if (
+            this.state.players.length >= 2 &&
+            !this.state.isActive &&
+            !this.state.gameResult.type
+          ) {
+            console.log("🚀 Démarrage automatique de la partie");
+            this.state.isActive = true;
+            this.state.gameResult = { type: null };
+            this.state.lastMoveTime = Date.now();
           }
 
           console.log("📊 État final des joueurs:", this.state.players);
@@ -412,6 +500,107 @@ export default function ChessMultisynqApp() {
           this.state.gameResult = { type: null };
           this.state.drawOffer = { offered: false, by: null };
           this.state.gameNumber += 1;
+          this.state.lastMoveTime = null;
+          this.publish(this.sessionId, "game-state", this.state);
+        }
+
+        handleOfferDraw(data: { playerId: string }) {
+          console.log("🤝 Proposition de match nul:", data);
+
+          if (!this.state.isActive || this.state.gameResult.type) return;
+
+          const player = this.state.players.find(
+            (p: any) => p.id === data.playerId
+          );
+          if (!player) return;
+
+          this.state.drawOffer = {
+            offered: true,
+            by: player.color as "white" | "black",
+          };
+
+          // Ajouter un message dans le chat
+          this.state.messages.push({
+            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            playerId: data.playerId,
+            playerWallet: player.wallet,
+            message: "🤝 Propose un match nul",
+            timestamp: Date.now(),
+          });
+
+          this.publish(this.sessionId, "game-state", this.state);
+        }
+
+        handleRespondDraw(data: { playerId: string; accepted: boolean }) {
+          console.log("🤝 Réponse match nul:", data);
+
+          if (!this.state.drawOffer.offered || this.state.gameResult.type)
+            return;
+
+          const player = this.state.players.find(
+            (p: any) => p.id === data.playerId
+          );
+          if (!player) return;
+
+          // Ajouter un message dans le chat
+          this.state.messages.push({
+            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            playerId: data.playerId,
+            playerWallet: player.wallet,
+            message: data.accepted
+              ? "✅ Accepte le match nul"
+              : "❌ Refuse le match nul",
+            timestamp: Date.now(),
+          });
+
+          if (data.accepted) {
+            // Match nul accepté
+            this.state.isActive = false;
+            this.state.gameResult = {
+              type: "draw",
+              winner: "draw",
+              message: "Match nul accepté",
+            };
+            this.state.lastGameWinner = "draw";
+          }
+
+          // Réinitialiser l'offre
+          this.state.drawOffer = { offered: false, by: null };
+          this.publish(this.sessionId, "game-state", this.state);
+        }
+
+        handleResign(data: { playerId: string }) {
+          console.log("🏳️ Abandon:", data);
+
+          if (!this.state.isActive || this.state.gameResult.type) return;
+
+          const player = this.state.players.find(
+            (p: any) => p.id === data.playerId
+          );
+          if (!player) return;
+
+          // Ajouter un message dans le chat
+          this.state.messages.push({
+            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            playerId: data.playerId,
+            playerWallet: player.wallet,
+            message: "🏳️ Abandonne la partie",
+            timestamp: Date.now(),
+          });
+
+          this.state.isActive = false;
+          this.state.gameResult = {
+            type: "abandoned",
+            winner: player.color === "white" ? "black" : "white",
+            message: `${
+              player.color === "white" ? "Blancs" : "Noirs"
+            } abandonnent ! ${
+              player.color === "white" ? "Noirs" : "Blancs"
+            } gagnent`,
+          };
+          this.state.lastGameWinner =
+            player.color === "white" ? "black" : "white";
+
           this.publish(this.sessionId, "game-state", this.state);
         }
       }
@@ -491,6 +680,26 @@ export default function ChessMultisynqApp() {
         resetGame() {
           console.log("📤 Envoi reset game");
           this.publish(this.sessionId, "reset-game", {});
+        }
+
+        updateTimer() {
+          console.log("📤 Envoi update timer");
+          this.publish(this.sessionId, "update-timer", {});
+        }
+
+        offerDraw(playerId: string) {
+          console.log("📤 Envoi offer draw:", playerId);
+          this.publish(this.sessionId, "offer-draw", { playerId });
+        }
+
+        respondDraw(playerId: string, accepted: boolean) {
+          console.log("📤 Envoi respond draw:", { playerId, accepted });
+          this.publish(this.sessionId, "respond-draw", { playerId, accepted });
+        }
+
+        resign(playerId: string) {
+          console.log("📤 Envoi resign:", playerId);
+          this.publish(this.sessionId, "resign", { playerId });
         }
       }
 
@@ -724,6 +933,23 @@ export default function ChessMultisynqApp() {
     multisynqView.resetGame();
   };
 
+  const handleOfferDraw = () => {
+    if (!multisynqView || !currentPlayerId) return;
+    multisynqView.offerDraw(currentPlayerId);
+  };
+
+  const handleRespondDraw = (accepted: boolean) => {
+    if (!multisynqView || !currentPlayerId) return;
+    multisynqView.respondDraw(currentPlayerId, accepted);
+  };
+
+  const handleResign = () => {
+    if (!multisynqView || !currentPlayerId) return;
+    if (confirm("Êtes-vous sûr de vouloir abandonner ?")) {
+      multisynqView.resign(currentPlayerId);
+    }
+  };
+
   const getCurrentPlayerTime = (): number => {
     const currentPlayer = gameState.players.find(
       (p) => p.id === currentPlayerId
@@ -743,15 +969,142 @@ export default function ChessMultisynqApp() {
       ? gameState.blackTime
       : gameState.whiteTime;
   };
+  const customPieces = {
+    wK: () => (
+      <svg viewBox="0 0 24 24" fill="white">
+        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+      </svg>
+    ),
+    bK: () => (
+      <div className="w-full h-full flex items-center justify-center h-[85px]">
+        <img src="/king.png" alt="king" className="h-[85px] mx-auto" />
+      </div>
+    ),
+    // Dames
+    wQ: () => (
+      <svg viewBox="0 0 45 45" fill="white">
+        <circle cx="6" cy="12" r="2.75" stroke="black" strokeWidth="1.5" />
+        <circle cx="14" cy="9" r="2.75" stroke="black" strokeWidth="1.5" />
+        <circle cx="22.5" cy="8" r="2.75" stroke="black" strokeWidth="1.5" />
+        <circle cx="31" cy="9" r="2.75" stroke="black" strokeWidth="1.5" />
+        <circle cx="39" cy="12" r="2.75" stroke="black" strokeWidth="1.5" />
+        <path
+          d="M9 26c8.5-1.5 21-1.5 27 0l2.5-12.5L31 25l-2.5-14.5L22.5 24l-2.5-14.5L14 25 6.5 13.5 9 26z"
+          stroke="black"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M9 26c0 2 1.5 2 2.5 4 1 1.5 1 1 .5 3.5-1.5 1-1 2.5-1 2.5-1.5 1.5 0 2.5 0 2.5 6.5 1 16.5 1 23 0 0 0 1.5-1 0-2.5 0 0 .5-1.5-1-2.5-.5-2.5-.5-2 .5-3.5 1-2 2.5-2 2.5-4-8.5-1.5-18.5-1.5-27 0z"
+          stroke="black"
+          strokeWidth="1.5"
+        />
+      </svg>
+    ),
+    bQ: () => (
+      <div className="w-full h-full flex items-center justify-center h-[85px]">
+        <img src="/queen.png" alt="queen" className="h-[85px] mx-auto" />
+      </div>
+    ),
+    // Tours
+    wR: () => (
+      <svg viewBox="0 0 45 45" fill="white">
+        <path
+          d="M9 39h27v-3H9v3zM12 36v-4h21v4H12zM11 14V9h4v2h5V9h5v2h5V9h4v5"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="butt"
+        />
+        <path
+          d="M34 14l-3 3H14l-3-3"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="butt"
+        />
+        <path
+          d="M31 17v12.5H14V17"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="butt"
+          fill="none"
+        />
+        <path
+          d="M11 14h23"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinejoin="miter"
+        />
+      </svg>
+    ),
+    bR: () => <img src="/rook.png" alt="rook" className="h-[85px] mx-auto" />,
+    // Fous
+    wB: () => (
+      <svg viewBox="0 0 45 45" fill="white">
+        <g
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M9 36c3.39-.97 10.11.43 13.5-2 3.39 2.43 10.11 1.03 13.5 2 0 0 1.65.54 3 2-.68.97-1.65.99-3 .5-3.39-.97-10.11.46-13.5-1-3.39 1.46-10.11.03-13.5 1-1.354.49-2.323.47-3-.5 1.354-1.94 3-2 3-2z" />
+          <path d="M15 32c2.5 2.5 12.5 2.5 15 0 .5-1.5 0-2 0-2 0-2.5-2.5-4-2.5-4 5.5-1.5 6-11.5-5-15.5-11 4-10.5 14-5 15.5 0 0-2.5 1.5-2.5 4 0 0-.5.5 0 2z" />
+          <path d="M25 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 1 1 5 0z" />
+        </g>
+      </svg>
+    ),
+    bB: () => (
+      <img src="/bishop.png" alt="bishop" className="h-[85px] mx-auto" />
+    ),
+    // Cavaliers
+    wN: () => (
+      <svg viewBox="0 0 45 45" fill="white">
+        <path
+          d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M9.5 25.5a.5.5 0 1 1-1 0 .5.5 0 1 1 1 0z"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+    bN: () => (
+      <img src="/cavalier.png" alt="cavalier" className="h-[85px] mx-auto" />
+    ),
+    // Pions
+    wP: () => (
+      <svg viewBox="0 0 45 45" fill="white">
+        <path
+          d="M22.5 9c-2.21 0-4 1.79-4 4 0 .89.29 1.71.78 2.38C17.33 16.5 16 18.59 16 21c0 2.03.94 3.84 2.41 5.03-3 1.06-7.41 5.55-7.41 13.47h23c0-7.92-4.41-12.41-7.41-13.47 1.47-1.19 2.41-3 2.41-5.03 0-2.41-1.33-4.5-3.28-5.62.49-.67.78-1.49.78-2.38 0-2.21-1.79-4-4-4z"
+          stroke="black"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+    bP: () => (
+      <div className="w-full h-full flex items-center justify-center h-[85px]">
+        <img src="/pawn.png" alt="pawn" className="h-[70px] mx-auto" />
+      </div>
+    ),
+  } as const;
   const chessboardOptions = {
-    position: fen, // useState
+    position: fen,
     onPieceDrop: onPieceDrop,
-    boardOrientation: playerColor, // useState
-    arePiecesDraggable: gameState.isActive, // useState
+    boardOrientation: playerColor,
+    arePiecesDraggable: gameState.isActive,
     boardWidth: 580,
     animationDuration: 200,
-    showBoardNotation: true,
-    // + styles personnalisés
+    customPieces: customPieces,
   };
 
   // Interface d'accueil
@@ -841,6 +1194,7 @@ export default function ChessMultisynqApp() {
     );
   }
 
+  console.log(gameState);
   // Interface de jeu
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0f0f]/100 to-[#0f0f0f]/80 p-4">
@@ -865,7 +1219,7 @@ export default function ChessMultisynqApp() {
             >
               Home
             </button>
-            {gameState.isActive && (
+            {(gameState.isActive || gameState.gameResult.type) && (
               <button
                 onClick={handleNewGame}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
@@ -884,30 +1238,46 @@ export default function ChessMultisynqApp() {
                 <div className="rounded-xl">
                   {/* Pièces capturées par l'adversaire (en haut) */}
                   <div className="flex justify-between items-center mb-3">
-                    {gameState.players.map((player, i) =>
-                      player.id !== currentPlayerId ? (
+                    <div className="flex items-center justify-between">
+                      {gameState.players.find(
+                        (entry) => entry.wallet !== address
+                      ) ? (
                         <div
-                          key={player.id}
-                          className="p-3 rounded-lg border bg-white/5 border-white/10"
+                          key={
+                            gameState.players.find(
+                              (entry) => entry.wallet !== address
+                            )?.id
+                          }
+                          className=""
                         >
                           <div className="flex items-center justify-between">
                             <div>
                               <div className="font-medium text-white">
-                                {player.color === "white" ? "⚪" : "⚫"}
-                                {player.wallet.slice(0, 6)}...
-                                {player.wallet.slice(-4)}
+                                {gameState.players.find(
+                                  (entry) => entry.wallet !== address
+                                )?.color === "white"
+                                  ? "⚪ "
+                                  : "⚫ "}
+                                {gameState.players
+                                  .find((entry) => entry.wallet !== address)
+                                  ?.wallet.slice(0, 6)}
+                                ...
+                                {gameState.players
+                                  .find((entry) => entry.wallet !== address)
+                                  ?.wallet.slice(-4)}
                               </div>
                               <div className="text-sm text-gray-300">
-                                {player.connected ? "Online" : "Offline"}
+                                <CapturedPieces
+                                  fen={fen}
+                                  playerColor={playerColor}
+                                  isOpponent={true}
+                                />
                               </div>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div
-                          className="flex items-center justify-between"
-                          key={player.id || i}
-                        >
+                        <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium text-white flex items-center gap-1">
                               <span className="animate-[bounce_1s_infinite]  text-2xl">
@@ -924,15 +1294,22 @@ export default function ChessMultisynqApp() {
                             <div className="text-sm text-gray-300">Offline</div>
                           </div>
                         </div>
-                      )
-                    )}
-                    <CapturedPieces
-                      fen={fen}
-                      playerColor={playerColor}
-                      isOpponent={true}
-                    />
-                    <div className="bg-white/10 backdrop-blur-md rounded px-2 py-1 border border-white/20">
-                      <span className="text-white text-2xl font-bold">
+                      )}
+                    </div>
+                    <div
+                      className={`backdrop-blur-md rounded px-2 py-1 border ${
+                        getOpponentTime() <= 30
+                          ? "bg-red-500/20 border-red-400"
+                          : "bg-white/10 border-white/20"
+                      }`}
+                    >
+                      <span
+                        className={`text-2xl font-bold ${
+                          getOpponentTime() <= 30
+                            ? "text-red-300"
+                            : "text-white"
+                        }`}
+                      >
                         {Math.floor(getOpponentTime() / 60)}:
                         {(getOpponentTime() % 60).toString().padStart(2, "0")}
                       </span>
@@ -955,20 +1332,32 @@ export default function ChessMultisynqApp() {
                                 {player.wallet.slice(-4)} (You)
                               </div>
                               <div className="text-sm text-gray-300">
-                                {player.connected ? "Online" : "Offline"}
+                                <CapturedPieces
+                                  fen={fen}
+                                  playerColor={playerColor}
+                                  isOpponent={false}
+                                />
                               </div>
                             </div>
                           </div>
                         </div>
                       ) : null
                     )}
-                    <CapturedPieces
-                      fen={fen}
-                      playerColor={playerColor}
-                      isOpponent={false}
-                    />
-                    <div className="bg-white/10 backdrop-blur-md rounded px-2 py-1 border border-white/20">
-                      <span className="text-white text-2xl font-bold">
+
+                    <div
+                      className={`backdrop-blur-md rounded px-2 py-1 border ${
+                        getCurrentPlayerTime() <= 30
+                          ? "bg-red-500/20 border-red-400"
+                          : "bg-white/10 border-white/20"
+                      }`}
+                    >
+                      <span
+                        className={`text-2xl font-bold ${
+                          getCurrentPlayerTime() <= 30
+                            ? "text-red-300"
+                            : "text-white"
+                        }`}
+                      >
                         {Math.floor(getCurrentPlayerTime() / 60)}:
                         {(getCurrentPlayerTime() % 60)
                           .toString()
@@ -977,7 +1366,7 @@ export default function ChessMultisynqApp() {
                     </div>
                   </div>
 
-                  {/* <div className="mt-4 text-center">
+                  <div className="mt-4 text-center">
                     {gameState.gameResult.type ? (
                       <div className="p-3 bg-yellow-500/20 border border-yellow-400 rounded-lg">
                         <p className="text-yellow-200 font-semibold">
@@ -985,21 +1374,72 @@ export default function ChessMultisynqApp() {
                         </p>
                       </div>
                     ) : gameState.isActive ? (
-                      <div className="p-3 bg-green-500/20 border border-green-400 rounded-lg">
-                        <p className="text-green-200">
-                          {gameState.turn === "w"
-                            ? "⚪ Trait aux blancs"
-                            : "⚫ Trait aux noirs"}
-                        </p>
+                      <div className="space-y-3">
+                        <div className="p-3 bg-green-500/20 border border-green-400 rounded-lg">
+                          <p className="text-green-200">
+                            {gameState.turn === "w"
+                              ? "⚪ Trait aux blancs"
+                              : "⚫ Trait aux noirs"}
+                          </p>
+                        </div>
+
+                        {/* Boutons d'action de jeu */}
+                        <div className="flex gap-2 justify-center">
+                          {gameState.drawOffer.offered &&
+                          gameState.drawOffer.by !==
+                            gameState.players.find(
+                              (p) => p.id === currentPlayerId
+                            )?.color ? (
+                            // Répondre à une offre de match nul
+                            <div className="flex gap-2 items-center">
+                              <span className="text-yellow-200 text-sm">
+                                Match nul proposé :
+                              </span>
+                              <button
+                                onClick={() => handleRespondDraw(true)}
+                                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                              >
+                                Accepter
+                              </button>
+                              <button
+                                onClick={() => handleRespondDraw(false)}
+                                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                              >
+                                Refuser
+                              </button>
+                            </div>
+                          ) : (
+                            // Boutons normaux
+                            <>
+                              <button
+                                onClick={handleOfferDraw}
+                                disabled={gameState.drawOffer.offered}
+                                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded text-sm transition-colors"
+                              >
+                                {gameState.drawOffer.offered
+                                  ? "Demande envoyée"
+                                  : "Proposer nul"}
+                              </button>
+                              <button
+                                onClick={handleResign}
+                                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                              >
+                                Abandonner
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className="p-3 bg-blue-500/20 border border-blue-400 rounded-lg">
                         <p className="text-blue-200">
-                          En attente du début de partie
+                          {gameState.players.length >= 2
+                            ? "Démarrage automatique de la partie..."
+                            : "En attente du second joueur"}
                         </p>
                       </div>
                     )}
-                  </div> */}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1210,11 +1210,10 @@ export default function ChessMultisynqApp() {
                 disabled={isCreatingRoom}
                 className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-lg font-semibold transition-colors"
               >
-                {isCreatingRoom ? "Creating..." : "🚀 Create Game"}
+                {isCreatingRoom ? "Creating..." : "Create Game"}
               </button>
             </div>
 
-            {/* Rejoindre une partie */}
             <div className="bg-gray-800 rounded-xl p-6">
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">

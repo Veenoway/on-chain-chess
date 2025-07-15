@@ -130,15 +130,11 @@ export default function CapturedPieces({
   const displayAdvantage = isOpponent ? -materialAdvantage : materialAdvantage;
 
   return (
-    <div
-      className={`flex items-center justify-between px-2 py-1 ${
-        isOpponent ? "mb-2" : "mt-2"
-      }`}
-    >
+    <div className={`flex items-center justify-between`}>
       {/* Pièces capturées */}
       <div className="flex items-center gap-1">
         {piecesToShow.map((piece, index) => (
-          <span key={index} className="text-3xl">
+          <span key={index} className="text-2xl">
             {
               PIECE_SYMBOLS[piece.color === "w" ? "white" : "black"][
                 piece.type as keyof typeof PIECE_SYMBOLS.white
@@ -147,7 +143,9 @@ export default function CapturedPieces({
           </span>
         ))}
         {displayAdvantage > 0 && (
-          <span className="text-white text-xl ml-3">+{displayAdvantage}</span>
+          <span className="text-[#836EF9] font-bold text-lg -mb-1 ml-2">
+            +{displayAdvantage}
+          </span>
         )}
       </div>
     </div>
