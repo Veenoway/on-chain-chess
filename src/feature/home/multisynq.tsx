@@ -109,6 +109,7 @@ export default function ChessMultisynqApp() {
   );
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
   const [showGameEndModal, setShowGameEndModal] = useState(false);
+  const [hasClosedModal, setHasClosedModal] = useState(false);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const moveHistoryRef = useRef<string[]>([]);
@@ -253,14 +254,15 @@ export default function ChessMultisynqApp() {
     }
   }, [gameState.fen, gameState.isActive]);
 
-  // Ouvrir le modal quand la partie se termine
+  // Ouvrir le modal quand la partie se termine (seulement si pas fermé manuellement)
   useEffect(() => {
-    if (gameState.gameResult.type && !showGameEndModal) {
+    if (gameState.gameResult.type && !showGameEndModal && !hasClosedModal) {
       setShowGameEndModal(true);
     } else if (!gameState.gameResult.type && showGameEndModal) {
       setShowGameEndModal(false);
+      setHasClosedModal(false); // Réinitialiser pour la prochaine partie
     }
-  }, [gameState.gameResult.type, showGameEndModal]);
+  }, [gameState.gameResult.type, showGameEndModal, hasClosedModal]);
 
   // Réinitialiser l'historique quand une nouvelle partie commence
   useEffect(() => {
@@ -274,6 +276,7 @@ export default function ChessMultisynqApp() {
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       ]);
       setCurrentMoveIndex(0);
+      setHasClosedModal(false); // Réinitialiser pour permettre l'ouverture auto de la modal
     }
   }, [gameState.isActive, gameState.gameNumber]);
 
@@ -1170,6 +1173,7 @@ export default function ChessMultisynqApp() {
 
   const handleCloseGameEndModal = () => {
     setShowGameEndModal(false);
+    setHasClosedModal(true); // Marquer que l'utilisateur a fermé manuellement
     // Ne pas appeler handleRespondDraw(false) pour permettre les revanches ultérieures
   };
 
@@ -1350,7 +1354,9 @@ export default function ChessMultisynqApp() {
       gameState.gameResult.type ||
       currentMoveIndex < moveHistory.length - 1
     ) {
-      console.warn("Cannot move pieces in analysis mode or finished game!");
+      console.warn(
+        "Cannot move pieces while in analysis mode! Return to current position first."
+      );
       return false;
     }
 
@@ -1705,10 +1711,7 @@ export default function ChessMultisynqApp() {
 
   const isDraw = gameState.gameResult.winner === "draw";
 
-  console.log("moveHistory", moveHistory);
-  console.log("currentMoveIndex", currentMoveIndex);
-  console.log("gameState.fen", gameState.fen);
-  console.log("gameState.isActive", gameState.isActive);
+  // console.log("moveHistory", moveHistory);
 
   // Interface de jeu
   return (
@@ -1855,16 +1858,21 @@ export default function ChessMultisynqApp() {
                   <div className="relative aspect-square max-w-full w-full mx-auto">
                     <Chessboard options={chessboardOptions} />
 
-                    {/* Indicateur de fin de partie (discret) */}
-                    {gameState.gameResult.type && !showGameEndModal && (
+                    {/* Indicateur de mode analyse */}
+                    {((gameState.gameResult.type && !showGameEndModal) ||
+                      (gameState.isActive &&
+                        currentMoveIndex < moveHistory.length - 1)) && (
                       <div className="absolute top-2 left-2 z-10">
-                        <div className="bg-black/70 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/20">
-                          <span className="text-white text-sm font-medium">
-                            🏁 Partie terminée - Mode analyse
+                        <div className="bg-[#252525] backdrop-blur-sm px-3 py-1 flex items-center rounded border border-white/10 shadow-xl">
+                          <div className="bg-yellow-300 h-2.5 w-2.5 rounded-full animate-pulse" />
+                          <span className="text-white text-base font-medium ml-2.5">
+                            {gameState.gameResult.type
+                              ? "Game over - Analysis mode"
+                              : "Analysis mode"}
                             {moveHistory.length > 1 &&
                               currentMoveIndex < moveHistory.length - 1 && (
                                 <span className="ml-2 text-yellow-300">
-                                  (Coup {currentMoveIndex}/
+                                  (Move {currentMoveIndex}/
                                   {moveHistory.length - 1})
                                 </span>
                               )}
@@ -1872,6 +1880,18 @@ export default function ChessMultisynqApp() {
                         </div>
                       </div>
                     )}
+
+                    {gameState.isActive &&
+                      currentMoveIndex < moveHistory.length - 1 && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <button
+                            onClick={goToLastMove}
+                            className="bg-[#836EF9]/90 backdrop-blur-sm px-3 py-1 rounded-lg border border-[#836EF9] text-white text-sm font-medium hover:bg-[#836EF9] transition-colors"
+                          >
+                            Back to game
+                          </button>
+                        </div>
+                      )}
 
                     {showGameEndModal && (
                       <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/80 backdrop-blur-xs">
@@ -1993,7 +2013,7 @@ export default function ChessMultisynqApp() {
                                     onClick={handleCloseGameEndModal}
                                     className="w-full px-6 py-4 bg-[#404040] hover:bg-[#4a4a4a] text-white rounded font-bold text-lg transition-colors"
                                   >
-                                    Continuer à analyser
+                                    Continue analysis
                                   </button>
                                 </div>
                               )}
@@ -2004,7 +2024,7 @@ export default function ChessMultisynqApp() {
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center mt-3">
+                  <div className="flex justify-between items-end mt-3">
                     {gameState.players.map((player) =>
                       player.id === currentPlayerId ? (
                         <div key={player.id} className="rounded">
@@ -2060,12 +2080,19 @@ export default function ChessMultisynqApp() {
           </div>
           {/* Panel de droite - Chat */}
           <div className="lg:col-span-2">
-            <div className="rounded  full flex flex-col">
+            <div className="rounded  full flex flex-col h-[800px]    ">
               <h3 className="text-xl font-semibold text-white mb-3">
                 Nads Chat
               </h3>
 
-              <div className="overflow-y-auto space-y-2 min-h-[607px] max-h-[607px] mb-4">
+              <div
+                className="overflow-y-auto space-y-2 h-full flex-1 mb-4"
+                ref={(el) => {
+                  if (el) {
+                    el.scrollTop = el.scrollHeight;
+                  }
+                }}
+              >
                 {gameState.messages.map((msg) => (
                   <div
                     key={msg.id}
@@ -2092,7 +2119,6 @@ export default function ChessMultisynqApp() {
                   </div>
                 ))}
               </div>
-              <div className="w-full h-[1px] bg-white/10 mb-5 mt-1" />
               <div className="flex gap-2 mt-auto">
                 <input
                   type="text"
@@ -2110,168 +2136,208 @@ export default function ChessMultisynqApp() {
                   Send
                 </button>
               </div>
-              {gameState.isActive ? (
-                // Partie en cours - Afficher les contrôles de jeu
-                <div className="space-y-3 mt-2.5">
-                  {/* Boutons d'action de jeu */}
-                  <div className="flex gap-2 justify-between w-full">
-                    {gameState.drawOffer.offered &&
-                    gameState.drawOffer.by !==
-                      gameState.players.find((p) => p.id === currentPlayerId)
-                        ?.color ? (
-                      // Répondre à une offre de match nul
-                      <div className="flex items-center w-full justify-between">
-                        <span className="text-yellow-200 text-sm">
-                          Draw offer:
-                        </span>
-                        <div className="flex gap-2 items-center">
-                          <button
-                            onClick={() => handleRespondDraw(true)}
-                            className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
-                          >
-                            Accept
-                          </button>
-                          <button
-                            onClick={() => handleRespondDraw(false)}
-                            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
-                          >
-                            Decline
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      // Boutons normaux pendant la partie
-                      <div className="grid grid-cols-2 gap-2 w-full">
-                        <button
-                          onClick={handleOfferDraw}
-                          disabled={gameState.drawOffer.offered}
-                          className="px-3 w-full h-[40px] col-span-1  bg-[#836EF9] text-white rounded text-base transition-colors"
-                        >
-                          {gameState.drawOffer.offered
-                            ? "Draw offer sent"
-                            : "Offer draw"}
-                        </button>
-                        <button
-                          onClick={handleResign}
-                          className="px-3 w-full h-[40px] col-span-1 bg-[#2a2a2a] disabled:border-gray-600  border border-[#836EF9] text-white rounded text-base transition-colors"
-                        >
-                          Resign
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : gameState.gameResult.type ? (
-                // Partie terminée - Panneau persistant de fin de partie
-                <div className="space-y-3 mt-2.5">
-                  <div className="p-3 bg-[#1E1E1E] border border-white/10 rounded">
-                    <div className="text-center mb-3">
-                      <p className="text-white font-semibold text-lg mb-1">
-                        {gameState.gameResult.message || "Game Over"}
-                      </p>
-                      <p className="text-gray-400 text-sm">
-                        Game #{gameState.gameNumber}
-                      </p>
-                    </div>
+              <div className="w-full h-[1px] bg-white/10 my-5" />
 
-                    {gameState.rematchOffer?.offered &&
-                    gameState.rematchOffer?.by !==
-                      gameState.players.find((p) => p.id === currentPlayerId)
-                        ?.color ? (
-                      <div className="space-y-3">
-                        <p className="text-yellow-200 text-sm text-center">
-                          Votre adversaire propose une revanche
-                        </p>
+              {/* Box persistante - toujours visible */}
+              <div className="space-y-3">
+                <div className="p-3 bg-[#1E1E1E] border border-white/10 rounded">
+                  {gameState.isActive ? (
+                    // ========== PARTIE EN COURS ==========
+                    <div className="space-y-3">
+                      {gameState.drawOffer.offered &&
+                      gameState.drawOffer.by !==
+                        gameState.players.find((p) => p.id === currentPlayerId)
+                          ?.color ? (
+                        // Répondre à une offre de match nul
+                        <div>
+                          <p className="text-yellow-200 text-sm text-center mb-2">
+                            Votre adversaire propose le match nul
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleRespondDraw(true)}
+                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleRespondDraw(false)}
+                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        // Boutons normaux pendant la partie
                         <div className="grid grid-cols-2 gap-2">
                           <button
-                            onClick={() => handleRespondRematch(true)}
-                            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                            onClick={handleOfferDraw}
+                            disabled={gameState.drawOffer.offered}
+                            className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] text-white rounded text-sm transition-colors"
                           >
-                            Accept
+                            {gameState.drawOffer.offered
+                              ? "Draw offer sent"
+                              : "Offer draw"}
                           </button>
                           <button
-                            onClick={() => handleRespondRematch(false)}
-                            className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                            onClick={handleResign}
+                            className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded text-sm transition-colors"
                           >
-                            Decline
+                            Resign
                           </button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <button
-                          onClick={handleRequestRematch}
-                          disabled={gameState.rematchOffer?.offered}
-                          className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded text-sm transition-colors"
-                        >
-                          {gameState.rematchOffer?.offered
-                            ? "Demande de revanche envoyée"
-                            : "Proposer une revanche"}
-                        </button>
-                        <button
-                          onClick={() => setShowGameEndModal(true)}
-                          className="w-full px-3 py-2 bg-[#404040] hover:bg-[#4a4a4a] text-white rounded text-sm transition-colors"
-                        >
-                          Voir les détails
-                        </button>
+                      )}
 
-                        {/* Contrôles de navigation dans l'historique */}
-                        {moveHistory.length > 1 && (
-                          <div className="mt-3 pt-3 border-t border-white/10">
-                            <p className="text-gray-400 text-xs mb-2 text-center">
-                              Navigation: Coup {currentMoveIndex}/
-                              {moveHistory.length - 1}
-                            </p>
-                            <div className="grid grid-cols-4 gap-1">
-                              <button
-                                onClick={goToFirstMove}
-                                disabled={currentMoveIndex === 0}
-                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
-                              >
-                                ⏮
-                              </button>
-                              <button
-                                onClick={goToPreviousMove}
-                                disabled={currentMoveIndex === 0}
-                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
-                              >
-                                ◀
-                              </button>
-                              <button
-                                onClick={goToNextMove}
-                                disabled={
-                                  currentMoveIndex === moveHistory.length - 1
-                                }
-                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
-                              >
-                                ▶
-                              </button>
-                              <button
-                                onClick={goToLastMove}
-                                disabled={
-                                  currentMoveIndex === moveHistory.length - 1
-                                }
-                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
-                              >
-                                ⏭
-                              </button>
-                            </div>
+                      {/* Navigation pendant la partie */}
+                      {moveHistory.length > 1 && (
+                        <div className="pt-3 border-t border-white/10">
+                          <p className="text-gray-400 text-xs mb-2 text-center">
+                            Navigation: Coup {currentMoveIndex}/
+                            {moveHistory.length - 1}
+                          </p>
+                          <div className="grid grid-cols-4 gap-1">
+                            <button
+                              onClick={goToFirstMove}
+                              disabled={currentMoveIndex === 0}
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ⏮
+                            </button>
+                            <button
+                              onClick={goToPreviousMove}
+                              disabled={currentMoveIndex === 0}
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ◀
+                            </button>
+                            <button
+                              onClick={goToNextMove}
+                              disabled={
+                                currentMoveIndex === moveHistory.length - 1
+                              }
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ▶
+                            </button>
+                            <button
+                              onClick={goToLastMove}
+                              disabled={
+                                currentMoveIndex === moveHistory.length - 1
+                              }
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ⏭
+                            </button>
                           </div>
-                        )}
+                        </div>
+                      )}
+                    </div>
+                  ) : gameState.gameResult.type ? (
+                    // ========== PARTIE TERMINÉE ==========
+                    <div className="space-y-3">
+                      <div className="text-center mb-3">
+                        <p className="text-white font-semibold text-lg mb-1">
+                          {gameState.gameResult.message || "Game Over"}
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          Game #{gameState.gameNumber}
+                        </p>
                       </div>
-                    )}
-                  </div>
+
+                      {gameState.rematchOffer?.offered &&
+                      gameState.rematchOffer?.by !==
+                        gameState.players.find((p) => p.id === currentPlayerId)
+                          ?.color ? (
+                        <div>
+                          <p className="text-[#FFF] text-sm text-center mb-2">
+                            Your opponent offers you a rematch
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleRespondRematch(true)}
+                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleRespondRematch(false)}
+                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <button
+                            onClick={handleRequestRematch}
+                            disabled={gameState.rematchOffer?.offered}
+                            className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded text-sm transition-colors"
+                          >
+                            {gameState.rematchOffer?.offered
+                              ? "Rematch offer sent"
+                              : "New game"}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Navigation après la partie */}
+                      {moveHistory.length > 1 && (
+                        <div className="pt-3 border-t border-white/10">
+                          <p className="text-gray-400 text-xs mb-2 text-center">
+                            Navigation: Move {currentMoveIndex}/
+                            {moveHistory.length - 1}
+                          </p>
+                          <div className="grid grid-cols-4 gap-1">
+                            <button
+                              onClick={goToFirstMove}
+                              disabled={currentMoveIndex === 0}
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ⏮
+                            </button>
+                            <button
+                              onClick={goToPreviousMove}
+                              disabled={currentMoveIndex === 0}
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ◀
+                            </button>
+                            <button
+                              onClick={goToNextMove}
+                              disabled={
+                                currentMoveIndex === moveHistory.length - 1
+                              }
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ▶
+                            </button>
+                            <button
+                              onClick={goToLastMove}
+                              disabled={
+                                currentMoveIndex === moveHistory.length - 1
+                              }
+                              className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                            >
+                              ⏭
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // ========== EN ATTENTE ==========
+                    <div className="text-center py-2">
+                      <p className="text-[#a494fb]">
+                        {gameState.players.length >= 2
+                          ? "Starting game..."
+                          : "Waiting for second player"}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                // En attente de joueurs
-                <div className="p-3 bg-[#836EF9]/20 flex items-center justify-center border border-[#836EF9] rounded space-y-3 mt-2.5">
-                  <p className="text-[#a494fb] text-center">
-                    {gameState.players.length >= 2
-                      ? "Starting game..."
-                      : "Waiting for second player"}
-                  </p>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
