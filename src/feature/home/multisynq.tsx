@@ -109,6 +109,10 @@ export default function ChessMultisynqApp() {
   );
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
   const [showGameEndModal, setShowGameEndModal] = useState(false);
+  const [moveHistory, setMoveHistory] = useState<string[]>([]);
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
+  const moveHistoryRef = useRef<string[]>([]);
+  const currentMoveIndexRef = useRef(-1);
 
   const { address, isConnected, chainId } = useAccount();
   const isWrongNetwork = chainId !== 10143;
@@ -207,13 +211,47 @@ export default function ChessMultisynqApp() {
     multisynqView,
   ]);
 
+  // Mettre à jour les refs quand l'état change
+  useEffect(() => {
+    moveHistoryRef.current = moveHistory;
+    currentMoveIndexRef.current = currentMoveIndex;
+  }, [moveHistory, currentMoveIndex]);
+
   // Synchroniser gameRef avec l'état
   useEffect(() => {
     if (gameState.fen) {
       gameRef.current.load(gameState.fen);
-      setFen(gameState.fen);
+
+      // Si on n'est pas en mode navigation, mettre à jour la position affichée
+      if (
+        currentMoveIndexRef.current === moveHistoryRef.current.length - 1 ||
+        moveHistoryRef.current.length === 0
+      ) {
+        setFen(gameState.fen);
+      }
+
+      // Détecter un nouveau coup et l'ajouter à l'historique
+      if (
+        gameState.isActive &&
+        moveHistoryRef.current.length > 0 &&
+        gameState.fen !==
+          moveHistoryRef.current[moveHistoryRef.current.length - 1]
+      ) {
+        console.log("🆕 Nouveau coup détecté:", {
+          nouveauFen: gameState.fen,
+          dernierFenHistorique:
+            moveHistoryRef.current[moveHistoryRef.current.length - 1],
+          tailleHistorique: moveHistoryRef.current.length,
+        });
+
+        // Ajouter la nouvelle position à l'historique
+        const newHistory = [...moveHistoryRef.current, gameState.fen];
+        setMoveHistory(newHistory);
+        setCurrentMoveIndex(newHistory.length - 1);
+        setFen(gameState.fen);
+      }
     }
-  }, [gameState.fen]);
+  }, [gameState.fen, gameState.isActive]);
 
   // Ouvrir le modal quand la partie se termine
   useEffect(() => {
@@ -223,6 +261,32 @@ export default function ChessMultisynqApp() {
       setShowGameEndModal(false);
     }
   }, [gameState.gameResult.type, showGameEndModal]);
+
+  // Réinitialiser l'historique quand une nouvelle partie commence
+  useEffect(() => {
+    if (
+      gameState.isActive &&
+      gameState.fen ===
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    ) {
+      console.log("🔄 Réinitialisation de l'historique pour nouvelle partie");
+      setMoveHistory([
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      ]);
+      setCurrentMoveIndex(0);
+    }
+  }, [gameState.isActive, gameState.gameNumber]);
+
+  // Initialiser l'historique quand on rejoint une partie pour la première fois
+  useEffect(() => {
+    if (moveHistory.length === 0 && gameState.players.length > 0) {
+      console.log("🆔 Initialisation de l'historique initial");
+      setMoveHistory([
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      ]);
+      setCurrentMoveIndex(0);
+    }
+  }, [gameState.players.length, moveHistory.length]);
 
   useEffect(() => {
     const currentPlayer = gameState.players.find(
@@ -1106,7 +1170,7 @@ export default function ChessMultisynqApp() {
 
   const handleCloseGameEndModal = () => {
     setShowGameEndModal(false);
-    handleRespondDraw(false);
+    // Ne pas appeler handleRespondDraw(false) pour permettre les revanches ultérieures
   };
 
   // Créer une session Multisynq
@@ -1281,6 +1345,18 @@ export default function ChessMultisynqApp() {
     const { sourceSquare, targetSquare } = args;
     if (!targetSquare || !currentPlayerId || !multisynqView) return false;
 
+    // Empêcher les mouvements si la partie est terminée ou si on n'est pas à la position actuelle
+    if (
+      gameState.gameResult.type ||
+      currentMoveIndex < moveHistory.length - 1
+    ) {
+      console.warn("Cannot move pieces in analysis mode or finished game!");
+      return false;
+    }
+
+    // Empêcher les mouvements si la partie n'est pas active
+    if (!gameState.isActive) return false;
+
     const currentPlayer = gameState.players.find(
       (p) => p.id === currentPlayerId
     );
@@ -1345,6 +1421,38 @@ export default function ChessMultisynqApp() {
     return currentPlayer.color === "white"
       ? gameState.blackTime
       : gameState.whiteTime;
+  };
+
+  // Fonctions de navigation dans l'historique
+  const goToPreviousMove = () => {
+    if (currentMoveIndex > 0) {
+      const newIndex = currentMoveIndex - 1;
+      setCurrentMoveIndex(newIndex);
+      setFen(moveHistory[newIndex]);
+    }
+  };
+
+  const goToNextMove = () => {
+    if (currentMoveIndex < moveHistory.length - 1) {
+      const newIndex = currentMoveIndex + 1;
+      setCurrentMoveIndex(newIndex);
+      setFen(moveHistory[newIndex]);
+    }
+  };
+
+  const goToFirstMove = () => {
+    if (moveHistory.length > 0) {
+      setCurrentMoveIndex(0);
+      setFen(moveHistory[0]);
+    }
+  };
+
+  const goToLastMove = () => {
+    if (moveHistory.length > 0) {
+      const lastIndex = moveHistory.length - 1;
+      setCurrentMoveIndex(lastIndex);
+      setFen(moveHistory[lastIndex]);
+    }
   };
   const customPieces = {
     wK: () => (
@@ -1597,6 +1705,11 @@ export default function ChessMultisynqApp() {
 
   const isDraw = gameState.gameResult.winner === "draw";
 
+  console.log("moveHistory", moveHistory);
+  console.log("currentMoveIndex", currentMoveIndex);
+  console.log("gameState.fen", gameState.fen);
+  console.log("gameState.isActive", gameState.isActive);
+
   // Interface de jeu
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0f0f]/100 to-[#0f0f0f]/80 p-4">
@@ -1742,6 +1855,24 @@ export default function ChessMultisynqApp() {
                   <div className="relative aspect-square max-w-full w-full mx-auto">
                     <Chessboard options={chessboardOptions} />
 
+                    {/* Indicateur de fin de partie (discret) */}
+                    {gameState.gameResult.type && !showGameEndModal && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <div className="bg-black/70 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/20">
+                          <span className="text-white text-sm font-medium">
+                            🏁 Partie terminée - Mode analyse
+                            {moveHistory.length > 1 &&
+                              currentMoveIndex < moveHistory.length - 1 && (
+                                <span className="ml-2 text-yellow-300">
+                                  (Coup {currentMoveIndex}/
+                                  {moveHistory.length - 1})
+                                </span>
+                              )}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {showGameEndModal && (
                       <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/80 backdrop-blur-xs">
                         <div className="bg-[#1E1E1E] border border-white/10 rounded-md p-8 max-w-md w-full mx-4 shadow-2xl">
@@ -1862,7 +1993,7 @@ export default function ChessMultisynqApp() {
                                     onClick={handleCloseGameEndModal}
                                     className="w-full px-6 py-4 bg-[#404040] hover:bg-[#4a4a4a] text-white rounded font-bold text-lg transition-colors"
                                   >
-                                    Analyser la partie
+                                    Continuer à analyser
                                   </button>
                                 </div>
                               )}
@@ -2026,6 +2157,107 @@ export default function ChessMultisynqApp() {
                         >
                           Resign
                         </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : gameState.gameResult.type ? (
+                // Partie terminée - Panneau persistant de fin de partie
+                <div className="space-y-3 mt-2.5">
+                  <div className="p-3 bg-[#1E1E1E] border border-white/10 rounded">
+                    <div className="text-center mb-3">
+                      <p className="text-white font-semibold text-lg mb-1">
+                        {gameState.gameResult.message || "Game Over"}
+                      </p>
+                      <p className="text-gray-400 text-sm">
+                        Game #{gameState.gameNumber}
+                      </p>
+                    </div>
+
+                    {gameState.rematchOffer?.offered &&
+                    gameState.rematchOffer?.by !==
+                      gameState.players.find((p) => p.id === currentPlayerId)
+                        ?.color ? (
+                      <div className="space-y-3">
+                        <p className="text-yellow-200 text-sm text-center">
+                          Votre adversaire propose une revanche
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleRespondRematch(true)}
+                            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleRespondRematch(false)}
+                            className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <button
+                          onClick={handleRequestRematch}
+                          disabled={gameState.rematchOffer?.offered}
+                          className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded text-sm transition-colors"
+                        >
+                          {gameState.rematchOffer?.offered
+                            ? "Demande de revanche envoyée"
+                            : "Proposer une revanche"}
+                        </button>
+                        <button
+                          onClick={() => setShowGameEndModal(true)}
+                          className="w-full px-3 py-2 bg-[#404040] hover:bg-[#4a4a4a] text-white rounded text-sm transition-colors"
+                        >
+                          Voir les détails
+                        </button>
+
+                        {/* Contrôles de navigation dans l'historique */}
+                        {moveHistory.length > 1 && (
+                          <div className="mt-3 pt-3 border-t border-white/10">
+                            <p className="text-gray-400 text-xs mb-2 text-center">
+                              Navigation: Coup {currentMoveIndex}/
+                              {moveHistory.length - 1}
+                            </p>
+                            <div className="grid grid-cols-4 gap-1">
+                              <button
+                                onClick={goToFirstMove}
+                                disabled={currentMoveIndex === 0}
+                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                              >
+                                ⏮
+                              </button>
+                              <button
+                                onClick={goToPreviousMove}
+                                disabled={currentMoveIndex === 0}
+                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                              >
+                                ◀
+                              </button>
+                              <button
+                                onClick={goToNextMove}
+                                disabled={
+                                  currentMoveIndex === moveHistory.length - 1
+                                }
+                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                              >
+                                ▶
+                              </button>
+                              <button
+                                onClick={goToLastMove}
+                                disabled={
+                                  currentMoveIndex === moveHistory.length - 1
+                                }
+                                className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                              >
+                                ⏭
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
