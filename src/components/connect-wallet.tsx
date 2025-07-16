@@ -47,8 +47,8 @@ export function WalletConnection() {
     return (
       <button
         onClick={handleSwitchNetwork}
-        className="bg-black
-          flex items-center rounded uppercase w-fit h-[40px] sm:h-[55px] border border-borderColor px-2.5 sm:px-6 py-5
+        className="bg-[#836EF9]
+          flex items-center rounded uppercaseh-[40px] sm:h-[65px] w-full justify-center border border-borderColor px-2.5 sm:px-6 py-5
            text-lg sm:text-2xl text-white font-medium transition-all duration-300 ease-in-out
           disabled:opacity-50 disabled:cursor-not-allowed"
       >
@@ -58,13 +58,13 @@ export function WalletConnection() {
   }
 
   return (
-    <div className="sm:mt-[100px] mt-[20px]">
+    <div className="w-full">
       {!address && (
         <WalletModal open={open} setOpen={setOpen}>
           <button
             onClick={() => setOpen(true)}
-            className={`bg-black
-             flex items-center rounded uppercase mx-auto w-fit h-[40px] sm:h-[55px] px-2.5 sm:px-6 py-5
+            className={`bg-[#836EF9]
+             flex items-center justify-center rounded mx-auto w-full h-[40px] sm:h-[65px] px-2.5 sm:px-6 py-5
              text-lg sm:text-2xl text-white font-medium transition-all duration-300 ease-in-out
              ${isConnecting ? "opacity-50 cursor-not-allowed" : ""}`}
           >
@@ -73,12 +73,12 @@ export function WalletConnection() {
         </WalletModal>
       )}
       {address && !isWrongNetwork && (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 w-full">
           <button
             onClick={handleDisconnect}
-            className={`bg-black
-                flex items-center rounded uppercase mx-auto w-fit h-[40px] sm:h-[55px] px-2.5 sm:px-6 py-5
-                text-lg sm:text-2xl text-white font-semibold transition-all duration-300 ease-in-out
+            className={`bg-[#836EF9]
+                flex items-center rounded mx-auto h-[40px] sm:h-[65px] w-full px-2.5 sm:px-6 py-5
+                text-lg sm:text-2xl text-white font-semibold justify-center transition-all duration-300 ease-in-out
                 ${isConnecting || isInitialLoading ? "animate-pulse" : ""}`}
           >
             {getDisplayText()}

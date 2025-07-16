@@ -4,12 +4,12 @@
 "use client";
 import { WalletConnection } from "@/components/connect-wallet";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/lib/shadcn/modal";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Chess } from "chess.js";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -98,7 +98,8 @@ export default function ChessMultisynqApp() {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [selectedGameTime, setSelectedGameTime] = useState(600);
   const [newMessage, setNewMessage] = useState("");
-  const [connectionStatus, setConnectionStatus] = useState("Prêt à jouer");
+  const [, setConnectionStatus] = useState("Prêt à jouer");
+
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [, setMultisynqSession] = useState<any>(null);
   const [multisynqView, setMultisynqView] = useState<any>(null);
@@ -109,7 +110,9 @@ export default function ChessMultisynqApp() {
   const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
   const [showGameEndModal, setShowGameEndModal] = useState(false);
 
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
+  const isWrongNetwork = chainId !== 10143;
+  console.log("chainId", chainId, isWrongNetwork);
   const gameRef = useRef(new Chess());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -1103,6 +1106,7 @@ export default function ChessMultisynqApp() {
 
   const handleCloseGameEndModal = () => {
     setShowGameEndModal(false);
+    handleRespondDraw(false);
   };
 
   // Créer une session Multisynq
@@ -1315,7 +1319,6 @@ export default function ChessMultisynqApp() {
     return false;
   };
 
-  // Envoyer un message de chat
   const handleSendMessage = () => {
     if (!newMessage.trim() || !currentPlayerId || !address || !multisynqView)
       return;
@@ -1484,84 +1487,102 @@ export default function ChessMultisynqApp() {
   // Interface d'accueil
   if (gameFlow === "welcome") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-white mb-2">
-              MultiSynq x Monad Chess
+      <div className="min-h-screen bg-[url('https://pbs.twimg.com/media/GpoPZdmWkAApRWa?format=jpg&name=large')] bg-center bg-cover flex items-center justify-center p-4">
+        <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/20">
+          <div className="text-center mb-20">
+            <h1 className="text-5xl font-bold text-white mb-3">
+              MultiSynq & Monad Chess
             </h1>
-            <p className="text-blue-200">Real-time chess game with Multisynq</p>
+            <p className="text-white/80">Real-time chess game with Multisynq</p>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-10">
+            <div className="grid grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <div>
+                  <label
+                    className={`block text-2xl text-center font-medium ${
+                      isConnected ? "text-white" : "text-white/50"
+                    } mb-6`}
+                  >
+                    Game time
+                  </label>
+                  <Select
+                    value={selectedGameTime.toString()}
+                    onValueChange={(value) =>
+                      setSelectedGameTime(Number(value))
+                    }
+                    disabled={!isConnected}
+                  >
+                    <SelectTrigger className="w-full text-base bg-[#252525] border-white/10 h-[45px] text-white disabled:opacity-50">
+                      <SelectValue placeholder="Select game time" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#252525] border-white/20 text-base text-white">
+                      <SelectItem value="180">3 minutes</SelectItem>
+                      <SelectItem value="300">5 minutes</SelectItem>
+                      <SelectItem value="600">10 minutes</SelectItem>
+                      <SelectItem value="900">15 minutes</SelectItem>
+                      <SelectItem value="1800">30 minutes</SelectItem>
+                      <SelectItem value="3600">1 hour</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <button
+                  onClick={handleCreateRoom}
+                  disabled={!isConnected || isCreatingRoom || !multisynqReady}
+                  className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 disabled:text-white/50 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-3 px-6 rounded text-base transition-all"
+                >
+                  {!isConnected && !isWrongNetwork
+                    ? "Connect wallet to create"
+                    : isWrongNetwork
+                    ? "Wrong network"
+                    : isCreatingRoom
+                    ? "Creating..."
+                    : !multisynqReady
+                    ? "Loading Multisynq..."
+                    : "Create a new game"}
+                </button>
+              </div>
+              <div className="space-y-2">
+                <label
+                  className={`block text-2xl text-center font-medium ${
+                    isConnected ? "text-white" : "text-white/50"
+                  } mb-4`}
+                >
+                  Join a game
+                </label>
+                <input
+                  type="text"
+                  placeholder="Code room ou room:password"
+                  value={roomInput}
+                  onChange={(e) => setRoomInput(e.target.value)}
+                  disabled={!isConnected}
+                  className="w-full p-3 bg-[#252525] border border-white/10 h-[45px] text-white rounded placeholder-gray-400 focus:ring-2 focus:ring-none focus:border-none disabled:opacity-50"
+                />
+                <button
+                  onClick={handleJoinRoom}
+                  disabled={
+                    !isConnected || !roomInput.trim() || !multisynqReady
+                  }
+                  className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] disabled:text-white/50 text-white font-medium py-3 px-6 rounded text-base transition-all"
+                >
+                  {!isConnected && !isWrongNetwork
+                    ? "Connect wallet to join"
+                    : isWrongNetwork
+                    ? "Wrong network"
+                    : !multisynqReady
+                    ? "Loading..."
+                    : "Join a game"}
+                </button>
+              </div>
+            </div>
+            <div className="w-full h-[1px] bg-white/10 my-4" />
             <WalletConnection />
 
-            {isConnected && (
-              <>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-blue-200 mb-2">
-                      Temps de jeu (secondes)
-                    </label>
-                    <select
-                      value={selectedGameTime}
-                      onChange={(e) =>
-                        setSelectedGameTime(Number(e.target.value))
-                      }
-                      className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-blue-400"
-                    >
-                      <option value={180}>3 minutes ⚡</option>
-                      <option value={300}>5 minutes</option>
-                      <option value={600}>10 minutes</option>
-                      <option value={900}>15 minutes</option>
-                      <option value={1800}>30 minutes</option>
-                      <option value={3600}>1 hour</option>
-                    </select>
-                  </div>
-
-                  <button
-                    onClick={handleCreateRoom}
-                    disabled={isCreatingRoom || !multisynqReady}
-                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all"
-                  >
-                    {isCreatingRoom
-                      ? "Création..."
-                      : !multisynqReady
-                      ? "Chargement Multisynq..."
-                      : "🎮 Créer une nouvelle partie"}
-                  </button>
-
-                  <div className="text-center text-blue-200">ou</div>
-
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Code room ou room:password"
-                      value={roomInput}
-                      onChange={(e) => setRoomInput(e.target.value)}
-                      className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-400"
-                    />
-                    <p className="text-xs text-blue-300">
-                      Format: &quot;chess-abc123&quot; ou
-                      &quot;chess-abc123:motdepasse&quot;
-                    </p>
-                    <button
-                      onClick={handleJoinRoom}
-                      disabled={!roomInput.trim() || !multisynqReady}
-                      className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all"
-                    >
-                      {!multisynqReady
-                        ? "Chargement..."
-                        : "🚪 Rejoindre une partie"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="text-center text-sm text-blue-300">
-                  Status: {connectionStatus}
-                </div>
-              </>
-            )}
+            {/* <div className="text-center text-sm text-blue-300">
+              Status: {connectionStatus}
+            </div> */}
           </div>
         </div>
       </div>
@@ -1569,6 +1590,13 @@ export default function ChessMultisynqApp() {
   }
 
   console.log(gameState);
+
+  //   const isWinner =
+  //     gameState.gameResult.winner ===
+  //     gameState.players.find((p) => p.id === currentPlayerId)?.color;
+
+  const isDraw = gameState.gameResult.winner === "draw";
+
   // Interface de jeu
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f0f0f]/100 to-[#0f0f0f]/80 p-4">
@@ -1577,9 +1605,9 @@ export default function ChessMultisynqApp() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">♔ Chess Multi</h1>
+              <h1 className="text-3xl font-bold text-white">♔ Chess Multi</h1>
               {isReconnecting && (
-                <div className="flex items-center gap-2 px-3 py-1 bg-orange-500/20 border border-orange-400 rounded-lg">
+                <div className="flex items-center gap-2 px-3 py-1 bg-orange-500/20 border border-orange-400 rounded">
                   <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
                   <span className="text-orange-200 text-sm">
                     Reconnecting...
@@ -1587,14 +1615,26 @@ export default function ChessMultisynqApp() {
                 </div>
               )}
             </div>
-            <p className="text-blue-200">Room: {gameState.roomName}</p>
-            {gameState.roomPassword && (
-              <p className="text-xs text-gray-400">
-                Share link: {window.location.origin}
-                {window.location.pathname}?room={gameState.roomName}&password=
-                {gameState.roomPassword}
-              </p>
-            )}
+
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `${window.location.origin}${
+                      window.location.pathname
+                    }?room=${gameState.roomName}${
+                      gameState.roomPassword
+                        ? `&password=${gameState.roomPassword}`
+                        : ""
+                    }`
+                  );
+                }}
+                className="px-2 py-1 text-xs bg-[#836EF9]/20 hover:bg-[#836EF9]/30 border border-[#836EF9]/40 text-[#836EF9] rounded transition-colors"
+              >
+                Copy Link
+              </button>
+              <p className="text-white text-base">Room: {gameState.roomName}</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <button
@@ -1613,7 +1653,7 @@ export default function ChessMultisynqApp() {
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
           {/* Panel central - Échiquier */}
           <div className="lg:col-span-4">
-            <div className="">
+            <div className="relative">
               <div className="lg:col-span-3">
                 <div className="rounded-xl">
                   {/* Pièces capturées par l'adversaire (en haut) */}
@@ -1631,12 +1671,7 @@ export default function ChessMultisynqApp() {
                         >
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="font-medium text-white flex items-center gap-2">
-                                {gameState.players.find(
-                                  (entry) => entry.wallet !== address
-                                )?.color === "white"
-                                  ? "⚪"
-                                  : "⚫"}
+                              <div className="font-bold text-xl text-white flex items-center gap-2">
                                 {gameState.players
                                   .find((entry) => entry.wallet !== address)
                                   ?.wallet.slice(0, 6)}
@@ -1703,18 +1738,148 @@ export default function ChessMultisynqApp() {
                     </div>
                   </div>
 
-                  <div className="aspect-square max-w-full w-full mx-auto">
+                  {/* Container de l'échiquier avec overlay */}
+                  <div className="relative aspect-square max-w-full w-full mx-auto">
                     <Chessboard options={chessboardOptions} />
+
+                    {showGameEndModal && (
+                      <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/80 backdrop-blur-xs">
+                        <div className="bg-[#1E1E1E] border border-white/10 rounded-md p-8 max-w-md w-full mx-4 shadow-2xl">
+                          <div className="text-center">
+                            {/* <h3
+                              className={`text-4xl uppercase font-extrabold mb-6 ${
+                                isWinner
+                                  ? "text-white"
+                                  : isDraw
+                                  ? "text-white"
+                                  : "text-white"
+                              }`}
+                            >
+                              {isWinner
+                                ? "You Win"
+                                : isDraw
+                                ? "Draw"
+                                : "You Lost"}
+                            </h3> */}
+
+                            {isDraw && (
+                              <p className="text-gray-400">
+                                {gameState.gameResult.message || ""}
+                              </p>
+                            )}
+
+                            {/* {gameState.gameResult.winner ===
+                            gameState.players.find(
+                              (p) => p.id !== currentPlayerId
+                            )?.color ? (
+                              <img
+                                src={
+                                  gameState.gameResult.winner ===
+                                  gameState.players.find(
+                                    (p) => p.id !== currentPlayerId
+                                  )?.color
+                                    ? "/lost.png"
+                                    : "/win.png"
+                                }
+                                alt="draw"
+                                className="w-2/3 mx-auto"
+                              />
+                            ) : gameState.gameResult.winner === "draw" ? (
+                              <img
+                                src="/draw.png"
+                                alt="draw"
+                                className="w-1/2 mx-auto"
+                              />
+                            ) : (
+                              <img
+                                src={"/win.png"}
+                                alt="draw"
+                                className="w-1/2 mx-auto"
+                              />
+                            )} */}
+
+                            <div
+                              className={`rounded-lg mb-4 pt-4 flex flex-col justify-center `}
+                            >
+                              <img
+                                src={
+                                  gameState.gameResult.winner ===
+                                  gameState.players.find(
+                                    (p) => p.id !== currentPlayerId
+                                  )?.color
+                                    ? "/lost.png"
+                                    : "/win.png"
+                                }
+                                alt="draw"
+                                className="w-2/3 mx-auto"
+                              />
+                              <p className="text-white font-bold text-2xl mb-2 mt-6">
+                                {gameState.gameResult.message || "Game Over"}
+                              </p>
+                            </div>
+
+                            <div className="space-y-4">
+                              {gameState.rematchOffer?.offered &&
+                              gameState.rematchOffer?.by !==
+                                gameState.players.find(
+                                  (p) => p.id === currentPlayerId
+                                )?.color ? (
+                                <div className="text-center space-y-4">
+                                  <p className="text-white/80 font-light text-lg text-center">
+                                    Your opponent offers you a rematch. <br />
+                                    Do you accept ?
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <button
+                                      onClick={() => handleRespondRematch(true)}
+                                      className="col-span-1 px-8 py-3 bg-[#836EF9] hover:bg-[#937EF9] text-white rounded font-bold text-lg transition-colors"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleRespondRematch(false)
+                                      }
+                                      className="col-span-1 px-8 py-3 bg-[#252525] hover:bg-[#252525] border border-[#836EF9] text-white rounded font-bold text-lg transition-colors"
+                                    >
+                                      Decline
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center space-y-3">
+                                  <button
+                                    onClick={handleRequestRematch}
+                                    disabled={gameState.rematchOffer?.offered}
+                                    className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded font-bold text-lg transition-colors"
+                                  >
+                                    {gameState.rematchOffer?.offered
+                                      ? "Rematch offer sent"
+                                      : "New game"}
+                                  </button>
+
+                                  <button
+                                    onClick={handleCloseGameEndModal}
+                                    className="w-full px-6 py-4 bg-[#404040] hover:bg-[#4a4a4a] text-white rounded font-bold text-lg transition-colors"
+                                  >
+                                    Analyser la partie
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-between items-center mt-3">
                     {gameState.players.map((player) =>
                       player.id === currentPlayerId ? (
-                        <div key={player.id} className="rounded-lg">
+                        <div key={player.id} className="rounded">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="font-medium text-white flex items-center gap-2">
-                                {player.color === "white" ? "⚪" : "⚫"}
+                              <div className="font-bold text-xl text-white flex items-center gap-2">
                                 {player.wallet.slice(0, 6)}...
                                 {player.wallet.slice(-4)} (You)
                                 {/* Votre indicateur de connexion */}
@@ -1762,53 +1927,61 @@ export default function ChessMultisynqApp() {
               </div>
             </div>
           </div>
-
           {/* Panel de droite - Chat */}
           <div className="lg:col-span-2">
-            <div className="bg-[#1e1e1e]/90 backdrop-blur-md rounded p-5 border-2 border-white/10 h-full flex flex-col">
+            <div className="rounded  full flex flex-col">
               <h3 className="text-xl font-semibold text-white mb-3">
                 Nads Chat
               </h3>
 
-              <div className="flex-1 space-y-2 overflow-y-auto max-h-[585px] mb-4">
+              <div className="overflow-y-auto space-y-2 min-h-[607px] max-h-[607px] mb-4">
                 {gameState.messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`p-2 rounded ${
-                      msg.playerId === currentPlayerId
-                        ? "bg-[#836EF9]/40 border border-[#836EF9] ml-2"
-                        : "bg-[#836EF9]/20 border border-[#836EF9]/80 mr-2"
-                    }`}
+                    className={`rounded py-2  ${
+                      msg.playerWallet === address
+                        ? "bg-[#252525]"
+                        : "bg-[#1e1e1e]/70"
+                    } border p-3 border-white/10`}
                   >
-                    <div className="text-xs text-gray-400 mb-1">
-                      {msg.playerWallet.slice(0, 6)}...
-                      {msg.playerWallet.slice(-4)}
+                    <div
+                      className={`text-sm mb-[5px]   ${
+                        msg.playerWallet === address
+                          ? "text-white font-bold"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {msg.playerWallet === address
+                        ? "You"
+                        : msg.playerWallet.slice(0, 6) +
+                          "..." +
+                          msg.playerWallet.slice(-4)}
                     </div>
                     <div className="text-white text-sm">{msg.message}</div>
                   </div>
                 ))}
               </div>
-
+              <div className="w-full h-[1px] bg-white/10 mb-5 mt-1" />
               <div className="flex gap-2 mt-auto">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                  placeholder="Tapez votre message..."
-                  className="flex-1 p-2 bg-[#836EF9]/40 border border-[#836EF9]/80 rounded text-white placeholder-gray-400 text-sm focus:ring-2"
+                  placeholder="Shame opponent..."
+                  className="flex-1 px-5 h-[45px] bg-[#1E1E1E] border border-white/10 text-white text-base placeholder-gray-400 focus:ring-2"
                 />
                 <button
                   onClick={handleSendMessage}
                   disabled={!newMessage.trim()}
-                  className="px-3 py-2 bg-[#836EF9] border border-[#836EF9]/80  text-white rounded transition-colors"
+                  className="px-5 h-[45px] bg-[#836EF9]/80   text-white rounded text-base transition-colors"
                 >
                   Send
                 </button>
               </div>
               {gameState.isActive ? (
                 // Partie en cours - Afficher les contrôles de jeu
-                <div className="space-y-3 mt-5">
+                <div className="space-y-3 mt-2.5">
                   {/* Boutons d'action de jeu */}
                   <div className="flex gap-2 justify-between w-full">
                     {gameState.drawOffer.offered &&
@@ -1859,8 +2032,8 @@ export default function ChessMultisynqApp() {
                 </div>
               ) : (
                 // En attente de joueurs
-                <div className="p-3 bg-blue-500/20 border border-blue-400 rounded-lg">
-                  <p className="text-blue-200">
+                <div className="p-3 bg-[#836EF9]/20 flex items-center justify-center border border-[#836EF9] rounded space-y-3 mt-2.5">
+                  <p className="text-[#a494fb] text-center">
                     {gameState.players.length >= 2
                       ? "Starting game..."
                       : "Waiting for second player"}
@@ -1870,75 +2043,6 @@ export default function ChessMultisynqApp() {
             </div>
           </div>
         </div>
-
-        {/* Modal de fin de partie */}
-        <Dialog open={showGameEndModal} onOpenChange={setShowGameEndModal}>
-          <DialogContent
-            close={handleCloseGameEndModal}
-            className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-600"
-          >
-            <DialogHeader>
-              <DialogTitle className="text-center text-2xl font-bold text-white">
-                🎯 Partie terminée
-              </DialogTitle>
-              <DialogDescription className="text-center">
-                <div className="p-4 bg-yellow-500/20 border border-yellow-400 rounded-lg my-4">
-                  <p className="text-yellow-200 font-semibold text-lg">
-                    {gameState.gameResult.message || "Partie terminée"}
-                  </p>
-                </div>
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              {gameState.rematchOffer?.offered &&
-              gameState.rematchOffer?.by !==
-                gameState.players.find((p) => p.id === currentPlayerId)
-                  ?.color ? (
-                // Répondre à une offre de revanche
-                <div className="text-center space-y-3">
-                  <p className="text-blue-200 font-medium">
-                    💫 Demande de revanche reçue
-                  </p>
-                  <div className="flex gap-3 justify-center">
-                    <button
-                      onClick={() => handleRespondRematch(true)}
-                      className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      ✅ Accepter
-                    </button>
-                    <button
-                      onClick={() => handleRespondRematch(false)}
-                      className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      ❌ Décliner
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                // Boutons normaux après partie
-                <div className="text-center space-y-3">
-                  <button
-                    onClick={handleRequestRematch}
-                    disabled={gameState.rematchOffer?.offered}
-                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                  >
-                    {gameState.rematchOffer?.offered
-                      ? "🔄 Demande envoyée..."
-                      : "🔄 Demander une revanche"}
-                  </button>
-
-                  <button
-                    onClick={handleCloseGameEndModal}
-                    className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-                  >
-                    🎮 Continuer à regarder
-                  </button>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   );
