@@ -3,6 +3,7 @@ import ContextProvider from "@/lib/wagmi/provider";
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import { headers } from "next/headers";
+import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -29,6 +30,36 @@ export default async function RootLayout({
         <ContextProvider cookies={cookies}>
           <Header />
           {children}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: "#363636",
+                color: "#fff",
+              },
+              success: {
+                duration: 6000,
+                iconTheme: {
+                  primary: "#10b981",
+                  secondary: "#fff",
+                },
+              },
+              error: {
+                duration: 8000,
+                iconTheme: {
+                  primary: "#ef4444",
+                  secondary: "#fff",
+                },
+              },
+              loading: {
+                iconTheme: {
+                  primary: "#3b82f6",
+                  secondary: "#fff",
+                },
+              },
+            }}
+          />
         </ContextProvider>
       </body>
     </html>
