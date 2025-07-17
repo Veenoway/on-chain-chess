@@ -2815,9 +2815,7 @@ export default function ChessMultisynqApp() {
         <div className="flex justify-between items-center mb-6 my-8 ">
           <div className="w-full">
             <div className="flex items-center justify-between w-full gap-3">
-              <h1 className="text-5xl font-bold text-white mb-2.5">
-                Monad Chess
-              </h1>
+              <img src="/synqmate.png" alt="logo" className=" w-[240px]" />
               <div className="flex items-center gap-2">
                 {(roomBetAmount || gameInfo?.betAmount) && (
                   <div className="flex items-center gap-4 px-6 py-4 border border-white/20 rounded-xl">
@@ -3335,7 +3333,7 @@ export default function ChessMultisynqApp() {
                                   gameState.players.find(
                                     (p) => p.id !== currentPlayerId
                                   )?.color
-                                    ? "/lost.png"
+                                    ? "/loser.png"
                                     : "/win.png"
                                 }
                                 alt="draw"
@@ -3356,28 +3354,28 @@ export default function ChessMultisynqApp() {
                             )} */}
 
                             <div
-                              className={`rounded-lg mb-4 pt-4 flex flex-col justify-center `}
+                              className={`rounded-lg mb-4  flex flex-col justify-center `}
                             >
+                              <p className="text-white font-bold text-4xl mb-2">
+                                {gameState.gameResult.winner ===
+                                gameState.players.find(
+                                  (p) => p.id !== currentPlayerId
+                                )?.color
+                                  ? "You Lost"
+                                  : "You Won"}
+                              </p>
                               <img
                                 src={
                                   gameState.gameResult.winner ===
                                   gameState.players.find(
                                     (p) => p.id !== currentPlayerId
                                   )?.color
-                                    ? "/lost.png"
+                                    ? "/loser.png"
                                     : "/win.png"
                                 }
                                 alt="draw"
-                                className="w-2/3 mx-auto"
+                                className="w-2/3 mb-2 mx-auto"
                               />
-                              <p className="text-white font-bold text-2xl mb-2 mt-6">
-                                {gameState.gameResult.winner ===
-                                gameState.players.find(
-                                  (p) => p.id !== currentPlayerId
-                                )?.color
-                                  ? "You lost"
-                                  : "Congratulations! You won the game"}
-                              </p>
                             </div>
 
                             <div className="space-y-4">
@@ -3414,7 +3412,7 @@ export default function ChessMultisynqApp() {
                                 <div className="text-center space-y-3">
                                   {/* Boutons de claim si il y a des gains à récupérer */}
 
-                                  <div className="space-y-3 mb-4">
+                                  <div className="space-y-3">
                                     {/* Claim winnings si le joueur a gagné */}
                                     {gameState.gameResult.winner !== "draw" &&
                                       gameState.gameResult.winner ===
