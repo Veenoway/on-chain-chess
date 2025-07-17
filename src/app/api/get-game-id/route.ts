@@ -49,7 +49,7 @@ const CHESS_BETTING_ABI = [
   },
 ] as const;
 
-export async function GET(request: NextRequest) {
+export const GET = async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const roomName = searchParams.get("roomName");
@@ -81,4 +81,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+};

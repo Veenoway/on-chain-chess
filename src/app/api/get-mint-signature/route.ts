@@ -9,7 +9,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-export async function POST(req: NextRequest) {
+export const POST = async (req: NextRequest) => {
   try {
     const { address, totalMinted } = await req.json();
 
@@ -78,4 +78,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+};
