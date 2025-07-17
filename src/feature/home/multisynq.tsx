@@ -62,13 +62,13 @@ interface GameState {
     by: "white" | "black" | null;
   };
   rematchOffer?: {
-    // NOUVEAU
     offered: boolean;
     by: "white" | "black" | null;
   };
   gameNumber: number;
   lastGameWinner: "white" | "black" | "draw" | null;
   createdAt: number;
+  rematchAccepted?: boolean; // NOUVEAU
 }
 
 // Variables globales pour partager l'état avec Multisynq
@@ -113,6 +113,7 @@ export default function ChessMultisynqApp() {
   const [roomBetAmount, setRoomBetAmount] = useState<string | null>(null);
   const [bettingGameCreationFailed, setBettingGameCreationFailed] =
     useState(false);
+  const [isRematchTransition, setIsRematchTransition] = useState(false);
 
   const [paymentStatus, setPaymentStatus] = useState<{
     whitePlayerPaid: boolean;
@@ -223,7 +224,6 @@ export default function ChessMultisynqApp() {
     }
   };
 
-  // Fonction utilitaire pour vérifier si un joueur a payé
   const hasPlayerPaid = (color: "white" | "black"): boolean => {
     if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
       return true; // Pas de pari requis
@@ -231,9 +231,19 @@ export default function ChessMultisynqApp() {
 
     if (!address) return false;
 
-    return color === "white"
-      ? gameInfo.whitePlayer.toLowerCase() === address.toLowerCase()
-      : gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
+    console.log("💰 hasPlayerPaid check:", {
+      color,
+      address: address.slice(-4),
+      whitePlayer: gameInfo.whitePlayer?.slice(-4),
+      blackPlayer: gameInfo.blackPlayer?.slice(-4),
+      gameState: gameInfo.state,
+    });
+
+    if (color === "white") {
+      return gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+    } else {
+      return gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
+    }
   };
 
   // Fonction pour vérifier si il y a un pari requis MAIS que la création a échoué
@@ -249,6 +259,16 @@ export default function ChessMultisynqApp() {
 
   // Vérifier si il y a un pari requis
   const hasBettingRequirement = (): boolean => {
+    // NOUVEAU: Pendant la transition de revanche, si betting activé, considérer qu'il y a un requirement
+    if (
+      isRematchTransition &&
+      isBettingEnabled &&
+      parseFloat(getCorrectBetAmount()) > 0
+    ) {
+      console.log("💰 Rematch transition - betting requirement active");
+      return true;
+    }
+
     const hasBetting = gameInfo?.betAmount
       ? gameInfo.betAmount > BigInt(0)
       : false;
@@ -268,12 +288,23 @@ export default function ChessMultisynqApp() {
       hasBetting,
       roomName: gameState.roomName,
       bettingGameCreationFailed,
+      isRematchTransition,
     });
     return hasBetting;
   };
 
   // Vérifier si les deux joueurs ont payé (nécessaire pour que la partie démarre)
   const bothPlayersPaid = (): boolean => {
+    // NOUVEAU: Pendant la transition de revanche, considérer que personne n'a payé pour forcer la popup
+    if (
+      isRematchTransition &&
+      isBettingEnabled &&
+      parseFloat(getCorrectBetAmount()) > 0
+    ) {
+      console.log("💰 Rematch transition - forcing payment popup");
+      return false;
+    }
+
     // Si pas de requirement de betting, considérer comme payé
     if (!isBettingEnabled || parseFloat(betAmount) <= 0) {
       return !gameInfo || gameInfo.betAmount <= BigInt(0);
@@ -282,11 +313,18 @@ export default function ChessMultisynqApp() {
     // Si betting requis, vérifier les deux paiements
     return paymentStatus.whitePlayerPaid && paymentStatus.blackPlayerPaid;
   };
-
-  // Fonction pour mettre à jour le statut de paiement - CORRIGÉE
   const updatePaymentStatus = () => {
-    // Cas spécial : si la création du betting game a échoué, le créateur n'a pas payé
+    console.log("💰 UPDATE PAYMENT STATUS - START:", {
+      isBettingEnabled,
+      betAmount,
+      gameInfo: !!gameInfo,
+      gameInfoBetAmount: gameInfo?.betAmount?.toString(),
+      address,
+    });
+
+    // Cas spécial : si betting activé mais pas encore de gameInfo (création en cours)
     if (isBettingEnabled && parseFloat(betAmount) > 0 && !gameInfo) {
+      console.log("💰 Betting enabled but no gameInfo yet");
       setPaymentStatus({
         whitePlayerPaid: false,
         blackPlayerPaid: false,
@@ -297,6 +335,7 @@ export default function ChessMultisynqApp() {
 
     // S'il n'y a pas de pari requis, tout est considéré comme payé
     if (!hasBettingRequirement()) {
+      console.log("💰 No betting requirement - all paid");
       setPaymentStatus({
         whitePlayerPaid: true,
         blackPlayerPaid: true,
@@ -306,6 +345,7 @@ export default function ChessMultisynqApp() {
     }
 
     if (!gameInfo || !address) {
+      console.log("💰 Missing gameInfo or address");
       setPaymentStatus({
         whitePlayerPaid: false,
         blackPlayerPaid: false,
@@ -314,28 +354,23 @@ export default function ChessMultisynqApp() {
       return;
     }
 
-    // NOUVELLE LOGIQUE: Vérifier les paiements basés sur l'état du contrat
-    // Le joueur blanc (créateur) a payé s'il a créé la partie (son adresse est dans whitePlayer)
+    // Vérifier les paiements basés sur l'état du contrat
     const whitePlayerPaid = !!(
       gameInfo.whitePlayer &&
       gameInfo.whitePlayer !== "0x0000000000000000000000000000000000000000"
     );
 
-    // Le joueur noir a payé si son adresse est dans blackPlayer ET que l'état est ACTIVE (1)
-    // ou qu'il a rejoint (adresse non nulle)
     const blackPlayerPaid = !!(
       gameInfo.blackPlayer &&
       gameInfo.blackPlayer !== "0x0000000000000000000000000000000000000000"
     );
 
-    // IMPORTANT: Si l'état est ACTIVE (1), cela signifie que les DEUX joueurs ont payé
-    const bothPlayersPaidFromContract = gameInfo.state === 1; // ACTIVE state
+    // Si l'état est ACTIVE (1), cela signifie que les DEUX joueurs ont payé
+    const bothPlayersPaidFromContract = gameInfo.state === 1;
 
-    // Vérifier si le joueur actuel a payé en regardant son adresse dans le contrat
+    // Vérifier si le joueur actuel a payé
     let currentPlayerPaid = false;
-
     if (address && gameInfo) {
-      // Vérifier directement par l'adresse du wallet dans le contrat
       const isWhitePlayer =
         gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
       const isBlackPlayer =
@@ -346,35 +381,23 @@ export default function ChessMultisynqApp() {
       } else if (isBlackPlayer) {
         currentPlayerPaid = blackPlayerPaid;
       }
-      // Si le joueur n'est ni blanc ni noir dans le contrat, il n'a pas encore payé
     }
 
-    console.log("💰 Payment Status Update:", {
-      hasBetting: hasBettingRequirement(),
-      gameState: gameInfo.state,
-      gameStateText:
-        gameInfo.state === 0
-          ? "WAITING"
-          : gameInfo.state === 1
-          ? "ACTIVE"
-          : gameInfo.state === 2
-          ? "FINISHED"
-          : "CANCELLED",
+    console.log("💰 Payment Status Calculated:", {
       whitePlayerPaid,
       blackPlayerPaid,
       bothPlayersPaidFromContract,
       currentPlayerPaid,
-      gameInfoWhite: gameInfo.whitePlayer,
-      gameInfoBlack: gameInfo.blackPlayer,
-      userAddress: address,
+      gameState: gameInfo.state,
+      userAddress: address?.slice(-4),
+      whitePlayer: gameInfo.whitePlayer?.slice(-4),
+      blackPlayer: gameInfo.blackPlayer?.slice(-4),
     });
 
-    // Logique finale : Si l'état est ACTIVE, les deux joueurs ont forcément payé
-    // Sinon, utiliser la vérification individuelle
     setPaymentStatus({
       whitePlayerPaid: bothPlayersPaidFromContract ? true : whitePlayerPaid,
       blackPlayerPaid: bothPlayersPaidFromContract ? true : blackPlayerPaid,
-      currentPlayerPaid: currentPlayerPaid, // currentPlayerPaid est basé sur la présence dans le contrat
+      currentPlayerPaid: currentPlayerPaid,
     });
   };
 
@@ -382,6 +405,135 @@ export default function ChessMultisynqApp() {
   useEffect(() => {
     updatePaymentStatus();
   }, [gameInfo, gameState.players, currentPlayerId, bettingGameCreationFailed]);
+
+  // NOUVEAU: Fonction pour obtenir le montant de pari correct (priorité au contrat actuel)
+  const getCorrectBetAmount = (): string => {
+    if (gameInfo?.betAmount && gameInfo.betAmount > BigInt(0)) {
+      return formatEther(gameInfo.betAmount);
+    }
+    return betAmount;
+  };
+
+  // NOUVEAU: Synchroniser betAmount avec le montant du contrat actuel
+  useEffect(() => {
+    if (gameInfo?.betAmount && gameInfo.betAmount > BigInt(0)) {
+      const currentBetAmount = formatEther(gameInfo.betAmount);
+      if (currentBetAmount !== betAmount) {
+        console.log("💰 Synchronisation du montant de pari:", {
+          oldAmount: betAmount,
+          newAmount: currentBetAmount,
+          gameId: gameId?.toString(),
+        });
+        setBetAmount(currentBetAmount);
+      }
+    }
+  }, [gameInfo?.betAmount, gameId]);
+
+  // NOUVEAU: Gérer les revanches avec paris
+  useEffect(() => {
+    if (
+      gameState.rematchAccepted &&
+      isBettingEnabled &&
+      parseFloat(getCorrectBetAmount()) > 0
+    ) {
+      console.log(
+        "🔄 Revanche acceptée avec paris activés - réinitialisation des paiements"
+      );
+
+      // NOUVEAU: Activer le mode transition de revanche
+      setIsRematchTransition(true);
+
+      // Réinitialiser les états de paiement pour la revanche
+      setPaymentStatus({
+        whitePlayerPaid: false,
+        blackPlayerPaid: false,
+        currentPlayerPaid: false,
+      });
+
+      // Réinitialiser les états de la popup
+      setHasClosedPaymentModal(false);
+      setBettingGameCreationFailed(false);
+
+      // Créer un nouveau contrat de pari pour la revanche
+      const createRematchBettingGame = async () => {
+        try {
+          console.log(
+            "💰 Création d'un nouveau contrat de pari pour la revanche"
+          );
+
+          // Créer un nouveau nom de room pour la revanche
+          const rematchRoomName = `${gameState.roomName}_rematch_${gameState.gameNumber}`;
+          const correctBetAmount = getCorrectBetAmount();
+
+          console.log("💰 Montant de pari pour la revanche:", correctBetAmount);
+
+          await createBettingGame(correctBetAmount, rematchRoomName);
+          setRoomBetAmount(correctBetAmount);
+
+          console.log("✅ Nouveau contrat de pari créé pour la revanche");
+
+          // CORRECTION: Mettre à jour le gameState.roomName pour pointer vers le nouveau contrat
+          setGameState((prev) => ({
+            ...prev,
+            roomName: rematchRoomName,
+          }));
+
+          // Mettre à jour l'URL avec le nouveau nom de room
+          const newUrl = gameState.roomPassword
+            ? `${window.location.pathname}?room=${rematchRoomName}&password=${gameState.roomPassword}`
+            : `${window.location.pathname}?room=${rematchRoomName}`;
+          window.history.pushState({}, "", newUrl);
+
+          // Envoyer un message pour informer
+          if (multisynqView) {
+            multisynqView.sendMessage(
+              "💰 New betting contract created for rematch!",
+              currentPlayerId,
+              address
+            );
+          }
+        } catch (error) {
+          console.error("❌ Échec création du contrat de revanche:", error);
+          setBettingGameCreationFailed(true);
+        }
+      };
+
+      // Créer le contrat avec un délai pour s'assurer que l'état est bien synchronisé
+      setTimeout(() => {
+        createRematchBettingGame();
+      }, 1000);
+
+      // Réinitialiser le flag rematchAccepted côté Multisynq
+      if (
+        multisynqView &&
+        typeof multisynqView.resetRematchAccepted === "function"
+      ) {
+        setTimeout(() => {
+          multisynqView.resetRematchAccepted();
+          console.log("✅ Flag rematchAccepted réinitialisé côté Multisynq");
+        }, 2000);
+      }
+    }
+  }, [
+    gameState.rematchAccepted,
+    isBettingEnabled,
+    gameState.gameNumber,
+    gameState.roomName,
+  ]);
+
+  // NOUVEAU: Désactiver le mode transition quand le nouveau gameInfo est disponible
+  useEffect(() => {
+    if (
+      isRematchTransition &&
+      gameInfo?.betAmount &&
+      gameInfo.betAmount > BigInt(0)
+    ) {
+      console.log(
+        "💰 Nouveau gameInfo détecté, fin de la transition de revanche"
+      );
+      setIsRematchTransition(false);
+    }
+  }, [isRematchTransition, gameInfo?.betAmount]);
 
   // Ajouter des logs de débogage pour la popup
   useEffect(() => {
@@ -400,6 +552,7 @@ export default function ChessMultisynqApp() {
       gameId: gameId?.toString(),
       roomName: gameState.roomName,
       paymentStatus,
+      isRematchTransition,
       shouldShowPopup: hasBetting && !bothPaid,
     });
   }, [
@@ -409,6 +562,7 @@ export default function ChessMultisynqApp() {
     gameState.roomName,
     isBettingEnabled,
     betAmount,
+    isRematchTransition,
   ]);
 
   useEffect(() => {
@@ -444,7 +598,6 @@ export default function ChessMultisynqApp() {
     betAmount,
   ]);
 
-  // Join automatique pour les parties sans betting OU après paiement
   useEffect(() => {
     const currentPlayerInGame = gameState.players.find(
       (p) => p.id === currentPlayerId
@@ -470,16 +623,20 @@ export default function ChessMultisynqApp() {
         hasBetting,
         currentPlayerPaid: paymentStatus.currentPlayerPaid,
         gameId: gameId?.toString(),
+        bothPlayersPaid: bothPlayersPaid(),
+        playersInGame: gameState.players.length,
       });
 
-      // Cas 1: Pas de betting requis - joindre immédiatement
-      if (!hasBetting) {
-        console.log("✅ Pas de betting, join Multisynq immédiat");
+      // NOUVEAU: Joindre immédiatement si pas de betting OU si les deux ont payé
+      if (!hasBetting || bothPlayersPaid()) {
+        console.log(
+          "✅ Join Multisynq immédiat (pas de betting ou tous payés)"
+        );
         multisynqView.joinPlayer(address, currentPlayerId);
         return;
       }
 
-      // Cas 2: Betting requis ET joueur a payé - joindre
+      // Cas: Betting requis ET joueur a payé - joindre
       if (hasBetting && paymentStatus.currentPlayerPaid) {
         console.log("💰 Paiement confirmé, join Multisynq...");
         multisynqView.joinPlayer(address, currentPlayerId);
@@ -495,8 +652,6 @@ export default function ChessMultisynqApp() {
           }
         }, 500);
       }
-
-      // Cas 3: Betting requis mais pas encore payé - attendre le paiement (popup s'affichera)
     }
   }, [
     gameState.players,
@@ -506,9 +661,10 @@ export default function ChessMultisynqApp() {
     gameFlow,
     gameId,
     paymentStatus.currentPlayerPaid,
+    paymentStatus.whitePlayerPaid,
+    paymentStatus.blackPlayerPaid,
   ]);
 
-  // SIMPLIFIÉ: Démarrage automatique des parties
   useEffect(() => {
     if (
       gameState.players.length >= 2 &&
@@ -519,32 +675,43 @@ export default function ChessMultisynqApp() {
       address
     ) {
       const hasBetting = hasBettingRequirement();
+      const bothPaid = bothPlayersPaid();
 
       console.log("🎮 Évaluation du démarrage automatique:", {
         hasBetting,
         playersCount: gameState.players.length,
         whitePlayerPaid: paymentStatus.whitePlayerPaid,
         blackPlayerPaid: paymentStatus.blackPlayerPaid,
-        bothPlayersPaid: bothPlayersPaid(),
+        bothPlayersPaid: bothPaid,
+        gameState: gameInfo?.state,
+        allPlayersConnected: gameState.players.every((p) => p.connected),
       });
 
-      // Condition pour démarrer: soit pas de betting, soit les deux ont payé
-      const shouldStart = !hasBetting || bothPlayersPaid();
+      // CORRECTION: Démarrer si pas de betting OU si les deux ont payé ET tous connectés
+      const shouldStart =
+        (!hasBetting || bothPaid) &&
+        gameState.players.every((p) => p.connected);
 
       if (shouldStart) {
         console.log("🚀 DÉMARRAGE AUTOMATIQUE!");
-        multisynqView.startGame();
 
-        // Message approprié
-        const message = hasBetting
-          ? "🎮 Game started - both players have paid!"
-          : "🎯 Game started - two players connected!";
-
+        // Attendre un peu pour que tous les joueurs soient bien synchronisés
         setTimeout(() => {
-          if (multisynqView && currentPlayerId && address) {
-            multisynqView.sendMessage(message, currentPlayerId, address);
+          if (multisynqView) {
+            multisynqView.startGame();
+
+            // Message approprié
+            const message = hasBetting
+              ? "🎮 Game started - both players have paid!"
+              : "🎯 Game started - two players connected!";
+
+            setTimeout(() => {
+              if (multisynqView && currentPlayerId && address) {
+                multisynqView.sendMessage(message, currentPlayerId, address);
+              }
+            }, 500);
           }
-        }, 500);
+        }, 1000); // Délai pour la synchronisation
       }
     }
   }, [
@@ -556,6 +723,7 @@ export default function ChessMultisynqApp() {
     address,
     paymentStatus.whitePlayerPaid,
     paymentStatus.blackPlayerPaid,
+    gameInfo?.state,
   ]);
 
   // Clé pour localStorage basée sur la room
@@ -657,6 +825,12 @@ export default function ChessMultisynqApp() {
     );
 
     if (currentPlayer) {
+      console.log("🎨 Setting player color:", {
+        playerId: currentPlayer.id.slice(-4),
+        playerColor: currentPlayer.color,
+        wallet: currentPlayer.wallet.slice(-4),
+      });
+
       setPlayerColor(currentPlayer.color === "black" ? "black" : "white");
 
       // Si on était en train de se reconnecter, maintenant c'est réussi
@@ -886,7 +1060,6 @@ export default function ChessMultisynqApp() {
   }, [multisynqReady, isConnected, address, gameFlow]);
 
   const handleAutoJoinRoom = async (roomName: string, password: string) => {
-    // CORRECTION: Utiliser un ID basé sur l'adresse wallet pour la persistance
     const playerId = `player_${address?.slice(-8)}_${Math.random()
       .toString(36)
       .substring(2, 6)}`;
@@ -904,10 +1077,9 @@ export default function ChessMultisynqApp() {
         Object.getOwnPropertyNames(session.view)
       );
 
-      // Joindre en tant que joueur
-      session.view.joinPlayer(address!, playerId);
+      // CORRECTION: Ne pas joindre automatiquement - laisser les useEffect gérer
+      // session.view.joinPlayer(address!, playerId);
 
-      // CORRECTION: Réduire le délai et forcer la synchronisation
       setTimeout(() => {
         setGameState((prev) => ({
           ...prev,
@@ -915,9 +1087,11 @@ export default function ChessMultisynqApp() {
           roomPassword: password || "",
         }));
 
-        // Forcer une synchronisation d'état après reconnexion
-        console.log("Demande de synchronisation d'état après reconnexion");
-      }, 200); // Réduit de 500ms à 200ms
+        // Réinitialiser les états pour permettre la popup si nécessaire
+        setHasClosedPaymentModal(false);
+
+        console.log("Demande de synchronisation d'état après auto-join");
+      }, 200);
 
       setGameFlow("game");
       setConnectionStatus(`✅ Connecté à: ${roomName}`);
@@ -1014,7 +1188,7 @@ export default function ChessMultisynqApp() {
     }
   };
 
-  const handleRespondRematch = (accepted: boolean) => {
+  const handleRematchResponse = (accepted: boolean) => {
     if (!multisynqView || !currentPlayerId) {
       console.error("multisynqView ou currentPlayerId manquant");
       return;
@@ -1022,13 +1196,56 @@ export default function ChessMultisynqApp() {
 
     if (typeof multisynqView.respondRematch === "function") {
       multisynqView.respondRematch(currentPlayerId, accepted);
-      console.log(
-        `Réponse revanche envoyée: ${accepted ? "accepté" : "refusé"}`
-      );
+      console.log(`Réponse revanche: ${accepted ? "acceptée" : "refusée"}`);
     } else {
       console.error("respondRematch n'est pas une fonction:", multisynqView);
-      alert("Erreur: Fonction de réponse revanche non disponible.");
+      alert("Erreur: Fonction de réponse à la revanche non disponible.");
     }
+  };
+
+  const handleRespondRematch = (data: {
+    playerId: string;
+    accepted: boolean;
+  }) => {
+    console.log("Réponse revanche:", data);
+
+    const player = this.players.find((p: any) => p.id === data.playerId);
+    if (!player) return;
+
+    // Ajouter un message dans le chat
+    this.state.messages.push({
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      playerId: data.playerId,
+      playerWallet: player.wallet,
+      message: data.accepted ? "Accept rematch" : "Decline rematch",
+      timestamp: Date.now(),
+    });
+
+    if (data.accepted) {
+      // Revanche acceptée - réinitialiser la partie
+      this.state.fen =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+      this.state.isActive = false; // IMPORTANT: Ne pas démarrer automatiquement
+      this.state.turn = "w";
+      this.state.whiteTime = this.state.gameTimeLimit;
+      this.state.blackTime = this.state.gameTimeLimit;
+      this.state.gameResult = { type: null };
+      this.state.drawOffer = { offered: false, by: null };
+      this.state.gameNumber += 1;
+      this.state.lastMoveTime = null; // IMPORTANT: Pas de timestamp pour permettre la popup
+
+      // Inverser les couleurs pour la revanche
+      this.state.players.forEach((p: any) => {
+        p.color = p.color === "white" ? "black" : "white";
+      });
+
+      // NOUVEAU: Ajouter un flag pour indiquer qu'une revanche a été acceptée
+      this.state.rematchAccepted = true;
+    }
+
+    // Réinitialiser l'offre de revanche
+    this.state.rematchOffer = { offered: false, by: null };
+    this.publish(this.sessionId, "game-state", this.state);
   };
 
   const setupMultisynqClasses = () => {
@@ -1064,6 +1281,7 @@ export default function ChessMultisynqApp() {
             gameNumber: 1,
             lastGameWinner: null,
             createdAt: Date.now(),
+            rematchAccepted: false, // NOUVEAU
           };
 
           // S'abonner aux événements - SANS bind() ni fonctions fléchées
@@ -1086,6 +1304,11 @@ export default function ChessMultisynqApp() {
             this.sessionId,
             "respond-rematch",
             "handleRespondRematch"
+          );
+          this.subscribe(
+            this.sessionId,
+            "reset-rematch-accepted",
+            "handleResetRematchAccepted"
           );
           // Publier l'état initial
           this.publish(this.sessionId, "game-state", this.state);
@@ -1144,26 +1367,35 @@ export default function ChessMultisynqApp() {
           });
 
           if (data.accepted) {
-            // Revanche acceptée - réinitialiser la partie
+            // Revanche acceptée - réinitialiser la partie MAIS ne pas démarrer automatiquement
             this.state.fen =
               "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-            this.state.isActive = true;
+            this.state.isActive = false; // IMPORTANT: Ne pas démarrer automatiquement
             this.state.turn = "w";
             this.state.whiteTime = this.state.gameTimeLimit;
             this.state.blackTime = this.state.gameTimeLimit;
             this.state.gameResult = { type: null };
             this.state.drawOffer = { offered: false, by: null };
             this.state.gameNumber += 1;
-            this.state.lastMoveTime = Date.now();
+            this.state.lastMoveTime = null; // IMPORTANT: Pas de timestamp pour permettre la popup
 
             // Inverser les couleurs pour la revanche
             this.state.players.forEach((p: any) => {
               p.color = p.color === "white" ? "black" : "white";
             });
+
+            // NOUVEAU: Marquer qu'une revanche a été acceptée pour déclencher les paiements
+            this.state.rematchAccepted = true;
           }
 
           // Réinitialiser l'offre de revanche
           this.state.rematchOffer = { offered: false, by: null };
+          this.publish(this.sessionId, "game-state", this.state);
+        }
+
+        handleResetRematchAccepted() {
+          console.log("🔄 Réinitialisation du flag rematchAccepted");
+          this.state.rematchAccepted = false;
           this.publish(this.sessionId, "game-state", this.state);
         }
 
@@ -1361,11 +1593,9 @@ export default function ChessMultisynqApp() {
 
           // Si ce n'est pas une reconnexion et qu'il y a de la place
           else if (this.state.players.length < this.state.maxPlayers) {
-            // CORRECTION: Assigner une couleur disponible de manière déterministe
-            const hasWhitePlayer = this.state.players.some(
-              (p: { color: string }) => p.color === "white"
-            );
-            const color = hasWhitePlayer ? "black" : "white";
+            // CORRECTION IMPORTANTE: Assigner la couleur selon l'ordre d'arrivée
+            // Le PREMIER joueur est TOUJOURS blanc, le DEUXIÈME est TOUJOURS noir
+            const color = this.state.players.length === 0 ? "white" : "black";
 
             const newPlayer = {
               id: playerId,
@@ -1390,19 +1620,6 @@ export default function ChessMultisynqApp() {
           } else {
             console.warn("⚠️ Room pleine, impossible d'ajouter le joueur");
             return; // Ne pas publier si room pleine
-          }
-
-          // NE PAS démarrer automatiquement la partie
-          // La partie ne démarre que quand les deux joueurs ont payé (géré côté client)
-          console.log(
-            "👥 Joueurs connectés:",
-            this.state.players.length,
-            "/ 2"
-          );
-          if (this.state.players.length >= 2) {
-            console.log(
-              "✋ Démarrage automatique désactivé - paiements requis côté client"
-            );
           }
 
           console.log("📊 État final des joueurs:", this.state.players);
@@ -1703,6 +1920,11 @@ export default function ChessMultisynqApp() {
             playerId,
             accepted,
           });
+        }
+
+        resetRematchAccepted() {
+          console.log("📤 Envoi reset rematch accepted");
+          this.publish(this.sessionId, "reset-rematch-accepted", {});
         }
       }
 
@@ -2025,6 +2247,16 @@ export default function ChessMultisynqApp() {
     const { sourceSquare, targetSquare } = args;
     if (!targetSquare || !currentPlayerId || !multisynqView) return false;
 
+    console.log("🎯 Tentative de mouvement:", {
+      from: sourceSquare,
+      to: targetSquare,
+      currentPlayerId: currentPlayerId?.slice(-4),
+      gameActive: gameState.isActive,
+      gameResult: gameState.gameResult.type,
+      currentMoveIndex,
+      historyLength: moveHistory.length,
+    });
+
     // Empêcher les mouvements si la partie est terminée ou si on n'est pas à la position actuelle
     if (
       gameState.gameResult.type ||
@@ -2037,21 +2269,52 @@ export default function ChessMultisynqApp() {
     }
 
     // Empêcher les mouvements si la partie n'est pas active
-    if (!gameState.isActive) return false;
+    if (!gameState.isActive) {
+      console.warn("Game is not active!");
+      return false;
+    }
 
     const currentPlayer = gameState.players.find(
       (p) => p.id === currentPlayerId
     );
-    if (!currentPlayer) return false;
-
-    // NOUVELLE VÉRIFICATION: Si il y a un pari requis et que le joueur n'a pas payé
-    if (hasBettingRequirement() && !hasPlayerPaid(currentPlayer.color)) {
-      console.warn("You must pay the betting amount to play!");
-      alert("Vous devez payer le montant du pari pour jouer!");
+    if (!currentPlayer) {
+      console.warn("Current player not found in game!");
       return false;
     }
 
+    console.log("👤 Current player info:", {
+      id: currentPlayer.id.slice(-4),
+      color: currentPlayer.color,
+      wallet: currentPlayer.wallet.slice(-4),
+      connected: currentPlayer.connected,
+    });
+
+    // CORRECTION: Vérification de paiement améliorée
+    if (hasBettingRequirement()) {
+      const playerPaid = hasPlayerPaid(currentPlayer.color);
+      console.log("💰 Payment check:", {
+        playerColor: currentPlayer.color,
+        playerPaid,
+        whitePlayerPaid: paymentStatus.whitePlayerPaid,
+        blackPlayerPaid: paymentStatus.blackPlayerPaid,
+      });
+
+      if (!playerPaid) {
+        console.warn("You must pay the betting amount to play!");
+        alert("Vous devez payer le montant du pari pour jouer!");
+        return false;
+      }
+    }
+
     const currentTurn = gameState.turn;
+    console.log("🔄 Turn check:", {
+      gameTurn: currentTurn,
+      playerColor: currentPlayer.color,
+      isPlayerTurn:
+        (currentTurn === "w" && currentPlayer.color === "white") ||
+        (currentTurn === "b" && currentPlayer.color === "black"),
+    });
+
     if (
       (currentTurn === "w" && currentPlayer.color !== "white") ||
       (currentTurn === "b" && currentPlayer.color !== "black")
@@ -2069,6 +2332,12 @@ export default function ChessMultisynqApp() {
       });
 
       if (moveResult) {
+        console.log("✅ Valid move, sending to Multisynq:", {
+          from: sourceSquare,
+          to: targetSquare,
+          playerId: currentPlayerId?.slice(-4),
+        });
+
         multisynqView.makeMove(
           sourceSquare,
           targetSquare,
@@ -2307,14 +2576,16 @@ export default function ChessMultisynqApp() {
     return (
       <div className="min-h-screen bg-[url('https://pbs.twimg.com/media/GpoPZdmWkAApRWa?format=jpg&name=large')] bg-center bg-cover flex items-center justify-center p-4">
         <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/20">
-          <div className="text-center mb-20">
+          <div className="text-center mb-10">
             <h1 className="text-5xl font-bold text-white mb-3">
-              MultiSynq & Monad Chess
+              MultiSynq & Monad
             </h1>
-            <p className="text-white/80">Real-time chess game with Multisynq</p>
+            <p className="text-white/80 text-xl">
+              Real-time chess game with Multisynq
+            </p>
           </div>
 
-          <div className="space-y-10">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-5">
               <div className="space-y-2">
                 <div>
@@ -2408,10 +2679,10 @@ export default function ChessMultisynqApp() {
             </div>
 
             {/* Section Paris */}
-            <div className="bg-[#252525] border border-white/10 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-[#252525] border border-white/5 rounded p-6">
+              <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold text-white">
-                  💰 Betting Options
+                  Betting Game
                 </h3>
                 <label className="flex items-center cursor-pointer">
                   <input
@@ -2421,6 +2692,9 @@ export default function ChessMultisynqApp() {
                     disabled={!isConnected}
                     className="sr-only"
                   />
+                  <span className="mr-3 text-white text-lg">
+                    Enable betting
+                  </span>
                   <div
                     className={`w-12 h-6 rounded-full transition-colors ${
                       isBettingEnabled && isConnected
@@ -2436,30 +2710,33 @@ export default function ChessMultisynqApp() {
                       }`}
                     ></div>
                   </div>
-                  <span className="ml-3 text-white">Enable betting</span>
                 </label>
               </div>
 
               {isBettingEnabled && (
-                <div className="space-y-4">
+                <div className="space-y-4 mt-4 ">
                   <div>
-                    <label className="block text-sm font-medium text-white mb-2">
+                    <label className="block text-sm font-medium text-white/70 mb-2">
                       Bet Amount (MON)
                     </label>
                     <input
                       type="number"
-                      step="0.1"
-                      min="0.1"
+                      step="1"
+                      min="1"
                       value={betAmount}
                       onChange={(e) => setBetAmount(e.target.value)}
                       disabled={!isConnected}
-                      className="w-full px-3 py-2 bg-[#1E1E1E] border border-white/10 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent disabled:opacity-50"
+                      className="w-full px-3 py-2 bg-[#2b2b2b] border border-white/5 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-[#836EF9] h-[45px] text-base focus:border-transparent disabled:opacity-50"
                     />
                   </div>
 
                   {isConnected && (
-                    <div className="text-sm text-gray-400">
-                      Balance: {balanceFormatted} MON
+                    <div className="text-sm text-white">
+                      Balance:{" "}
+                      {balanceFormatted?.split(".")?.[0] +
+                        "." +
+                        balanceFormatted?.split(".")?.[1]?.slice(0, 2)}{" "}
+                      MON
                       {(isPending || isConfirming) && (
                         <span className="ml-2 text-yellow-400">
                           {isPending ? "Signing..." : "Confirming..."}
@@ -2474,14 +2751,12 @@ export default function ChessMultisynqApp() {
               )}
             </div>
 
-            <div className="w-full h-[1px] bg-white/10 my-4" />
-
             {/* Alerte réseau */}
             {isConnected && isWrongNetwork && (
               <div className="bg-red-500/20 border border-red-400 rounded-xl p-4 mb-4">
                 <div className="text-center">
                   <h3 className="text-red-300 font-bold text-lg mb-2">
-                    ⚠️ Wrong Network Detected
+                    Wrong Network Detected
                   </h3>
                   <p className="text-red-200 mb-2">
                     Please switch to <strong>Monad Testnet</strong> to use
@@ -2724,11 +2999,20 @@ export default function ChessMultisynqApp() {
                     {/* Modal de paiement */}
                     {((isBettingEnabled &&
                       parseFloat(betAmount) > 0 &&
-                      gameState.roomName) ||
+                      gameState.roomName &&
+                      !bothPlayersPaid()) ||
                       (gameInfo?.betAmount &&
-                        gameInfo.betAmount > BigInt(0))) &&
+                        gameInfo.betAmount > BigInt(0) &&
+                        !bothPlayersPaid()) ||
+                      (gameState.rematchAccepted &&
+                        isBettingEnabled &&
+                        parseFloat(betAmount) > 0 &&
+                        !bothPlayersPaid()) ||
+                      (isRematchTransition &&
+                        isBettingEnabled &&
+                        parseFloat(betAmount) > 0)) &&
                       !hasClosedPaymentModal &&
-                      !bothPlayersPaid() && (
+                      gameFlow === "game" && (
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
                           <div className="bg-[#1E1E1E] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
                             <div className="text-center">
@@ -2740,7 +3024,9 @@ export default function ChessMultisynqApp() {
                                 <p className="text-white font-normal text-xl mb-4">
                                   Bet Amount:{" "}
                                   <span className="font-bold text-2xl text-[#836EF9]">
-                                    {gameInfo?.betAmount
+                                    {isRematchTransition
+                                      ? betAmount
+                                      : gameInfo?.betAmount
                                       ? formatEther(gameInfo.betAmount)
                                       : "0"}{" "}
                                     MON
@@ -2842,18 +3128,6 @@ export default function ChessMultisynqApp() {
 
                               {!paymentStatus.currentPlayerPaid ? (
                                 <div className="space-y-2">
-                                  {isWrongNetwork ? (
-                                    <div className="text-center">
-                                      <p className="text-red-300 mb-4">
-                                        Wrong Network! Please switch to Monad
-                                        Testnet
-                                      </p>
-                                      <p className="text-gray-400 text-sm mb-4">
-                                        Chain ID should be 10143, currently:{" "}
-                                        {chainId}
-                                      </p>
-                                    </div>
-                                  ) : null}
                                   <button
                                     onClick={async () => {
                                       if (isWrongNetwork) {
@@ -2959,7 +3233,7 @@ export default function ChessMultisynqApp() {
                                   >
                                     {isPending || isConfirming ? (
                                       <>
-                                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2.5" />
                                         {isPending
                                           ? "Signing..."
                                           : "Confirming..."}
@@ -2983,26 +3257,6 @@ export default function ChessMultisynqApp() {
                                         : "Waiting for the other player to pay..."}
                                     </p>
                                   </div>
-
-                                  {bothPlayersPaid() ? (
-                                    <button
-                                      onClick={() =>
-                                        setHasClosedPaymentModal(true)
-                                      }
-                                      className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition-colors"
-                                    >
-                                      Ready to Play!
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() =>
-                                        setHasClosedPaymentModal(true)
-                                      }
-                                      className="w-full px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-bold transition-colors"
-                                    >
-                                      Close (Continue waiting)
-                                    </button>
-                                  )}
                                 </div>
                               )}
                             </div>
@@ -3117,7 +3371,12 @@ export default function ChessMultisynqApp() {
                                 className="w-2/3 mx-auto"
                               />
                               <p className="text-white font-bold text-2xl mb-2 mt-6">
-                                {gameState.gameResult.message || "Game Over"}
+                                {gameState.gameResult.winner ===
+                                gameState.players.find(
+                                  (p) => p.id !== currentPlayerId
+                                )?.color
+                                  ? "You lost"
+                                  : "Congratulations! You won the game"}
                               </p>
                             </div>
 
@@ -3134,14 +3393,16 @@ export default function ChessMultisynqApp() {
                                   </p>
                                   <div className="grid grid-cols-2 gap-4">
                                     <button
-                                      onClick={() => handleRespondRematch(true)}
+                                      onClick={() =>
+                                        handleRematchResponse(true)
+                                      }
                                       className="col-span-1 px-8 py-3 bg-[#836EF9] hover:bg-[#937EF9] text-white rounded font-bold text-lg transition-colors"
                                     >
                                       Accept
                                     </button>
                                     <button
                                       onClick={() =>
-                                        handleRespondRematch(false)
+                                        handleRematchResponse(false)
                                       }
                                       className="col-span-1 px-8 py-3 bg-[#252525] hover:bg-[#252525] border border-[#836EF9] text-white rounded font-bold text-lg transition-colors"
                                     >
@@ -3162,9 +3423,7 @@ export default function ChessMultisynqApp() {
                                         )?.color && (
                                         <button
                                           onClick={async () => {
-                                            console.log("💰 Claiming winnings");
                                             if (gameId) {
-                                              // Réinitialiser l'état du claim
                                               resetClaimState();
 
                                               await claimWinnings(
@@ -3173,14 +3432,7 @@ export default function ChessMultisynqApp() {
                                                   "white"
                                                   ? 1
                                                   : 2,
-                                                // Callback de succès
-                                                () => {
-                                                  console.log(
-                                                    "✅ Claim successful!"
-                                                  );
-                                                  // Optionnel: fermer la modal, rafraîchir l'état, etc.
-                                                },
-                                                // Callback d'erreur
+                                                () => {},
                                                 (error) => {
                                                   console.error(
                                                     "❌ Claim failed:",
@@ -3195,7 +3447,7 @@ export default function ChessMultisynqApp() {
                                             isPending ||
                                             isConfirming
                                           }
-                                          className={`w-full px-6 py-3 ${
+                                          className={`w-full px-6 py-4 ${
                                             claimState.isSuccess
                                               ? "bg-green-800 hover:bg-green-800"
                                               : claimState.isError
@@ -3204,14 +3456,14 @@ export default function ChessMultisynqApp() {
                                           } disabled:bg-gray-600 text-white rounded font-bold text-lg transition-colors`}
                                         >
                                           {claimState.isLoading
-                                            ? "🔄 Réclamation en cours..."
+                                            ? "Processing..."
                                             : claimState.isSuccess
-                                            ? "✅ Gains réclamés!"
+                                            ? "Successfully claimed"
                                             : claimState.isError
-                                            ? "❌ Erreur - Réessayer"
+                                            ? "Try again"
                                             : isPending || isConfirming
                                             ? "Processing..."
-                                            : `🏆 Claim Winnings (${
+                                            : `Claim Winnings (${
                                                 gameInfo?.betAmount
                                                   ? formatEther(
                                                       gameInfo.betAmount *
@@ -3229,16 +3481,10 @@ export default function ChessMultisynqApp() {
                                           if (gameId) {
                                             try {
                                               await claimDrawRefund(gameId);
-                                              alert(
-                                                "Claiming your draw refund..."
-                                              );
                                             } catch (error) {
                                               console.error(
                                                 "Claim failed:",
                                                 error
-                                              );
-                                              alert(
-                                                "Failed to claim draw refund. Please try again."
                                               );
                                             }
                                           }
@@ -3258,23 +3504,24 @@ export default function ChessMultisynqApp() {
                                       </button>
                                     )}
                                   </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <button
+                                      onClick={handleRequestRematch}
+                                      disabled={gameState.rematchOffer?.offered}
+                                      className="w-full h-[45px] bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded font-bold text-base transition-colors"
+                                    >
+                                      {gameState.rematchOffer?.offered
+                                        ? "Waiting for opponent"
+                                        : "New game"}
+                                    </button>
 
-                                  <button
-                                    onClick={handleRequestRematch}
-                                    disabled={gameState.rematchOffer?.offered}
-                                    className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded font-bold text-lg transition-colors"
-                                  >
-                                    {gameState.rematchOffer?.offered
-                                      ? "Rematch offer sent"
-                                      : "New game"}
-                                  </button>
-
-                                  <button
-                                    onClick={handleCloseGameEndModal}
-                                    className="w-full px-6 py-4 bg-[#404040] hover:bg-[#4a4a4a] text-white rounded font-bold text-lg transition-colors"
-                                  >
-                                    Continue analysis
-                                  </button>
+                                    <button
+                                      onClick={handleCloseGameEndModal}
+                                      className="w-full h-[45px] bg-[#404040] hover:bg-[#4a4a4a] text-white rounded font-bold text-base transition-colors"
+                                    >
+                                      Analysis
+                                    </button>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -3585,13 +3832,13 @@ export default function ChessMultisynqApp() {
                           </p>
                           <div className="grid grid-cols-2 gap-2">
                             <button
-                              onClick={() => handleRespondRematch(true)}
+                              onClick={() => handleRematchResponse(true)}
                               className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition-colors"
                             >
                               Accept
                             </button>
                             <button
-                              onClick={() => handleRespondRematch(false)}
+                              onClick={() => handleRematchResponse(false)}
                               className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
                             >
                               Decline
@@ -3606,7 +3853,7 @@ export default function ChessMultisynqApp() {
                             className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded text-sm transition-colors"
                           >
                             {gameState.rematchOffer?.offered
-                              ? "Rematch offer sent"
+                              ? "Waiting "
                               : "New game"}
                           </button>
                         </div>
