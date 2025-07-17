@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // services/multisynqService.ts
 import { Chess } from "chess.js";
 import { useChessStore } from "../stores/chessStore";
