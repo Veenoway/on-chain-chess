@@ -4,7 +4,7 @@ import { createPublicClient, http } from "viem";
 const CHESS_BETTING_CONTRACT_ADDRESS =
   "0xC17f273ff1E0aeb058e1c512d968c70CaAfa1Fd1";
 
-export const monadTestnet = {
+const monadTestnet = {
   id: 10143,
   name: "Monad Testnet",
   network: "Monad Testnet",
