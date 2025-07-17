@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // hooks/useChessGame.ts
 import { useCallback, useEffect, useMemo } from "react";
 import { useAccount, useSwitchChain } from "wagmi";

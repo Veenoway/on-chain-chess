@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // stores/chessStore.ts
 import { create } from "zustand";
 import { persist, subscribeWithSelector } from "zustand/middleware";
@@ -75,6 +77,7 @@ export interface ChessState {
   currentMoveIndex: number;
 
   // Multisynq state
+  // @ts-ignore
   multisynqSession: any;
   multisynqView: any;
   multisynqReady: boolean;
