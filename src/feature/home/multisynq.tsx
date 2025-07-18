@@ -108,9 +108,9 @@ export default function ChessMultisynqApp() {
   const [, setConnectionStatus] = useState("Prêt à jouer");
 
   // États pour les paris
-  const [betAmount, setBetAmount] = useState("0.1");
+  const [betAmount, setBetAmount] = useState("1");
   const [isBettingEnabled, setIsBettingEnabled] = useState(true);
-  const [roomBetAmount, setRoomBetAmount] = useState<string | null>(null);
+  const [, setRoomBetAmount] = useState<string | null>(null);
   const [bettingGameCreationFailed, setBettingGameCreationFailed] =
     useState(false);
   const [isRematchTransition, setIsRematchTransition] = useState(false);
@@ -1406,50 +1406,50 @@ export default function ChessMultisynqApp() {
     }
   };
 
-  const handleRespondRematch = (data: {
-    playerId: string;
-    accepted: boolean;
-  }) => {
-    console.log("Réponse revanche:", data);
+  //   const handleRespondRematch = (data: {
+  //     playerId: string;
+  //     accepted: boolean;
+  //   }) => {
+  //     console.log("Réponse revanche:", data);
 
-    const player = this.players.find((p: any) => p.id === data.playerId);
-    if (!player) return;
+  //     const player = this.players.find((p: any) => p.id === data.playerId);
+  //     if (!player) return;
 
-    // Ajouter un message dans le chat
-    this.state.messages.push({
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      playerId: data.playerId,
-      playerWallet: player.wallet,
-      message: data.accepted ? "Accept rematch" : "Decline rematch",
-      timestamp: Date.now(),
-    });
+  //     // Ajouter un message dans le chat
+  //     this.state.messages.push({
+  //       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  //       playerId: data.playerId,
+  //       playerWallet: player.wallet,
+  //       message: data.accepted ? "Accept rematch" : "Decline rematch",
+  //       timestamp: Date.now(),
+  //     });
 
-    if (data.accepted) {
-      // Revanche acceptée - réinitialiser la partie
-      this.state.fen =
-        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-      this.state.isActive = false; // IMPORTANT: Ne pas démarrer automatiquement
-      this.state.turn = "w";
-      this.state.whiteTime = this.state.gameTimeLimit;
-      this.state.blackTime = this.state.gameTimeLimit;
-      this.state.gameResult = { type: null };
-      this.state.drawOffer = { offered: false, by: null };
-      this.state.gameNumber += 1;
-      this.state.lastMoveTime = null; // IMPORTANT: Pas de timestamp pour permettre la popup
+  //     if (data.accepted) {
+  //       // Revanche acceptée - réinitialiser la partie
+  //       this.state.fen =
+  //         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  //       this.state.isActive = false; // IMPORTANT: Ne pas démarrer automatiquement
+  //       this.state.turn = "w";
+  //       this.state.whiteTime = this.state.gameTimeLimit;
+  //       this.state.blackTime = this.state.gameTimeLimit;
+  //       this.state.gameResult = { type: null };
+  //       this.state.drawOffer = { offered: false, by: null };
+  //       this.state.gameNumber += 1;
+  //       this.state.lastMoveTime = null; // IMPORTANT: Pas de timestamp pour permettre la popup
 
-      // Inverser les couleurs pour la revanche
-      this.state.players.forEach((p: any) => {
-        p.color = p.color === "white" ? "black" : "white";
-      });
+  //       // Inverser les couleurs pour la revanche
+  //       this.state.players.forEach((p: any) => {
+  //         p.color = p.color === "white" ? "black" : "white";
+  //       });
 
-      // NOUVEAU: Ajouter un flag pour indiquer qu'une revanche a été acceptée
-      this.state.rematchAccepted = true;
-    }
+  //       // NOUVEAU: Ajouter un flag pour indiquer qu'une revanche a été acceptée
+  //       this.state.rematchAccepted = true;
+  //     }
 
-    // Réinitialiser l'offre de revanche
-    this.state.rematchOffer = { offered: false, by: null };
-    this.publish(this.sessionId, "game-state", this.state);
-  };
+  //     // Réinitialiser l'offre de revanche
+  //     this.state.rematchOffer = { offered: false, by: null };
+  //     this.publish(this.sessionId, "game-state", this.state);
+  //   };
 
   const setupMultisynqClasses = () => {
     const { Multisynq } = window as any;
@@ -3006,7 +3006,6 @@ export default function ChessMultisynqApp() {
 
   // console.log("moveHistory", moveHistory);
 
-  // Interface de jeu
   return (
     <div className="min-h-screen bg-[#161616] p-4">
       <div className="max-w-5xl mx-auto">
@@ -3015,109 +3014,6 @@ export default function ChessMultisynqApp() {
           <div className="w-full">
             <div className="flex items-center justify-between w-full gap-3">
               <img src="/synqmate.png" alt="logo" className=" w-[240px]" />
-              <div className="flex items-center gap-2">
-                {(roomBetAmount || gameInfo?.betAmount) && (
-                  <div className="flex items-center gap-4 px-6 py-4 border border-white/20 rounded-xl">
-                    <div className="flex flex-col">
-                      <span className="text-white/80 text-sm font-medium mb-1">
-                        Total bet:
-                      </span>
-                      <div className="flex items-end gap-2">
-                        <span className="text-white font-bold text-4xl">
-                          {roomBetAmount ||
-                            (gameInfo?.betAmount
-                              ? formatEther(gameInfo.betAmount * BigInt(2))
-                              : "0")}
-                        </span>
-                        <span className="text-white font-semibold text-2xl">
-                          MON
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Nouveau: Affichage du pot disponible */}
-                    {gameInfo?.state === 2 && ( // FINISHED
-                      <div className="border-l border-white/20 pl-4">
-                        <div className="flex flex-col">
-                          <span className="text-white/80 text-sm font-medium mb-1">
-                            Available pot:
-                          </span>
-                          <div className="flex items-end gap-2">
-                            <span className="text-green-400 font-bold text-3xl">
-                              {(() => {
-                                if (!gameInfo.betAmount) return "0";
-                                const totalPot = gameInfo.betAmount * BigInt(2);
-
-                                // Cas de draw : chaque joueur peut récupérer sa mise
-                                if (gameInfo.result === 3) {
-                                  // DRAW
-                                  const claimedAmount =
-                                    (gameInfo.whiteClaimed
-                                      ? gameInfo.betAmount
-                                      : BigInt(0)) +
-                                    (gameInfo.blackClaimed
-                                      ? gameInfo.betAmount
-                                      : BigInt(0));
-                                  const available = totalPot - claimedAmount;
-                                  return formatEther(available);
-                                }
-                                // Cas de victoire : le gagnant récupère tout
-                                else {
-                                  // Déterminer qui est le gagnant
-                                  const whiteWon = gameInfo.result === 1; // WHITE_WINS
-                                  const blackWon = gameInfo.result === 2; // BLACK_WINS
-
-                                  if (whiteWon && gameInfo.whiteClaimed)
-                                    return "0";
-                                  if (blackWon && gameInfo.blackClaimed)
-                                    return "0";
-
-                                  return formatEther(totalPot);
-                                }
-                              })()}
-                            </span>
-                            <span className="text-green-400 font-semibold text-xl">
-                              MON
-                            </span>
-                          </div>
-                          {(gameInfo.whiteClaimed || gameInfo.blackClaimed) && (
-                            <span className="text-orange-300 text-xs mt-1">
-                              {(() => {
-                                if (gameInfo.result === 3) {
-                                  // DRAW
-                                  if (
-                                    gameInfo.whiteClaimed &&
-                                    gameInfo.blackClaimed
-                                  )
-                                    return "All claimed";
-                                  if (
-                                    gameInfo.whiteClaimed ||
-                                    gameInfo.blackClaimed
-                                  )
-                                    return "Partially claimed";
-                                  return "Unclaimed";
-                                } else {
-                                  // VICTORY
-                                  const whiteWon = gameInfo.result === 1;
-                                  const blackWon = gameInfo.result === 2;
-
-                                  if (
-                                    (whiteWon && gameInfo.whiteClaimed) ||
-                                    (blackWon && gameInfo.blackClaimed)
-                                  ) {
-                                    return "Winner claimed";
-                                  }
-                                  return "Winner hasn't claimed";
-                                }
-                              })()}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
 
               {isReconnecting && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-orange-500/20 border border-orange-400 rounded">
