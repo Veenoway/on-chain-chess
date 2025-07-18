@@ -136,6 +136,7 @@ export default function ChessMultisynqApp() {
   const [showGameEndModal, setShowGameEndModal] = useState(false);
   const [hasClosedModal, setHasClosedModal] = useState(false);
   const [hasClosedPaymentModal, setHasClosedPaymentModal] = useState(false);
+  const [isFinalizingGame, setIsFinalizingGame] = useState(false);
   const [moveHistory, setMoveHistory] = useState<string[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const moveHistoryRef = useRef<string[]>([]);
@@ -261,6 +262,7 @@ export default function ChessMultisynqApp() {
   ): Promise<boolean> => {
     try {
       console.log("🤖 Tentative de finalisation automatique via relayer...");
+      setIsFinalizingGame(true);
 
       const response = await fetch("/api/finish-game-relayer", {
         method: "POST",
@@ -280,6 +282,9 @@ export default function ChessMultisynqApp() {
           "✅ Partie finalisée automatiquement par le relayer:",
           data.transactionHash
         );
+        setTimeout(() => {
+          setIsFinalizingGame(false);
+        }, 2000);
         return true;
       } else {
         console.log("❌ Erreur relayer automatique:", data.error);
@@ -287,6 +292,9 @@ export default function ChessMultisynqApp() {
       }
     } catch (error) {
       console.error("❌ Erreur de communication avec le relayer:", error);
+      setTimeout(() => {
+        setIsFinalizingGame(false);
+      }, 3000);
       return false;
     }
   };
@@ -339,13 +347,27 @@ export default function ChessMultisynqApp() {
       } else {
         // Fallback vers la méthode manuelle
         console.log("⚠️ Relayer automatique échoué, tentative manuelle...");
-        await finishBettingGame(gameId, contractResult);
-        console.log(
-          "✅ Partie finalisée manuellement sur le contrat avec succès"
-        );
+
+        try {
+          await finishBettingGame(gameId, contractResult);
+          console.log(
+            "✅ Partie finalisée manuellement sur le contrat avec succès"
+          );
+          setTimeout(() => {
+            setIsFinalizingGame(false);
+          }, 2000);
+        } catch (manualError) {
+          console.error("❌ Erreur finalisation manuelle:", manualError);
+          setTimeout(() => {
+            setIsFinalizingGame(false);
+          }, 3000);
+        }
       }
     } catch (error) {
       console.error("❌ Erreur lors de la finalisation sur le contrat:", error);
+      setTimeout(() => {
+        setIsFinalizingGame(false);
+      }, 3000);
       // Ne pas faire échouer le jeu si la finalisation échoue
     }
   };
@@ -3568,7 +3590,7 @@ export default function ChessMultisynqApp() {
                                         </span>
                                       </div>
                                       <span
-                                        className={`px-2 py-1 rounded text-xs font-medium ${
+                                        className={`px-2 py-1 rounded text-xs flex items-center justify-center gap-2 font-medium ${
                                           gameInfo.whiteClaimed
                                             ? "bg-green-500/20 text-green-300"
                                             : gameInfo.result === 3 ||
@@ -3577,6 +3599,9 @@ export default function ChessMultisynqApp() {
                                             : "bg-gray-500/20 text-gray-400"
                                         }`}
                                       >
+                                        {isFinalizingGame && (
+                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-yellow-400" />
+                                        )}
                                         {gameInfo.whiteClaimed
                                           ? "✓ Claimed"
                                           : gameInfo.result === 3 // DRAW
@@ -3598,7 +3623,7 @@ export default function ChessMultisynqApp() {
                                         </span>
                                       </div>
                                       <span
-                                        className={`px-2 py-1 rounded text-xs font-medium ${
+                                        className={`px-2 py-1 rounded text-xs flex items-center justify-center gap-2 font-medium ${
                                           gameInfo.blackClaimed
                                             ? "bg-green-500/20 text-green-300"
                                             : gameInfo.result === 3 ||
@@ -3607,6 +3632,10 @@ export default function ChessMultisynqApp() {
                                             : "bg-gray-500/20 text-gray-400"
                                         }`}
                                       >
+                                        {isFinalizingGame && (
+                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-yellow-400" />
+                                        )}
+
                                         {gameInfo.blackClaimed
                                           ? "✓ Claimed"
                                           : gameInfo.result === 3 // DRAW
@@ -3724,7 +3753,6 @@ export default function ChessMultisynqApp() {
                               ) : (
                                 <div className="text-center space-y-3">
                                   {/* Boutons de claim si il y a des gains à récupérer */}
-
                                   <div className="space-y-3">
                                     {/* Claim winnings si le joueur a gagné */}
                                     {gameState.gameResult.winner !== "draw" &&
@@ -3756,32 +3784,35 @@ export default function ChessMultisynqApp() {
                                           disabled={
                                             claimState.isLoading ||
                                             isPending ||
-                                            isConfirming
+                                            isConfirming ||
+                                            (gameInfo && gameInfo.state !== 2)
                                           }
                                           className={`w-full px-6 py-4 ${
                                             claimState.isSuccess
                                               ? "bg-green-800 hover:bg-green-800"
                                               : claimState.isError
                                               ? "bg-red-600 hover:bg-red-700"
-                                              : "bg-green-600 hover:bg-green-700"
-                                          } disabled:bg-gray-600 text-white rounded font-bold text-lg transition-colors`}
+                                              : "bg-[#836EF9] hover:bg-[#836EF9]/80"
+                                          } disabled:bg-[#252525] text-white rounded font-bold text-lg transition-colors`}
                                         >
-                                          {claimState.isLoading
-                                            ? "Processing..."
-                                            : claimState.isSuccess
-                                            ? "Successfully claimed"
+                                          {gameInfo && gameInfo.state !== 2
+                                            ? "Game not finalized yet..."
+                                            : claimState.isLoading
+                                            ? "Processing claim..."
                                             : claimState.isError
                                             ? "Try again"
                                             : isPending || isConfirming
-                                            ? "Processing..."
-                                            : `Claim Winnings (${
+                                            ? "Confirming transaction..."
+                                            : claimState.isSuccess
+                                            ? "Successfully claimed"
+                                            : `Claim  ${
                                                 gameInfo?.betAmount
                                                   ? formatEther(
                                                       gameInfo.betAmount *
                                                         BigInt(2)
                                                     )
                                                   : "0"
-                                              } MON)`}
+                                              } MON`}
                                         </button>
                                       )}
 
@@ -3800,11 +3831,17 @@ export default function ChessMultisynqApp() {
                                             }
                                           }
                                         }}
-                                        disabled={isPending || isConfirming}
+                                        disabled={
+                                          isPending ||
+                                          isConfirming ||
+                                          (gameInfo && gameInfo.state !== 2) // Désactiver si le jeu n'est pas FINISHED
+                                        }
                                         className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded font-bold text-lg transition-colors"
                                       >
-                                        {isPending || isConfirming
-                                          ? "Processing..."
+                                        {gameInfo && gameInfo.state !== 2
+                                          ? "Game not finalized yet..."
+                                          : isPending || isConfirming
+                                          ? "Confirming transaction..."
                                           : `🤝 Claim Draw Refund (${
                                               gameInfo?.betAmount
                                                 ? formatEther(

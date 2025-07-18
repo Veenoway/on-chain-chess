@@ -320,13 +320,30 @@ export const useChessBetting = () => {
   // Refetch automatique du solde après transaction réussie
   useEffect(() => {
     if (isSuccess && hash) {
-      setClaimState((prev) => ({ ...prev, isSuccess: true }));
       console.log("✅ Transaction confirmée, actualisation du solde...");
+
+      // Seulement si c'est une transaction de claim (pas de finalisation de jeu)
+      if (claimState.isLoading) {
+        // Mettre à jour l'état de succès pour les claims
+        setClaimState((prev) => ({
+          ...prev,
+          isSuccess: true,
+          isLoading: false,
+          txHash: hash,
+        }));
+
+        // Toast de succès seulement pour les claims
+        toast.success("🎉 Gains réclamés avec succès !", {
+          id: "claim-process",
+          duration: 6000,
+        });
+      }
+
       setTimeout(() => {
         refetchBalance();
       }, 2000); // Attendre 2 secondes pour que les changements se propagent
     }
-  }, [isSuccess, hash, refetchBalance]);
+  }, [isSuccess, hash, refetchBalance, claimState.isLoading]);
 
   // Créer une partie avec pari en MON natif
   const createBettingGame = useCallback(
@@ -510,8 +527,10 @@ export const useChessBetting = () => {
           data.error?.includes("Unauthorized") ||
           data.error?.includes("0x118cdaa7")
         ) {
-          console.log("🔄 Tentative de transaction sponsorisée...");
-          return await finishGameViaSponsored(gameId, result);
+          console.log(
+            "🔄 Le relayer direct a échoué, fallback vers méthode manuelle"
+          );
+          // Pas de transaction sponsorisée pour l'instant, laisser l'utilisateur finaliser manuellement
         }
 
         return false;
@@ -548,7 +567,7 @@ export const useChessBetting = () => {
       });
 
       let finishGameTxHash: string | null = null;
-      let claimTxHash: string | null = null;
+      const claimTxHash: string | null = null;
 
       try {
         if (!publicClient) {
@@ -746,6 +765,7 @@ export const useChessBetting = () => {
           { id: "claim-process" }
         );
 
+        // Envoyer la transaction - le succès sera géré par le useEffect
         await writeContract({
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -753,50 +773,10 @@ export const useChessBetting = () => {
           args: [gameId],
         });
 
-        // Attendre que le nouveau hash soit disponible
-        let attempts = 0;
-        while (!hash && attempts < 50) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          attempts++;
-        }
-
-        if (!hash) {
-          throw new Error("Hash de transaction non disponible");
-        }
-
-        claimTxHash = hash;
-        setClaimState((prev) => ({ ...prev, txHash: hash }));
-
-        toast.loading(
-          "Transaction de réclamation envoyée, attente de confirmation...",
-          {
-            id: "claim-process",
-          }
-        );
-
-        // Attendre la confirmation de la transaction de claim
-        const receipt = await publicClient.waitForTransactionReceipt({
-          hash: hash,
+        // La transaction a été envoyée, maintenant on attend la confirmation via les hooks wagmi
+        toast.loading("Transaction envoyée, confirmation en cours...", {
+          id: "claim-process",
         });
-
-        if (receipt.status === "success") {
-          const successMsg = `🎉 Gains réclamés avec succès ! ${formatEther(
-            winnings
-          )} MON ont été transférés sur votre compte.`;
-          toast.success(successMsg, { id: "claim-process", duration: 6000 });
-
-          setClaimState({
-            isLoading: false,
-            isSuccess: true,
-            isError: false,
-            error: null,
-            txHash: hash,
-          });
-
-          onSuccess?.();
-        } else {
-          throw new Error("Transaction de réclamation échouée");
-        }
       } catch (error: unknown) {
         console.error("Error claiming winnings:", error);
 
