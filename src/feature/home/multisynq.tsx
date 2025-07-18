@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  useCanCancelGame,
   useChessBetting,
   useCompleteGameInfo,
   useContractEvents,
@@ -156,6 +157,9 @@ export default function ChessMultisynqApp() {
     balanceFormatted,
     claimState,
     resetClaimState,
+    cancelBettingGame,
+    cancelState,
+    resetCancelState,
   } = useChessBetting();
 
   const { address, isConnected, chainId } = useAccount();
@@ -163,6 +167,7 @@ export default function ChessMultisynqApp() {
 
   const { gameId } = useGameIdByRoom(gameState.roomName);
   const { gameInfo, refetchAll } = useCompleteGameInfo(gameId);
+  const { canCancel } = useCanCancelGame(gameId);
 
   // Écouter les événements du contrat pour ce gameId
   useContractEvents(gameId);
@@ -2804,11 +2809,13 @@ export default function ChessMultisynqApp() {
     customPieces: customPieces,
   };
 
+  const [menuActive, setMenuActive] = useState("create");
+
   // Interface d'accueil
   if (gameFlow === "welcome") {
     return (
-      <div className="min-h-screen bg-[url('https://pbs.twimg.com/media/GpoPZdmWkAApRWa?format=jpg&name=large')] bg-center bg-cover flex items-center justify-center p-4">
-        <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/20">
+      <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] bg-center bg-cover flex items-center justify-center p-4">
+        <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/5">
           <div className="text-center mb-10">
             <div className="flex items-center justify-between w-full">
               <img src="/synqmate.png" alt="logo" className="w-[250px]" />
@@ -2818,143 +2825,193 @@ export default function ChessMultisynqApp() {
 
           {!isConnected ? (
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-4">
+              <h2 className="text-3xl font-bold text-white mb-4">
                 Welcome to Multisynq Chess
               </h2>
-              <p className="text-white/80 mb-8">
+              <p className="text-white/80 text-lg mb-8">
+                Multisynq is a platform for playing chess with friends.
+              </p>
+              <p className="text-white/80 text-lg mb-8">
                 Connect your wallet to start playing
               </p>
             </div>
           ) : (
             <>
-              <div className="bg-[#252525] border border-white/5 rounded-2xl p-8">
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-xl font-medium text-white mb-3">
-                      Game Settings
-                    </label>
-                    <Select
-                      value={selectedGameTime.toString()}
-                      onValueChange={(value) =>
-                        setSelectedGameTime(Number(value))
-                      }
-                    >
-                      <SelectTrigger className="w-full text-base bg-[#2b2b2b] border-white/5 h-[50px] text-white">
-                        <SelectValue placeholder="Select game duration" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#252525] border-white/10 text-base text-white">
-                        <SelectItem value="180">3 minutes</SelectItem>
-                        <SelectItem value="300">5 minutes</SelectItem>
-                        <SelectItem value="600">10 minutes</SelectItem>
-                        <SelectItem value="900">15 minutes</SelectItem>
-                        <SelectItem value="1800">30 minutes</SelectItem>
-                        <SelectItem value="3600">1 hour</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <button
+                  onClick={() => setMenuActive("create")}
+                  className={`group rounded-xl border ${
+                    menuActive === "create"
+                      ? "border-[#836EF9] bg-[#2b2b2b]"
+                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
+                  } text-white text-lg font-semibold py-4 transition-all duration-200`}
+                >
+                  Create Game
+                </button>
 
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-medium text-white">
-                      Enable Betting
-                    </h3>
-                    <label className="flex items-center cursor-pointer">
-                      <div
-                        className={`w-14 h-7 rounded-full transition-colors ${
-                          isBettingEnabled ? "bg-[#836EF9]" : "bg-gray-600"
-                        }`}
+                <button
+                  onClick={() => setMenuActive("join")}
+                  className={`group rounded-xl border ${
+                    menuActive === "join"
+                      ? "border-[#836EF9] bg-[#2b2b2b]"
+                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
+                  } text-white text-lg font-semibold py-4 transition-all duration-200`}
+                >
+                  Join Game
+                </button>
+              </div>
+              {menuActive === "create" ? (
+                <div className="bg-[#252525] border border-white/5 rounded-2xl p-6">
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-xl font-medium text-white mb-3">
+                        Game Settings
+                      </label>
+                      <Select
+                        value={selectedGameTime.toString()}
+                        onValueChange={(value) =>
+                          setSelectedGameTime(Number(value))
+                        }
                       >
-                        <div
-                          className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
-                            isBettingEnabled
-                              ? "translate-x-7 ml-1"
-                              : "translate-x-0 ml-0.5"
-                          }`}
-                        ></div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={isBettingEnabled}
-                        onChange={(e) => setIsBettingEnabled(e.target.checked)}
-                        className="sr-only"
-                      />
-                    </label>
-                  </div>
-
-                  {isBettingEnabled && (
-                    <div className="space-y-2">
-                      <input
-                        type="number"
-                        step="1"
-                        min="1"
-                        value={betAmount}
-                        onChange={(e) => setBetAmount(e.target.value)}
-                        placeholder="Enter bet amount"
-                        className="w-full px-4 py-3 bg-[#2b2b2b] border border-white/5 rounded-lg text-white text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
-                      />
-                      <div className="text-base text-white/80">
-                        Balance:{" "}
-                        {balanceFormatted?.split(".")?.[0] +
-                          "." +
-                          balanceFormatted?.split(".")?.[1]?.slice(0, 2)}{" "}
-                        MON
-                        {(isPending || isConfirming) && (
-                          <span className="ml-2 text-yellow-400">
-                            {isPending ? "Signing..." : "Confirming..."}
-                          </span>
-                        )}
-                        {isSuccess && (
-                          <span className="ml-2 text-green-400">Confirmed</span>
-                        )}
-                      </div>
+                        <SelectTrigger className="w-full text-lg bg-[#2b2b2b] border-white/5 h-[50px] text-white">
+                          <SelectValue
+                            placeholder="Select game duration"
+                            className="text-lg"
+                          />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#252525] border-white/10 text-lg text-white">
+                          <SelectItem className="text-lg" value="180">
+                            3 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="300">
+                            5 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="600">
+                            10 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="900">
+                            15 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="1800">
+                            30 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="3600">
+                            1 hour
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
 
-                  <button
-                    onClick={handleCreateRoom}
-                    disabled={
-                      isCreatingRoom || !multisynqReady || isWrongNetwork
-                    }
-                    className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
-                  >
-                    {isWrongNetwork
-                      ? "🔄 Switch to Monad & Create"
-                      : isCreatingRoom
-                      ? "Creating..."
-                      : !multisynqReady
-                      ? "Loading Multisynq..."
-                      : "Create Game"}
-                  </button>
-                </div>
-              </div>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-medium text-white">
+                        Enable Betting
+                      </h3>
+                      <label className="flex items-center cursor-pointer">
+                        <div
+                          className={`w-14 h-6 rounded-full transition-colors ${
+                            isBettingEnabled ? "bg-[#836EF9]" : "bg-[#2b2b2b]"
+                          }`}
+                        >
+                          <div
+                            className={`w-[21px] h-[21px] bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
+                              isBettingEnabled
+                                ? "translate-x-7 ml-1"
+                                : "translate-x-0 ml-0.5"
+                            }`}
+                          ></div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={isBettingEnabled}
+                          onChange={(e) =>
+                            setIsBettingEnabled(e.target.checked)
+                          }
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
 
-              <div className=" text-center">
-                <p className="text-xl text-white/80 my-5">OR</p>
-                <div className="bg-[#252525] border border-white/5 rounded-2xl p-8">
-                  <input
-                    type="text"
-                    placeholder="Enter room code (e.g. room:password)"
-                    value={roomInput}
-                    onChange={(e) => setRoomInput(e.target.value)}
-                    className="w-full p-4 bg-[#2b2b2b] border border-white/10 text-white rounded-lg text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleJoinRoom}
-                    disabled={
-                      !roomInput.trim() ||
-                      !multisynqReady ||
-                      isPending ||
-                      isWrongNetwork
-                    }
-                    className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
-                  >
-                    {isWrongNetwork
-                      ? "🔄 Switch to Monad & Join"
-                      : isPending
-                      ? "Processing..."
-                      : "Join Game"}
-                  </button>
+                    {isBettingEnabled && (
+                      <div className="space-y-2">
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          value={betAmount}
+                          onChange={(e) => setBetAmount(e.target.value)}
+                          placeholder="Enter bet amount"
+                          className="w-full px-4 py-3 focus:outline-none bg-[#2b2b2b] border border-white/5 rounded-lg text-white text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                        />
+                        <div className="text-base text-white/80">
+                          Balance:{" "}
+                          {balanceFormatted?.split(".")?.[0] +
+                            "." +
+                            balanceFormatted?.split(".")?.[1]?.slice(0, 2)}{" "}
+                          MON
+                          {(isPending || isConfirming) && (
+                            <span className="ml-2 text-yellow-400">
+                              {isPending ? "Signing..." : "Confirming..."}
+                            </span>
+                          )}
+                          {isSuccess && (
+                            <span className="ml-2 text-green-400">
+                              Confirmed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={
+                        isCreatingRoom || !multisynqReady || isWrongNetwork
+                      }
+                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
+                    >
+                      {isWrongNetwork
+                        ? "🔄 Switch to Monad & Create"
+                        : isCreatingRoom
+                        ? "Creating..."
+                        : !multisynqReady
+                        ? "Loading Multisynq..."
+                        : "Create Game"}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className=" text-center">
+                  <div className="bg-[#252525] border border-white/5 rounded-2xl p-8 pt-6">
+                    <label className="block text-xl font-medium text-left text-white  mb-3">
+                      {" "}
+                      Room Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter room code (e.g. room:password)"
+                      value={roomInput}
+                      onChange={(e) => setRoomInput(e.target.value)}
+                      className="w-full p-4 bg-[#2b2b2b] focus:outline-none border border-white/10 text-white rounded-lg text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleJoinRoom}
+                      disabled={
+                        !roomInput.trim() ||
+                        !multisynqReady ||
+                        isPending ||
+                        isWrongNetwork
+                      }
+                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
+                    >
+                      {isWrongNetwork
+                        ? "🔄 Switch to Monad & Join"
+                        : isPending
+                        ? "Processing..."
+                        : "Join Game"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -3352,9 +3409,25 @@ export default function ChessMultisynqApp() {
                                   </button>
                                 </div>
                               ) : (
-                                <div className="w-full px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-bold text-lg transition-colors flex items-center justify-center">
-                                  Waiting for opponent...
-                                </div>
+                                <>
+                                  {canCancel && (
+                                    <button
+                                      onClick={() =>
+                                        cancelBettingGame(
+                                          gameId as bigint,
+                                          () => {},
+                                          (error) => console.error(error)
+                                        )
+                                      }
+                                      className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-bold text-lg transition-colors flex items-center justify-center"
+                                      disabled={cancelState.isLoading}
+                                    >
+                                      {cancelState.isLoading
+                                        ? "Cancelling..."
+                                        : `Cancel & Get Refund`}
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>

@@ -48,7 +48,7 @@ export function WalletConnection() {
       <button
         onClick={handleSwitchNetwork}
         className="bg-[#836EF9]
-          flex items-center rounded uppercase h-[40px] sm:h-[50px] w-fit justify-center border border-borderColor px-2.5 sm:px-6 py-5
+          flex items-center rounded-lg uppercase h-[40px] sm:h-[50px] w-fit justify-center border border-borderColor px-2.5 sm:px-6 py-5
            text-lg sm:text-lg text-white font-medium transition-all duration-300 ease-in-out
           disabled:opacity-50 disabled:cursor-not-allowed"
       >
@@ -64,7 +64,7 @@ export function WalletConnection() {
           <button
             onClick={() => setOpen(true)}
             className={`bg-[#836EF9]
-             flex items-center justify-center rounded mx-auto w-fit h-[40px] sm:h-[50px] px-2.5 sm:px-6 py-5
+             flex items-center justify-center rounded-lg mx-auto w-fit h-[40px] sm:h-[50px] px-2.5 sm:px-6 py-5
              text-lg sm:text-lg text-white font-medium transition-all duration-300 ease-in-out
              ${isConnecting ? "opacity-50 cursor-not-allowed" : ""}`}
           >
@@ -77,7 +77,7 @@ export function WalletConnection() {
           <button
             onClick={handleDisconnect}
             className={`bg-[#836EF9]
-                flex items-center rounded mx-auto h-[40px] sm:h-[50px] w-fit px-2.5 sm:px-6 py-5
+                flex items-center rounded-lg mx-auto h-[40px] sm:h-[50px] w-fit px-2.5 sm:px-6 py-5
                 text-lg sm:text-lg text-white font-semibold justify-center transition-all duration-300 ease-in-out
                 ${isConnecting || isInitialLoading ? "animate-pulse" : ""}`}
           >

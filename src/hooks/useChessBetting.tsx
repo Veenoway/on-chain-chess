@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import { Address, formatEther, parseEther } from "viem";
 import { readContract } from "viem/actions";
@@ -65,6 +65,16 @@ const CHESS_BETTING_ABI = [
       { name: "amount", type: "uint256" },
     ],
     name: "DrawRefundClaimed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "gameId", type: "uint256" },
+      { indexed: true, name: "player", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    name: "GameCancelled",
     type: "event",
   },
 
@@ -306,9 +316,35 @@ export const useChessBetting = () => {
     txHash: null,
   });
 
+  // États spécifiques pour l'annulation
+  const [cancelState, setCancelState] = useState<{
+    isLoading: boolean;
+    isSuccess: boolean;
+    isError: boolean;
+    error: string | null;
+    txHash: string | null;
+  }>({
+    isLoading: false,
+    isSuccess: false,
+    isError: false,
+    error: null,
+    txHash: null,
+  });
+
   // Réinitialiser l'état du claim
   const resetClaimState = useCallback(() => {
     setClaimState({
+      isLoading: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      txHash: null,
+    });
+  }, []);
+
+  // Réinitialiser l'état d'annulation
+  const resetCancelState = useCallback(() => {
+    setCancelState({
       isLoading: false,
       isSuccess: false,
       isError: false,
@@ -322,9 +358,8 @@ export const useChessBetting = () => {
     if (isSuccess && hash) {
       console.log("✅ Transaction confirmée, actualisation du solde...");
 
-      // Seulement si c'est une transaction de claim (pas de finalisation de jeu)
+      // Pour les claims
       if (claimState.isLoading) {
-        // Mettre à jour l'état de succès pour les claims
         setClaimState((prev) => ({
           ...prev,
           isSuccess: true,
@@ -332,18 +367,38 @@ export const useChessBetting = () => {
           txHash: hash,
         }));
 
-        // Toast de succès seulement pour les claims
         toast.success("🎉 Gains réclamés avec succès !", {
           id: "claim-process",
           duration: 6000,
         });
       }
 
+      // Pour les annulations
+      if (cancelState.isLoading) {
+        setCancelState((prev) => ({
+          ...prev,
+          isSuccess: true,
+          isLoading: false,
+          txHash: hash,
+        }));
+
+        toast.success("🎉 Partie annulée et remboursement effectué !", {
+          id: "cancel-process",
+          duration: 6000,
+        });
+      }
+
       setTimeout(() => {
         refetchBalance();
-      }, 2000); // Attendre 2 secondes pour que les changements se propagent
+      }, 2000);
     }
-  }, [isSuccess, hash, refetchBalance, claimState.isLoading]);
+  }, [
+    isSuccess,
+    hash,
+    refetchBalance,
+    claimState.isLoading,
+    cancelState.isLoading,
+  ]);
 
   // Créer une partie avec pari en MON natif
   const createBettingGame = useCallback(
@@ -452,8 +507,6 @@ export const useChessBetting = () => {
       }
 
       try {
-        // Le résultat est déjà validé par le type 1 | 2 | 3
-
         await writeContract({
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -489,8 +542,6 @@ export const useChessBetting = () => {
     [address, writeContract]
   );
 
-  // Fonction pour finaliser via transactions sponsorisées
-
   // Fonction pour finaliser une partie via le relayer API
   const finishGameViaRelayer = async (
     gameId: bigint,
@@ -521,7 +572,6 @@ export const useChessBetting = () => {
       } else {
         console.log("❌ Erreur relayer:", data.error);
 
-        // Si le relayer direct échoue, essayer les transactions sponsorisées
         if (
           data.error?.includes("not the contract owner") ||
           data.error?.includes("Unauthorized") ||
@@ -530,7 +580,6 @@ export const useChessBetting = () => {
           console.log(
             "🔄 Le relayer direct a échoué, fallback vers méthode manuelle"
           );
-          // Pas de transaction sponsorisée pour l'instant, laisser l'utilisateur finaliser manuellement
         }
 
         return false;
@@ -632,7 +681,6 @@ export const useChessBetting = () => {
 
         // 4. Finaliser la partie si nécessaire
         if (gameInfo.state !== GameState.FINISHED) {
-          // NOUVEAU: Essayer d'abord le relayer automatique
           toast.loading("Étape 1/2: Finalisation automatique de la partie...", {
             id: "claim-process",
           });
@@ -644,7 +692,6 @@ export const useChessBetting = () => {
               id: "claim-process",
             });
           } else {
-            // Fallback vers la méthode manuelle
             toast.loading(
               "⚠️ Finalisation automatique échouée. Confirmez la transaction pour payer les frais...",
               {
@@ -660,7 +707,6 @@ export const useChessBetting = () => {
                 args: [gameId, result],
               });
 
-              // Attendre que le hash soit disponible
               let attempts = 0;
               while (!hash && attempts < 50) {
                 await new Promise((resolve) => setTimeout(resolve, 100));
@@ -765,7 +811,6 @@ export const useChessBetting = () => {
           { id: "claim-process" }
         );
 
-        // Envoyer la transaction - le succès sera géré par le useEffect
         await writeContract({
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -773,7 +818,6 @@ export const useChessBetting = () => {
           args: [gameId],
         });
 
-        // La transaction a été envoyée, maintenant on attend la confirmation via les hooks wagmi
         toast.loading("Transaction envoyée, confirmation en cours...", {
           id: "claim-process",
         });
@@ -782,7 +826,6 @@ export const useChessBetting = () => {
 
         let errorMessage = "Échec de la réclamation des gains";
 
-        // Gestion d'erreurs plus spécifique
         if (error instanceof Error) {
           const msg = error.message.toLowerCase();
           if (msg.includes("game not finished")) {
@@ -836,7 +879,6 @@ export const useChessBetting = () => {
           return;
         }
 
-        // Vérifications similaires pour le draw refund
         const gameInfo = (await readContract(publicClient, {
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -909,18 +951,146 @@ export const useChessBetting = () => {
         toast.error("Failed to claim draw refund. Please try again.");
       }
     },
-    [address, writeContract]
+    [address, writeContract, publicClient]
   );
 
-  // Annuler une partie
   const cancelBettingGame = useCallback(
-    async (gameId: bigint) => {
+    async (
+      gameId: bigint,
+      onSuccess?: () => void,
+      onError?: (error: string) => void
+    ) => {
       if (!address) {
-        toast.error("Please connect your wallet");
+        const errorMsg = "Please connect your wallet";
+        toast.error(errorMsg);
+        onError?.(errorMsg);
         return;
       }
 
+      // Réinitialiser l'état d'annulation
+      setCancelState({
+        isLoading: true,
+        isSuccess: false,
+        isError: false,
+        error: null,
+        txHash: null,
+      });
+
       try {
+        if (!publicClient) {
+          const errorMsg = "Network not available";
+          toast.error(errorMsg);
+          setCancelState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: true,
+            error: errorMsg,
+          }));
+          onError?.(errorMsg);
+          return;
+        }
+
+        toast.loading("Checking game information...", {
+          id: "cancel-process",
+        });
+
+        const gameInfo = (await readContract(publicClient, {
+          address: CHESS_BETTING_CONTRACT_ADDRESS,
+          abi: CHESS_BETTING_ABI,
+          functionName: "getGame",
+          args: [gameId],
+        })) as GameInfo;
+
+        if (!gameInfo) {
+          const errorMsg = "Partie introuvable";
+          toast.error(errorMsg, { id: "cancel-process" });
+          setCancelState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: true,
+            error: errorMsg,
+          }));
+          onError?.(errorMsg);
+          return;
+        }
+
+        const isCreator =
+          gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+
+        if (!isCreator) {
+          const errorMsg = "Seul le créateur de la partie peut l'annuler";
+          toast.error(errorMsg, { id: "cancel-process" });
+          setCancelState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: true,
+            error: errorMsg,
+          }));
+          onError?.(errorMsg);
+          return;
+        }
+
+        if (gameInfo.state !== GameState.WAITING) {
+          let errorMsg = "Cannot cancel this game";
+
+          switch (gameInfo.state) {
+            case GameState.ACTIVE:
+              errorMsg = "Cannot cancel an active game";
+              break;
+            case GameState.FINISHED:
+              errorMsg = "Cannot cancel a finished game";
+              break;
+            case GameState.CANCELLED:
+              errorMsg = "This game is already cancelled";
+              break;
+          }
+
+          toast.error(errorMsg, { id: "cancel-process" });
+          setCancelState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: true,
+            error: errorMsg,
+          }));
+          onError?.(errorMsg);
+          return;
+        }
+
+        const hasBlackPlayer =
+          gameInfo.blackPlayer !== "0x0000000000000000000000000000000000000000";
+
+        if (hasBlackPlayer) {
+          const errorMsg =
+            "Cannot cancel: an opponent has already joined the game";
+          toast.error(errorMsg, { id: "cancel-process" });
+          setCancelState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: true,
+            error: errorMsg,
+          }));
+          onError?.(errorMsg);
+          return;
+        }
+
+        if (gameInfo.betAmount <= BigInt(0)) {
+          const errorMsg = "No amount to refund";
+          toast.error(errorMsg, { id: "cancel-process" });
+          setCancelState((prev) => ({
+            ...prev,
+            isLoading: false,
+            isError: true,
+            error: errorMsg,
+          }));
+          onError?.(errorMsg);
+          return;
+        }
+
+        const refundAmount = formatEther(gameInfo.betAmount);
+        toast.loading(`Cancelling... Refunding ${refundAmount} MON`, {
+          id: "cancel-process",
+        });
+
         await writeContract({
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -928,13 +1098,58 @@ export const useChessBetting = () => {
           args: [gameId],
         });
 
-        toast.success("Canceling betting game...");
-      } catch (error) {
+        toast.loading("Transaction envoyée, confirmation en cours...", {
+          id: "cancel-process",
+        });
+
+        onSuccess?.();
+      } catch (error: unknown) {
         console.error("Error canceling betting game:", error);
-        toast.error("Failed to cancel betting game");
+
+        let errorMessage = "Failed to cancel the game";
+
+        if (error instanceof Error) {
+          const msg = error.message.toLowerCase();
+
+          if (msg.includes("game not found")) {
+            errorMessage = "Game not found";
+          } else if (
+            msg.includes("not the creator") ||
+            msg.includes("not authorized")
+          ) {
+            errorMessage = "Only the creator can cancel the game";
+          } else if (msg.includes("game not in waiting state")) {
+            errorMessage = "Cannot cancel: the game has already started";
+          } else if (msg.includes("black player already joined")) {
+            errorMessage = "Cannot cancel: an opponent has already joined";
+          } else if (msg.includes("nothing to refund")) {
+            errorMessage = "No amount to refund";
+          } else if (
+            msg.includes("user rejected") ||
+            msg.includes("user denied")
+          ) {
+            errorMessage = "Transaction cancelled by the user";
+          } else if (msg.includes("insufficient funds")) {
+            errorMessage = "Insufficient funds to pay transaction fees";
+          } else if (msg.includes("network")) {
+            errorMessage = "Network error, please try again";
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+        }
+
+        toast.error(errorMessage, { id: "cancel-process", duration: 6000 });
+        setCancelState({
+          isLoading: false,
+          isSuccess: false,
+          isError: true,
+          error: errorMessage,
+          txHash: null,
+        });
+        onError?.(errorMessage);
       }
     },
-    [address, writeContract]
+    [address, writeContract, publicClient]
   );
 
   return {
@@ -955,6 +1170,9 @@ export const useChessBetting = () => {
     // États spécifiques au claim
     claimState,
     resetClaimState,
+    // États spécifiques à l'annulation
+    cancelState,
+    resetCancelState,
   };
 };
 
@@ -962,7 +1180,7 @@ export const useChessBetting = () => {
 export const useContractEvents = (gameId?: bigint) => {
   const { address } = useAccount();
 
-  // Écouter les événements GameFinished pour refetch automatiquement
+  // Écouter les événements GameFinished
   useWatchContractEvent({
     address: CHESS_BETTING_CONTRACT_ADDRESS,
     abi: CHESS_BETTING_ABI,
@@ -970,7 +1188,6 @@ export const useContractEvents = (gameId?: bigint) => {
     args: gameId ? { gameId } : undefined,
     onLogs: (logs) => {
       console.log("🎯 GameFinished event detected:", logs);
-      // Les hooks useReadContract vont automatiquement refetch grâce au watching
     },
   });
 
@@ -1006,6 +1223,17 @@ export const useContractEvents = (gameId?: bigint) => {
       console.log("👥 GameJoined event detected:", logs);
     },
   });
+
+  // NOUVEAU: Écouter les événements GameCancelled
+  useWatchContractEvent({
+    address: CHESS_BETTING_CONTRACT_ADDRESS,
+    abi: CHESS_BETTING_ABI,
+    eventName: "GameCancelled",
+    args: address ? { player: address } : undefined,
+    onLogs: (logs) => {
+      console.log("❌ GameCancelled event detected:", logs);
+    },
+  });
 };
 
 // Hook pour lire les informations d'une partie
@@ -1021,8 +1249,8 @@ export const useGameInfo = (gameId?: bigint) => {
     args: gameId ? [gameId] : undefined,
     query: {
       enabled: !!gameId && gameId > 0,
-      refetchInterval: 5000, // Refetch toutes les 5 secondes
-      staleTime: 2000, // Considérer les données comme stales après 2 secondes
+      refetchInterval: 5000,
+      staleTime: 2000,
     },
   }) as { data: GameInfo | undefined; isLoading: boolean; refetch: () => void };
 
@@ -1042,7 +1270,7 @@ export const useGameIdByRoom = (roomName?: string) => {
     args: roomName ? [roomName] : undefined,
     query: {
       enabled: !!roomName,
-      refetchInterval: 3000, // Refetch plus fréquent pour les nouvelles parties
+      refetchInterval: 3000,
       staleTime: 1000,
     },
   }) as { data: bigint | undefined; isLoading: boolean; refetch: () => void };
@@ -1063,7 +1291,7 @@ export const usePlayerStats = (playerAddress?: Address) => {
     args: playerAddress ? [playerAddress] : undefined,
     query: {
       enabled: !!playerAddress,
-      refetchInterval: 10000, // Moins fréquent pour les stats
+      refetchInterval: 10000,
       staleTime: 5000,
     },
   });
@@ -1127,7 +1355,7 @@ export const useCanClaimWinnings = (
     args: gameId && playerAddress ? [gameId, playerAddress] : undefined,
     query: {
       enabled: !!(gameId && playerAddress),
-      refetchInterval: 3000, // Refetch fréquent pour les claims
+      refetchInterval: 3000,
       staleTime: 1000,
     },
   }) as { data: boolean | undefined; isLoading: boolean; refetch: () => void };
@@ -1229,6 +1457,80 @@ export const usePlayerGames = (playerAddress?: Address) => {
   }) as { data: bigint[] | undefined; isLoading: boolean; refetch: () => void };
 
   return { gameIds, isLoading, refetch };
+};
+
+// NOUVEAU: Hook pour vérifier si une partie peut être annulée
+export const useCanCancelGame = (gameId?: bigint) => {
+  const { address } = useAccount();
+  const { gameInfo } = useGameInfo(gameId);
+
+  const canCancel = useMemo(() => {
+    if (!gameInfo || !address || !gameId) return false;
+
+    // Seulement le créateur (white player) peut annuler
+    const isCreator =
+      gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+
+    // Le jeu doit être en état WAITING
+    const isWaitingState = gameInfo.state === GameState.WAITING;
+
+    // Il doit y avoir un pari
+    const hasBetting = gameInfo.betAmount > BigInt(0);
+
+    // Il ne doit pas y avoir de deuxième joueur
+    const noBlackPlayer =
+      gameInfo.blackPlayer === "0x0000000000000000000000000000000000000000";
+
+    return isCreator && isWaitingState && hasBetting && noBlackPlayer;
+  }, [gameInfo, address, gameId]);
+
+  const cancelInfo = useMemo(() => {
+    if (!gameInfo || !canCancel) return null;
+
+    return {
+      refundAmount: gameInfo.betAmount,
+      refundFormatted: formatEther(gameInfo.betAmount),
+      roomName: gameInfo.roomName,
+    };
+  }, [gameInfo, canCancel]);
+
+  const reasonCannotCancel = useMemo(() => {
+    if (!gameInfo || !address) return "Informations missing";
+    if (canCancel) return null;
+
+    const isCreator =
+      gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+
+    if (!isCreator) return "Only the creator can cancel";
+
+    if (gameInfo.state !== GameState.WAITING) {
+      switch (gameInfo.state) {
+        case GameState.ACTIVE:
+          return "Game in progress";
+        case GameState.FINISHED:
+          return "Game finished";
+        case GameState.CANCELLED:
+          return "Already cancelled";
+        default:
+          return "Invalid state";
+      }
+    }
+
+    const hasBlackPlayer =
+      gameInfo.blackPlayer !== "0x0000000000000000000000000000000000000000";
+
+    if (hasBlackPlayer) return "An opponent has already joined";
+
+    if (gameInfo.betAmount <= BigInt(0)) return "No bet to refund";
+
+    return "Cancellation impossible";
+  }, [gameInfo, address, canCancel]);
+
+  return {
+    canCancel,
+    cancelInfo,
+    reasonCannotCancel,
+  };
 };
 
 // Hook combiné pour une partie complète avec toutes les infos
