@@ -159,7 +159,7 @@ export default function ChessMultisynqApp() {
     resetClaimState,
     cancelBettingGame,
     cancelState,
-    resetCancelState,
+    // resetCancelState,
   } = useChessBetting();
 
   const { address, isConnected, chainId } = useAccount();
@@ -1355,20 +1355,20 @@ export default function ChessMultisynqApp() {
     });
   };
 
-  const handleRequestRematch = () => {
-    if (!multisynqView || !currentPlayerId) {
-      console.error("multisynqView ou currentPlayerId manquant");
-      return;
-    }
+  //   const handleRequestRematch = () => {
+  //     if (!multisynqView || !currentPlayerId) {
+  //       console.error("multisynqView ou currentPlayerId manquant");
+  //       return;
+  //     }
 
-    if (typeof multisynqView.requestRematch === "function") {
-      multisynqView.requestRematch(currentPlayerId);
-      console.log("Demande de revanche envoyée");
-    } else {
-      console.error("requestRematch n'est pas une fonction:", multisynqView);
-      alert("Erreur: Fonction de demande de revanche non disponible.");
-    }
-  };
+  //     if (typeof multisynqView.requestRematch === "function") {
+  //       multisynqView.requestRematch(currentPlayerId);
+  //       console.log("Demande de revanche envoyée");
+  //     } else {
+  //       console.error("requestRematch n'est pas une fonction:", multisynqView);
+  //       alert("Erreur: Fonction de demande de revanche non disponible.");
+  //     }
+  //   };
 
   const handleRematchResponse = (accepted: boolean) => {
     if (!multisynqView || !currentPlayerId) {
@@ -3735,7 +3735,7 @@ export default function ChessMultisynqApp() {
 
                                     {/* Claim draw refund si match nul */}
                                     {gameState.gameResult.winner === "draw" &&
-                                      getAvailableAmount() > 0 && (
+                                      getAvailableAmount() > "0" && (
                                         <button
                                           onClick={async () => {
                                             if (gameId) {

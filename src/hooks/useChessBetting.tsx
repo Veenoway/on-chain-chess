@@ -1,8 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import { Address, formatEther, parseEther } from "viem";
-import { readContract } from "viem/actions";
+import { readContract, waitForTransactionReceipt } from "viem/actions";
 import {
   useAccount,
   useBalance,
@@ -290,6 +291,7 @@ export const GameResult = {
 export const useChessBetting = () => {
   const { address } = useAccount();
   const publicClient = usePublicClient();
+  const router = useRouter();
   const { writeContract, data: hash, error, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isSuccess } =
     useWaitForTransactionReceipt({
@@ -1091,16 +1093,19 @@ export const useChessBetting = () => {
           id: "cancel-process",
         });
 
-        await writeContract({
+        const result = await writeContract({
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
           functionName: "cancelGame",
           args: [gameId],
         });
 
-        toast.loading("Transaction envoyée, confirmation en cours...", {
-          id: "cancel-process",
+        // Attendre la confirmation
+        await waitForTransactionReceipt(publicClient, {
+          hash: (result as unknown as { hash: `0x${string}` }).hash,
         });
+
+        router.push("/");
 
         onSuccess?.();
       } catch (error: unknown) {
