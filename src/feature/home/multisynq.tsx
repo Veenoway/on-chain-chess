@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useChessBetting";
 import { Chess } from "chess.js";
 import { CheckIcon, CopyIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Chessboard, type PieceDropHandlerArgs } from "react-chessboard";
 import { formatEther } from "viem";
@@ -1379,6 +1380,11 @@ export default function ChessMultisynqApp() {
     }
   };
 
+  const router = useRouter();
+  const handleNewGame = () => {
+    router.push("/");
+  };
+
   //   const handleRespondRematch = (data: {
   //     playerId: string;
   //     accepted: boolean;
@@ -2624,6 +2630,29 @@ export default function ChessMultisynqApp() {
     }
   };
 
+  const getAvailableAmount = () => {
+    if (!gameInfo) return "0";
+    if (!gameInfo.betAmount) return "0";
+    const totalPot = gameInfo.betAmount * BigInt(2);
+
+    if (gameInfo.result === 3) {
+      // DRAW
+      const claimedAmount =
+        (gameInfo.whiteClaimed ? gameInfo.betAmount : BigInt(0)) +
+        (gameInfo.blackClaimed ? gameInfo.betAmount : BigInt(0));
+      const available = totalPot - claimedAmount;
+      return formatEther(available);
+    } else {
+      const whiteWon = gameInfo.result === 1; // WHITE_WINS
+      const blackWon = gameInfo.result === 2; // BLACK_WINS
+
+      if (whiteWon && gameInfo.whiteClaimed) return "0";
+      if (blackWon && gameInfo.blackClaimed) return "0";
+
+      return formatEther(totalPot);
+    }
+  };
+
   const goToLastMove = () => {
     if (moveHistory.length > 0) {
       const lastIndex = moveHistory.length - 1;
@@ -2874,9 +2903,7 @@ export default function ChessMultisynqApp() {
                           </span>
                         )}
                         {isSuccess && (
-                          <span className="ml-2 text-green-400">
-                            ✓ Confirmed
-                          </span>
+                          <span className="ml-2 text-green-400">Confirmed</span>
                         )}
                       </div>
                     </div>
@@ -3492,7 +3519,7 @@ export default function ChessMultisynqApp() {
                                           <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-yellow-400" />
                                         )}
                                         {gameInfo.whiteClaimed
-                                          ? "✓ Claimed"
+                                          ? "Claimed"
                                           : gameInfo.result === 3 // DRAW
                                           ? "Can claim"
                                           : gameInfo.result === 1 // WHITE_WINS
@@ -3526,7 +3553,7 @@ export default function ChessMultisynqApp() {
                                         )}
 
                                         {gameInfo.blackClaimed
-                                          ? "✓ Claimed"
+                                          ? "Claimed"
                                           : gameInfo.result === 3 // DRAW
                                           ? "Can claim"
                                           : gameInfo.result === 2 // BLACK_WINS
@@ -3634,44 +3661,39 @@ export default function ChessMultisynqApp() {
                                       )}
 
                                     {/* Claim draw refund si match nul */}
-                                    {gameState.gameResult.winner === "draw" && (
-                                      <button
-                                        onClick={async () => {
-                                          if (gameId) {
-                                            try {
-                                              await claimDrawRefund(gameId);
-                                            } catch (error) {
-                                              console.error(
-                                                "Claim failed:",
-                                                error
-                                              );
+                                    {gameState.gameResult.winner === "draw" &&
+                                      getAvailableAmount() > 0 && (
+                                        <button
+                                          onClick={async () => {
+                                            if (gameId) {
+                                              try {
+                                                await claimDrawRefund(gameId);
+                                              } catch (error) {
+                                                console.error(
+                                                  "Claim failed:",
+                                                  error
+                                                );
+                                              }
                                             }
+                                          }}
+                                          disabled={
+                                            isPending ||
+                                            isConfirming ||
+                                            (gameInfo && gameInfo.state !== 2) // Désactiver si le jeu n'est pas FINISHED
                                           }
-                                        }}
-                                        disabled={
-                                          isPending ||
-                                          isConfirming ||
-                                          (gameInfo && gameInfo.state !== 2) // Désactiver si le jeu n'est pas FINISHED
-                                        }
-                                        className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg font-bold text-lg transition-colors"
-                                      >
-                                        {gameInfo && gameInfo.state !== 2
-                                          ? "Game not finalized yet..."
-                                          : isPending || isConfirming
-                                          ? "Confirming transaction..."
-                                          : `🤝 Claim Draw Refund (${
-                                              gameInfo?.betAmount
-                                                ? formatEther(
-                                                    gameInfo.betAmount
-                                                  )
-                                                : "0"
-                                            } MON)`}
-                                      </button>
-                                    )}
+                                          className="w-full px-6 py-3 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-gray-600 text-white rounded-lg font-bold text-base transition-colors"
+                                        >
+                                          {gameInfo && gameInfo.state !== 2
+                                            ? "Game not finalized yet..."
+                                            : isPending || isConfirming
+                                            ? "Confirming..."
+                                            : `Claim Refund`}
+                                        </button>
+                                      )}
                                   </div>
                                   <div className="flex items-center justify-between gap-3">
                                     <button
-                                      onClick={handleRequestRematch}
+                                      onClick={handleNewGame}
                                       disabled={
                                         gameState.rematchOffer?.offered ||
                                         shouldDisableNavigationButtons()
@@ -3782,7 +3804,7 @@ export default function ChessMultisynqApp() {
                         setTimeout(() => setCopied(false), 2000);
                       });
                   }}
-                  className="px-2 py-1 text-sm flex items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/30 text-white rounded-lg transition-colors"
+                  className="px-2 py-1 text-sm flex items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/90 text-white rounded-lg transition-colors duration-300 ease-in-out"
                 >
                   Copy Link
                   {copied ? (
@@ -3804,31 +3826,7 @@ export default function ChessMultisynqApp() {
                       Prize Pool
                     </span>
                     <span className="text-green-400 text-xl font-bold">
-                      {(() => {
-                        if (!gameInfo.betAmount) return "0";
-                        const totalPot = gameInfo.betAmount * BigInt(2);
-
-                        if (gameInfo.result === 3) {
-                          // DRAW
-                          const claimedAmount =
-                            (gameInfo.whiteClaimed
-                              ? gameInfo.betAmount
-                              : BigInt(0)) +
-                            (gameInfo.blackClaimed
-                              ? gameInfo.betAmount
-                              : BigInt(0));
-                          const available = totalPot - claimedAmount;
-                          return formatEther(available);
-                        } else {
-                          const whiteWon = gameInfo.result === 1; // WHITE_WINS
-                          const blackWon = gameInfo.result === 2; // BLACK_WINS
-
-                          if (whiteWon && gameInfo.whiteClaimed) return "0";
-                          if (blackWon && gameInfo.blackClaimed) return "0";
-
-                          return formatEther(totalPot);
-                        }
-                      })()}{" "}
+                      {getAvailableAmount() > "0" ? getAvailableAmount() : "0"}{" "}
                       MON
                     </span>
                   </div>
@@ -3916,7 +3914,7 @@ export default function ChessMultisynqApp() {
                 </button>
               </div>
               {/* Box persistante - toujours visible */}
-              <div className="space-y-3 mt-4">
+              <div className="space-y-3 mt-3">
                 <div className="p-3 bg-[#1E1E1E] border border-white/5 rounded-lg">
                   {gameState.isActive ? (
                     // ========== PARTIE EN COURS ==========
@@ -4069,7 +4067,7 @@ export default function ChessMultisynqApp() {
                       ) : (
                         <div className="space-y-2">
                           <button
-                            onClick={handleRequestRematch}
+                            onClick={handleNewGame}
                             disabled={
                               gameState.rematchOffer?.offered ||
                               shouldDisableNavigationButtons()

@@ -1,9 +1,5 @@
-import ChessGame from "@/feature/home";
+import ChessMultisynqApp from "@/feature/home/multisynq";
 
 export default function Home() {
-  return (
-    <main className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-      <ChessGame />
-    </main>
-  );
+  return <ChessMultisynqApp />;
 }
