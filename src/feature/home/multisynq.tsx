@@ -186,39 +186,32 @@ export default function ChessMultisynqApp() {
         if (whiteJustClaimed) {
           const isCurrentPlayer =
             gameInfo.whitePlayer.toLowerCase() === address?.toLowerCase();
-          const playerName = isCurrentPlayer
-            ? "You"
-            : `${gameInfo.whitePlayer.slice(
-                0,
-                6
-              )}...${gameInfo.whitePlayer.slice(-4)}`;
 
-          multisynqView.sendMessage(
-            `🏆 ${playerName} claimed winnings!`,
-            currentPlayerId,
-            address
-          );
+          // Seul le joueur blanc envoie le message quand il claim
+          if (isCurrentPlayer) {
+            multisynqView.sendMessage(
+              `I just claimed!`,
+              currentPlayerId,
+              address
+            );
+          }
         }
 
         if (blackJustClaimed) {
           const isCurrentPlayer =
             gameInfo.blackPlayer.toLowerCase() === address?.toLowerCase();
-          const playerName = isCurrentPlayer
-            ? "You"
-            : `${gameInfo.blackPlayer.slice(
-                0,
-                6
-              )}...${gameInfo.blackPlayer.slice(-4)}`;
 
-          multisynqView.sendMessage(
-            `🏆 ${playerName} claimed winnings!`,
-            currentPlayerId,
-            address
-          );
+          // Seul le joueur noir envoie le message quand il claim
+          if (isCurrentPlayer) {
+            multisynqView.sendMessage(
+              `I just claimed!`,
+              currentPlayerId,
+              address
+            );
+          }
         }
       }, 1000);
 
-      // Mettre à jour l'état de claim
       setLastClaimState({
         whiteClaimed: gameInfo.whiteClaimed,
         blackClaimed: gameInfo.blackClaimed,
@@ -227,7 +220,6 @@ export default function ChessMultisynqApp() {
       gameInfo.whiteClaimed !== lastClaimState.whiteClaimed ||
       gameInfo.blackClaimed !== lastClaimState.blackClaimed
     ) {
-      // Mise à jour silencieuse si pas de nouveau claim
       setLastClaimState({
         whiteClaimed: gameInfo.whiteClaimed,
         blackClaimed: gameInfo.blackClaimed,
@@ -690,13 +682,13 @@ export default function ChessMultisynqApp() {
           // Envoyer un message pour informer
           if (multisynqView) {
             multisynqView.sendMessage(
-              "💰 New betting contract created for rematch!",
+              "New betting contract created for rematch!",
               currentPlayerId,
               address
             );
           }
         } catch (error) {
-          console.error("❌ Échec création du contrat de revanche:", error);
+          console.error("Échec création du contrat de revanche:", error);
           setBettingGameCreationFailed(true);
         }
       };
@@ -832,9 +824,7 @@ export default function ChessMultisynqApp() {
 
       // NOUVEAU: Joindre immédiatement si pas de betting OU si les deux ont payé
       if (!hasBetting || bothPlayersPaid()) {
-        console.log(
-          "✅ Join Multisynq immédiat (pas de betting ou tous payés)"
-        );
+        console.log("Join Multisynq immédiat (pas de betting ou tous payés)");
         multisynqView.joinPlayer(address, currentPlayerId);
         return;
       }
@@ -848,7 +838,7 @@ export default function ChessMultisynqApp() {
         setTimeout(() => {
           if (multisynqView && currentPlayerId && address) {
             multisynqView.sendMessage(
-              `💰 Player paid and joined the betting game!`,
+              `Player paid and joined the betting game!`,
               currentPlayerId,
               address
             );
@@ -880,33 +870,16 @@ export default function ChessMultisynqApp() {
       const hasBetting = hasBettingRequirement();
       const bothPaid = bothPlayersPaid();
 
-      console.log("🎮 Évaluation du démarrage automatique:", {
-        hasBetting,
-        playersCount: gameState.players.length,
-        whitePlayerPaid: paymentStatus.whitePlayerPaid,
-        blackPlayerPaid: paymentStatus.blackPlayerPaid,
-        bothPlayersPaid: bothPaid,
-        gameState: gameInfo?.state,
-        allPlayersConnected: gameState.players.every((p) => p.connected),
-      });
-
-      // CORRECTION: Démarrer si pas de betting OU si les deux ont payé ET tous connectés
       const shouldStart =
         (!hasBetting || bothPaid) &&
         gameState.players.every((p) => p.connected);
 
       if (shouldStart) {
-        console.log("🚀 DÉMARRAGE AUTOMATIQUE!");
-
-        // Attendre un peu pour que tous les joueurs soient bien synchronisés
         setTimeout(() => {
           if (multisynqView) {
             multisynqView.startGame();
 
-            // Message approprié
-            const message = hasBetting
-              ? "🎮 Game started - both players have paid!"
-              : "🎯 Game started - two players connected!";
+            const message = "Game started - both players have paid!";
 
             setTimeout(() => {
               if (multisynqView && currentPlayerId && address) {
@@ -914,7 +887,7 @@ export default function ChessMultisynqApp() {
               }
             }, 500);
           }
-        }, 1000); // Délai pour la synchronisation
+        }, 1000);
       }
     }
   }, [
@@ -1817,7 +1790,7 @@ export default function ChessMultisynqApp() {
                 .substr(2, 9)}`,
               playerId: playerId,
               playerWallet: wallet,
-              message: `👋 Joined as ${color}`,
+              message: `Joined as ${color}`,
               timestamp: Date.now(),
             });
           } else {
@@ -1953,7 +1926,7 @@ export default function ChessMultisynqApp() {
         }
 
         handleResign(data: { playerId: string }) {
-          console.log("🏳️ Resign:", data);
+          console.log("Resign:", data);
 
           if (!this.state.isActive || this.state.gameResult.type) return;
 
@@ -1967,7 +1940,7 @@ export default function ChessMultisynqApp() {
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             playerId: data.playerId,
             playerWallet: player.wallet,
-            message: "🏳️ Resign",
+            message: "Resign",
             timestamp: Date.now(),
           });
 
@@ -2199,16 +2172,11 @@ export default function ChessMultisynqApp() {
       return;
     }
 
-    if (confirm("Êtes-vous sûr de vouloir abandonner ?")) {
-      if (typeof multisynqView.resign === "function") {
-        multisynqView.resign(currentPlayerId);
-        console.log("Abandon envoyé");
-      } else {
-        console.error("resign n'est pas une fonction:", multisynqView);
-        alert(
-          "Erreur: Fonction d'abandon non disponible. Veuillez recharger la page."
-        );
-      }
+    if (typeof multisynqView.resign === "function") {
+      multisynqView.resign(currentPlayerId);
+      console.log("Abandon envoyé");
+    } else {
+      console.error("resign n'est pas une fonction:", multisynqView);
     }
   };
 
