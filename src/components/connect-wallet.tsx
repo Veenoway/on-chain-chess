@@ -48,24 +48,24 @@ export function WalletConnection() {
       <button
         onClick={handleSwitchNetwork}
         className="bg-[#836EF9]
-          flex items-center rounded uppercaseh-[40px] sm:h-[65px] w-full justify-center border border-borderColor px-2.5 sm:px-6 py-5
-           text-lg sm:text-2xl text-white font-medium transition-all duration-300 ease-in-out
+          flex items-center rounded uppercase h-[40px] sm:h-[50px] w-fit justify-center border border-borderColor px-2.5 sm:px-6 py-5
+           text-lg sm:text-lg text-white font-medium transition-all duration-300 ease-in-out
           disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Switch to Monad Testnet
+        Wrong Network
       </button>
     );
   }
 
   return (
-    <div className="w-full">
+    <div className="">
       {!address && (
         <WalletModal open={open} setOpen={setOpen}>
           <button
             onClick={() => setOpen(true)}
             className={`bg-[#836EF9]
-             flex items-center justify-center rounded mx-auto w-full h-[40px] sm:h-[65px] px-2.5 sm:px-6 py-5
-             text-lg sm:text-2xl text-white font-medium transition-all duration-300 ease-in-out
+             flex items-center justify-center rounded mx-auto w-fit h-[40px] sm:h-[50px] px-2.5 sm:px-6 py-5
+             text-lg sm:text-lg text-white font-medium transition-all duration-300 ease-in-out
              ${isConnecting ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             Connect Wallet
@@ -77,8 +77,8 @@ export function WalletConnection() {
           <button
             onClick={handleDisconnect}
             className={`bg-[#836EF9]
-                flex items-center rounded mx-auto h-[40px] sm:h-[65px] w-full px-2.5 sm:px-6 py-5
-                text-lg sm:text-2xl text-white font-semibold justify-center transition-all duration-300 ease-in-out
+                flex items-center rounded mx-auto h-[40px] sm:h-[50px] w-fit px-2.5 sm:px-6 py-5
+                text-lg sm:text-lg text-white font-semibold justify-center transition-all duration-300 ease-in-out
                 ${isConnecting || isInitialLoading ? "animate-pulse" : ""}`}
           >
             {getDisplayText()}

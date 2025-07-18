@@ -165,6 +165,84 @@ export default function ChessMultisynqApp() {
   // Écouter les événements du contrat pour ce gameId
   useContractEvents(gameId);
 
+  // NOUVEAU: Surveiller les claims et notifier dans le chat
+  const [lastClaimState, setLastClaimState] = useState<{
+    whiteClaimed: boolean;
+    blackClaimed: boolean;
+  }>({ whiteClaimed: false, blackClaimed: false });
+
+  useEffect(() => {
+    if (!gameInfo || !multisynqView || !currentPlayerId || !address) return;
+
+    // Détecter les nouveaux claims
+    const whiteJustClaimed =
+      gameInfo.whiteClaimed && !lastClaimState.whiteClaimed;
+    const blackJustClaimed =
+      gameInfo.blackClaimed && !lastClaimState.blackClaimed;
+
+    if (whiteJustClaimed || blackJustClaimed) {
+      setTimeout(() => {
+        if (whiteJustClaimed) {
+          const isCurrentPlayer =
+            gameInfo.whitePlayer.toLowerCase() === address?.toLowerCase();
+          const playerName = isCurrentPlayer
+            ? "You"
+            : `${gameInfo.whitePlayer.slice(
+                0,
+                6
+              )}...${gameInfo.whitePlayer.slice(-4)}`;
+
+          multisynqView.sendMessage(
+            `🏆 ${playerName} claimed winnings!`,
+            currentPlayerId,
+            address
+          );
+        }
+
+        if (blackJustClaimed) {
+          const isCurrentPlayer =
+            gameInfo.blackPlayer.toLowerCase() === address?.toLowerCase();
+          const playerName = isCurrentPlayer
+            ? "You"
+            : `${gameInfo.blackPlayer.slice(
+                0,
+                6
+              )}...${gameInfo.blackPlayer.slice(-4)}`;
+
+          multisynqView.sendMessage(
+            `🏆 ${playerName} claimed winnings!`,
+            currentPlayerId,
+            address
+          );
+        }
+      }, 1000);
+
+      // Mettre à jour l'état de claim
+      setLastClaimState({
+        whiteClaimed: gameInfo.whiteClaimed,
+        blackClaimed: gameInfo.blackClaimed,
+      });
+    } else if (
+      gameInfo.whiteClaimed !== lastClaimState.whiteClaimed ||
+      gameInfo.blackClaimed !== lastClaimState.blackClaimed
+    ) {
+      // Mise à jour silencieuse si pas de nouveau claim
+      setLastClaimState({
+        whiteClaimed: gameInfo.whiteClaimed,
+        blackClaimed: gameInfo.blackClaimed,
+      });
+    }
+  }, [
+    gameInfo?.whiteClaimed,
+    gameInfo?.blackClaimed,
+    gameInfo?.whitePlayer,
+    gameInfo?.blackPlayer,
+    multisynqView,
+    currentPlayerId,
+    address,
+    lastClaimState,
+  ]);
+
   // Refetch automatique après transactions réussies
   useEffect(() => {
     if (isSuccess && gameId) {
@@ -2577,221 +2655,184 @@ export default function ChessMultisynqApp() {
       <div className="min-h-screen bg-[url('https://pbs.twimg.com/media/GpoPZdmWkAApRWa?format=jpg&name=large')] bg-center bg-cover flex items-center justify-center p-4">
         <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/20">
           <div className="text-center mb-10">
-            <h1 className="text-5xl font-bold text-white mb-3">
-              MultiSynq & Monad
-            </h1>
-            <p className="text-white/80 text-xl">
-              Real-time chess game with Multisynq
-            </p>
+            <div className="flex items-center justify-between w-full">
+              <img src="/synqmate.png" alt="logo" className="w-[250px]" />
+              <WalletConnection />
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <div>
-                  <label
-                    className={`block text-2xl text-center font-medium ${
-                      isConnected ? "text-white" : "text-white/50"
-                    } mb-6`}
-                  >
-                    Game time
-                  </label>
-                  <Select
-                    value={selectedGameTime.toString()}
-                    onValueChange={(value) =>
-                      setSelectedGameTime(Number(value))
-                    }
-                    disabled={!isConnected}
-                  >
-                    <SelectTrigger className="w-full text-base bg-[#252525] border-white/10 h-[45px] text-white disabled:opacity-50">
-                      <SelectValue placeholder="Select game time" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#252525] border-white/20 text-base text-white">
-                      <SelectItem value="180">3 minutes</SelectItem>
-                      <SelectItem value="300">5 minutes</SelectItem>
-                      <SelectItem value="600">10 minutes</SelectItem>
-                      <SelectItem value="900">15 minutes</SelectItem>
-                      <SelectItem value="1800">30 minutes</SelectItem>
-                      <SelectItem value="3600">1 hour</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <button
-                  onClick={handleCreateRoom}
-                  disabled={
-                    !isConnected ||
-                    isCreatingRoom ||
-                    !multisynqReady ||
-                    isWrongNetwork
-                  }
-                  className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 disabled:text-white/50 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-3 px-6 rounded text-base transition-all"
-                >
-                  {!isConnected && !isWrongNetwork
-                    ? "Connect wallet to create"
-                    : isWrongNetwork
-                    ? "🔄 Switch to Monad & Create"
-                    : isCreatingRoom
-                    ? "Creating..."
-                    : !multisynqReady
-                    ? "Loading Multisynq..."
-                    : "Create a new game"}
-                </button>
-              </div>
-              <div className="space-y-2">
-                <label
-                  className={`block text-2xl text-center font-medium ${
-                    isConnected ? "text-white" : "text-white/50"
-                  } mb-4`}
-                >
-                  Join a game
-                </label>
-                <input
-                  type="text"
-                  placeholder="Code room ou room:password"
-                  value={roomInput}
-                  onChange={(e) => setRoomInput(e.target.value)}
-                  disabled={!isConnected}
-                  className="w-full p-3 bg-[#252525] border border-white/10 h-[45px] text-white rounded placeholder-gray-400 focus:ring-2 focus:ring-none focus:border-none disabled:opacity-50"
-                />
-                <button
-                  onClick={handleJoinRoom}
-                  disabled={
-                    !isConnected ||
-                    !roomInput.trim() ||
-                    !multisynqReady ||
-                    isPending ||
-                    isWrongNetwork
-                  }
-                  className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] disabled:text-white/50 text-white font-medium py-3 px-6 rounded text-base transition-all"
-                >
-                  {!isConnected && !isWrongNetwork
-                    ? "Connect wallet to join"
-                    : isWrongNetwork
-                    ? "🔄 Switch to Monad & Join"
-                    : isPending
-                    ? "Processing payment..."
-                    : !multisynqReady
-                    ? "Loading..."
-                    : "Join a game"}
-                </button>
-              </div>
+          {!isConnected ? (
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-white mb-4">
+                Welcome to Multisynq Chess
+              </h2>
+              <p className="text-white/80 mb-8">
+                Connect your wallet to start playing
+              </p>
             </div>
-
-            {/* Section Paris */}
-            <div className="bg-[#252525] border border-white/5 rounded p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-white">
-                  Betting Game
-                </h3>
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isBettingEnabled}
-                    onChange={(e) => setIsBettingEnabled(e.target.checked)}
-                    disabled={!isConnected}
-                    className="sr-only"
-                  />
-                  <span className="mr-3 text-white text-lg">
-                    Enable betting
-                  </span>
-                  <div
-                    className={`w-12 h-6 rounded-full transition-colors ${
-                      isBettingEnabled && isConnected
-                        ? "bg-[#836EF9]"
-                        : "bg-gray-600"
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
-                        isBettingEnabled && isConnected
-                          ? "translate-x-6 ml-1"
-                          : "translate-x-0 ml-0.5"
-                      }`}
-                    ></div>
-                  </div>
-                </label>
-              </div>
-
-              {isBettingEnabled && (
-                <div className="space-y-4 mt-4 ">
+          ) : (
+            <>
+              <div className="bg-[#252525] border border-white/5 rounded-2xl p-8">
+                <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-white/70 mb-2">
-                      Bet Amount (MON)
+                    <label className="block text-xl font-medium text-white mb-3">
+                      Game Settings
                     </label>
-                    <input
-                      type="number"
-                      step="1"
-                      min="1"
-                      value={betAmount}
-                      onChange={(e) => setBetAmount(e.target.value)}
-                      disabled={!isConnected}
-                      className="w-full px-3 py-2 bg-[#2b2b2b] border border-white/5 rounded text-white placeholder-gray-400 focus:ring-2 focus:ring-[#836EF9] h-[45px] text-base focus:border-transparent disabled:opacity-50"
-                    />
+                    <Select
+                      value={selectedGameTime.toString()}
+                      onValueChange={(value) =>
+                        setSelectedGameTime(Number(value))
+                      }
+                    >
+                      <SelectTrigger className="w-full text-base bg-[#2b2b2b] border-white/5 h-[50px] text-white">
+                        <SelectValue placeholder="Select game duration" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#252525] border-white/10 text-base text-white">
+                        <SelectItem value="180">3 minutes</SelectItem>
+                        <SelectItem value="300">5 minutes</SelectItem>
+                        <SelectItem value="600">10 minutes</SelectItem>
+                        <SelectItem value="900">15 minutes</SelectItem>
+                        <SelectItem value="1800">30 minutes</SelectItem>
+                        <SelectItem value="3600">1 hour</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {isConnected && (
-                    <div className="text-sm text-white">
-                      Balance:{" "}
-                      {balanceFormatted?.split(".")?.[0] +
-                        "." +
-                        balanceFormatted?.split(".")?.[1]?.slice(0, 2)}{" "}
-                      MON
-                      {(isPending || isConfirming) && (
-                        <span className="ml-2 text-yellow-400">
-                          {isPending ? "Signing..." : "Confirming..."}
-                        </span>
-                      )}
-                      {isSuccess && (
-                        <span className="ml-2 text-green-400">✓ Confirmed</span>
-                      )}
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-medium text-white">
+                      Enable Betting
+                    </h3>
+                    <label className="flex items-center cursor-pointer">
+                      <div
+                        className={`w-14 h-7 rounded-full transition-colors ${
+                          isBettingEnabled ? "bg-[#836EF9]" : "bg-gray-600"
+                        }`}
+                      >
+                        <div
+                          className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
+                            isBettingEnabled
+                              ? "translate-x-7 ml-1"
+                              : "translate-x-0 ml-0.5"
+                          }`}
+                        ></div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isBettingEnabled}
+                        onChange={(e) => setIsBettingEnabled(e.target.checked)}
+                        className="sr-only"
+                      />
+                    </label>
+                  </div>
+
+                  {isBettingEnabled && (
+                    <div className="space-y-2">
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={betAmount}
+                        onChange={(e) => setBetAmount(e.target.value)}
+                        placeholder="Enter bet amount"
+                        className="w-full px-4 py-3 bg-[#2b2b2b] border border-white/5 rounded-lg text-white text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                      />
+                      <div className="text-base text-white/80">
+                        Balance:{" "}
+                        {balanceFormatted?.split(".")?.[0] +
+                          "." +
+                          balanceFormatted?.split(".")?.[1]?.slice(0, 2)}{" "}
+                        MON
+                        {(isPending || isConfirming) && (
+                          <span className="ml-2 text-yellow-400">
+                            {isPending ? "Signing..." : "Confirming..."}
+                          </span>
+                        )}
+                        {isSuccess && (
+                          <span className="ml-2 text-green-400">
+                            ✓ Confirmed
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
-                </div>
-              )}
-            </div>
 
-            {/* Alerte réseau */}
-            {isConnected && isWrongNetwork && (
-              <div className="bg-red-500/20 border border-red-400 rounded-xl p-4 mb-4">
-                <div className="text-center">
-                  <h3 className="text-red-300 font-bold text-lg mb-2">
-                    Wrong Network Detected
-                  </h3>
-                  <p className="text-red-200 mb-2">
-                    Please switch to <strong>Monad Testnet</strong> to use
-                    betting features
-                  </p>
-                  <p className="text-red-300 text-sm mb-4">
-                    Required Chain ID: <strong>10143</strong> | Current Chain
-                    ID: <strong>{chainId}</strong>
-                  </p>
                   <button
-                    onClick={async () => {
-                      try {
-                        await switchChain({ chainId: 10143 });
-                        console.log("Successfully switched to Monad Testnet");
-                      } catch (error) {
-                        console.error("Failed to switch network:", error);
-                        alert(
-                          "Failed to switch network. Please switch manually in your wallet."
-                        );
-                      }
-                    }}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium transition-colors"
+                    onClick={handleCreateRoom}
+                    disabled={
+                      isCreatingRoom || !multisynqReady || isWrongNetwork
+                    }
+                    className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
                   >
-                    🔄 Switch to Monad Testnet
+                    {isWrongNetwork
+                      ? "🔄 Switch to Monad & Create"
+                      : isCreatingRoom
+                      ? "Creating..."
+                      : !multisynqReady
+                      ? "Loading Multisynq..."
+                      : "Create Game"}
                   </button>
                 </div>
               </div>
-            )}
 
-            <WalletConnection />
+              <div className=" text-center">
+                <p className="text-xl text-white/80 my-5">OR</p>
+                <div className="bg-[#252525] border border-white/5 rounded-2xl p-8">
+                  <input
+                    type="text"
+                    placeholder="Enter room code (e.g. room:password)"
+                    value={roomInput}
+                    onChange={(e) => setRoomInput(e.target.value)}
+                    className="w-full p-4 bg-[#2b2b2b] border border-white/10 text-white rounded-lg text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                  />
+                  <button
+                    onClick={handleJoinRoom}
+                    disabled={
+                      !roomInput.trim() ||
+                      !multisynqReady ||
+                      isPending ||
+                      isWrongNetwork
+                    }
+                    className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
+                  >
+                    {isWrongNetwork
+                      ? "🔄 Switch to Monad & Join"
+                      : isPending
+                      ? "Processing..."
+                      : "Join Game"}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
 
-            {/* <div className="text-center text-sm text-blue-300">
-              Status: {connectionStatus}
-            </div> */}
-          </div>
+          {isConnected && isWrongNetwork && (
+            <div className="mt-8 bg-red-500/20 border border-red-400 rounded-xl p-6">
+              <div className="text-center">
+                <h3 className="text-red-300 font-bold text-xl mb-3">
+                  Wrong Network Detected
+                </h3>
+                <p className="text-red-200 text-lg mb-4">
+                  Please switch to <strong>Monad Testnet</strong> to use betting
+                  features
+                </p>
+                <button
+                  onClick={async () => {
+                    try {
+                      await switchChain({ chainId: 10143 });
+                    } catch (error) {
+                      console.error("Failed to switch network:", error);
+                      alert(
+                        "Failed to switch network. Please switch manually in your wallet."
+                      );
+                    }
+                  }}
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-lg transition-colors"
+                >
+                  🔄 Switch to Monad Testnet
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2809,7 +2850,7 @@ export default function ChessMultisynqApp() {
 
   // Interface de jeu
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f0f0f]/100 to-[#0f0f0f]/80 p-4">
+    <div className="min-h-screen bg-[#161616] p-4">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6 my-8 ">
@@ -2835,6 +2876,87 @@ export default function ChessMultisynqApp() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Nouveau: Affichage du pot disponible */}
+                    {gameInfo?.state === 2 && ( // FINISHED
+                      <div className="border-l border-white/20 pl-4">
+                        <div className="flex flex-col">
+                          <span className="text-white/80 text-sm font-medium mb-1">
+                            Available pot:
+                          </span>
+                          <div className="flex items-end gap-2">
+                            <span className="text-green-400 font-bold text-3xl">
+                              {(() => {
+                                if (!gameInfo.betAmount) return "0";
+                                const totalPot = gameInfo.betAmount * BigInt(2);
+
+                                // Cas de draw : chaque joueur peut récupérer sa mise
+                                if (gameInfo.result === 3) {
+                                  // DRAW
+                                  const claimedAmount =
+                                    (gameInfo.whiteClaimed
+                                      ? gameInfo.betAmount
+                                      : BigInt(0)) +
+                                    (gameInfo.blackClaimed
+                                      ? gameInfo.betAmount
+                                      : BigInt(0));
+                                  const available = totalPot - claimedAmount;
+                                  return formatEther(available);
+                                }
+                                // Cas de victoire : le gagnant récupère tout
+                                else {
+                                  // Déterminer qui est le gagnant
+                                  const whiteWon = gameInfo.result === 1; // WHITE_WINS
+                                  const blackWon = gameInfo.result === 2; // BLACK_WINS
+
+                                  if (whiteWon && gameInfo.whiteClaimed)
+                                    return "0";
+                                  if (blackWon && gameInfo.blackClaimed)
+                                    return "0";
+
+                                  return formatEther(totalPot);
+                                }
+                              })()}
+                            </span>
+                            <span className="text-green-400 font-semibold text-xl">
+                              MON
+                            </span>
+                          </div>
+                          {(gameInfo.whiteClaimed || gameInfo.blackClaimed) && (
+                            <span className="text-orange-300 text-xs mt-1">
+                              {(() => {
+                                if (gameInfo.result === 3) {
+                                  // DRAW
+                                  if (
+                                    gameInfo.whiteClaimed &&
+                                    gameInfo.blackClaimed
+                                  )
+                                    return "All claimed";
+                                  if (
+                                    gameInfo.whiteClaimed ||
+                                    gameInfo.blackClaimed
+                                  )
+                                    return "Partially claimed";
+                                  return "Unclaimed";
+                                } else {
+                                  // VICTORY
+                                  const whiteWon = gameInfo.result === 1;
+                                  const blackWon = gameInfo.result === 2;
+
+                                  if (
+                                    (whiteWon && gameInfo.whiteClaimed) ||
+                                    (blackWon && gameInfo.blackClaimed)
+                                  ) {
+                                    return "Winner claimed";
+                                  }
+                                  return "Winner hasn't claimed";
+                                }
+                              })()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -2847,57 +2969,6 @@ export default function ChessMultisynqApp() {
                   </span>
                 </div>
               )}
-            </div>
-
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={() => {
-                  navigator.clipboard
-                    .writeText(
-                      `${window.location.origin}${
-                        window.location.pathname
-                      }?room=${gameState.roomName}${
-                        gameState.roomPassword
-                          ? `&password=${gameState.roomPassword}`
-                          : ""
-                      }`
-                    )
-                    .then(() => {
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    });
-                }}
-                className="px-2 py-1 text-sm flex items-center gap-2 bg-[#836EF9]/20 hover:bg-[#836EF9]/30 border border-[#836EF9]/40 text-[#836EF9] rounded transition-colors"
-              >
-                Copy Link
-                {copied ? (
-                  <CheckIcon className="w-3.5 h-3.5" />
-                ) : (
-                  <CopyIcon className="w-3.5 h-3.5" />
-                )}
-              </button>
-
-              {/* Bouton de test pour forcer la popup */}
-              {process.env.NODE_ENV === "development" && (
-                <button
-                  onClick={() => {
-                    console.log(
-                      "🧪 TEST: Forcing betting creation failed state"
-                    );
-                    setBettingGameCreationFailed(!bettingGameCreationFailed);
-                    setIsBettingEnabled(true);
-                    setBetAmount("1");
-                  }}
-                  className="px-2 py-1 text-xs bg-red-500/20 hover:bg-red-500/30 border border-red-400 text-red-300 rounded transition-colors"
-                >
-                  🧪 Test Popup
-                </button>
-              )}
-
-              <p className="text-white text-base ml-2.5">
-                Room: {gameState.roomName}
-              </p>
-              {/* Affichage des informations de pari */}
             </div>
           </div>
         </div>
@@ -3012,27 +3083,15 @@ export default function ChessMultisynqApp() {
                       !hasClosedPaymentModal &&
                       gameFlow === "game" && (
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
-                          <div className="bg-[#1E1E1E] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
+                          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
                             <div className="text-center">
                               <h3 className="text-3xl font-bold text-white mb-6">
                                 Payment Status
                               </h3>
 
-                              <div className="bg-[#252525] rounded p-6 mb-4">
-                                <p className="text-white font-normal text-xl mb-4">
-                                  Bet Amount:{" "}
-                                  <span className="font-bold text-2xl text-[#836EF9]">
-                                    {isRematchTransition
-                                      ? betAmount
-                                      : gameInfo?.betAmount
-                                      ? formatEther(gameInfo.betAmount)
-                                      : "0"}{" "}
-                                    MON
-                                  </span>
-                                </p>
-
+                              <div className="rounded mb-4">
                                 <div className="space-y-3">
-                                  <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
+                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded">
                                     <div className="flex flex-col items-start">
                                       <span className="text-white font-medium">
                                         White Player (Creator):
@@ -3049,10 +3108,10 @@ export default function ChessMultisynqApp() {
                                       </span>
                                     </div>
                                     <span
-                                      className={`px-2 py-1 rounded text-sm font-medium ${
+                                      className={`px-2 py-1 rounded text-xs font-medium ${
                                         paymentStatus.whitePlayerPaid
                                           ? "bg-green-500/20 text-green-300 border border-green-400"
-                                          : "bg-red-500/20 text-red-400 border border-red-500"
+                                          : "bg-red-500/20 text-red-500 border border-red-500"
                                       }`}
                                     >
                                       {paymentStatus.whitePlayerPaid
@@ -3061,7 +3120,7 @@ export default function ChessMultisynqApp() {
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
+                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded">
                                     <div className="flex flex-col items-start">
                                       <span className="text-white font-medium">
                                         Black Player (Joiner):
@@ -3080,7 +3139,7 @@ export default function ChessMultisynqApp() {
                                       </span>
                                     </div>
                                     <span
-                                      className={`px-2 py-1 rounded text-sm font-medium ${
+                                      className={`px-2 py-1 rounded text-xs font-medium ${
                                         paymentStatus.blackPlayerPaid
                                           ? "bg-green-500/20 text-green-300 border border-green-400"
                                           : "bg-red-500/20 text-red-500 border border-red-500"
@@ -3094,7 +3153,7 @@ export default function ChessMultisynqApp() {
                                 </div>
 
                                 {/* Indicateur de progression */}
-                                <div className="mt-4 p-3 bg-[#1a1a1a] rounded">
+                                <div className="p-3 bg-[#252525] border border-white/5 rounded mt-4">
                                   <div className="flex items-center justify-between mb-3">
                                     <span className="text-white text-sm">
                                       Game Progress:
@@ -3105,7 +3164,7 @@ export default function ChessMultisynqApp() {
                                       /2 Players Paid
                                     </span>
                                   </div>
-                                  <div className="w-full bg-gray-600 rounded-full h-3">
+                                  <div className="w-full bg-white/10 rounded-full h-3">
                                     <div
                                       className="bg-[#836EF9] h-3 rounded-full transition-all duration-500"
                                       style={{
@@ -3378,6 +3437,157 @@ export default function ChessMultisynqApp() {
                               />
                             </div>
 
+                            {/* NOUVEAU: Affichage des claims si il y a un pari */}
+                            {gameInfo?.betAmount &&
+                              gameInfo.betAmount > BigInt(0) && (
+                                <div className="bg-[#1a1a1a] rounded-lg p-4 mb-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-white font-semibold">
+                                      Prize Pool Status
+                                    </h4>
+                                    <span className="text-green-400 font-bold">
+                                      {formatEther(
+                                        gameInfo.betAmount * BigInt(2)
+                                      )}{" "}
+                                      MON
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    {/* White Player Claim Status */}
+                                    <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-white rounded-full"></div>
+                                        <span className="text-white text-sm">
+                                          White:{" "}
+                                          {gameInfo.whitePlayer.slice(0, 6)}...
+                                          {gameInfo.whitePlayer.slice(-4)}
+                                        </span>
+                                      </div>
+                                      <span
+                                        className={`px-2 py-1 rounded text-xs font-medium ${
+                                          gameInfo.whiteClaimed
+                                            ? "bg-green-500/20 text-green-300"
+                                            : gameInfo.result === 3 ||
+                                              gameInfo.result === 1 // DRAW ou WHITE_WINS
+                                            ? "bg-yellow-500/20 text-yellow-400"
+                                            : "bg-gray-500/20 text-gray-400"
+                                        }`}
+                                      >
+                                        {gameInfo.whiteClaimed
+                                          ? "✓ Claimed"
+                                          : gameInfo.result === 3 // DRAW
+                                          ? "Can claim"
+                                          : gameInfo.result === 1 // WHITE_WINS
+                                          ? "Winner - can claim"
+                                          : "Lost - no claim"}
+                                      </span>
+                                    </div>
+
+                                    {/* Black Player Claim Status */}
+                                    <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-black border border-white rounded-full"></div>
+                                        <span className="text-white text-sm">
+                                          Black:{" "}
+                                          {gameInfo.blackPlayer.slice(0, 6)}...
+                                          {gameInfo.blackPlayer.slice(-4)}
+                                        </span>
+                                      </div>
+                                      <span
+                                        className={`px-2 py-1 rounded text-xs font-medium ${
+                                          gameInfo.blackClaimed
+                                            ? "bg-green-500/20 text-green-300"
+                                            : gameInfo.result === 3 ||
+                                              gameInfo.result === 2 // DRAW ou BLACK_WINS
+                                            ? "bg-yellow-500/20 text-yellow-400"
+                                            : "bg-gray-500/20 text-gray-400"
+                                        }`}
+                                      >
+                                        {gameInfo.blackClaimed
+                                          ? "✓ Claimed"
+                                          : gameInfo.result === 3 // DRAW
+                                          ? "Can claim"
+                                          : gameInfo.result === 2 // BLACK_WINS
+                                          ? "Winner - can claim"
+                                          : "Lost - no claim"}
+                                      </span>
+                                    </div>
+
+                                    {/* Pool Remaining */}
+                                    {(() => {
+                                      // Pour un draw : afficher si pas tous les deux ont claim
+                                      if (gameInfo.result === 3) {
+                                        return (
+                                          !gameInfo.whiteClaimed ||
+                                          !gameInfo.blackClaimed
+                                        );
+                                      }
+                                      // Pour une victoire : afficher si le gagnant n'a pas claim
+                                      else {
+                                        const whiteWon = gameInfo.result === 1;
+                                        const blackWon = gameInfo.result === 2;
+                                        return (
+                                          (whiteWon &&
+                                            !gameInfo.whiteClaimed) ||
+                                          (blackWon && !gameInfo.blackClaimed)
+                                        );
+                                      }
+                                    })() && (
+                                      <div className="pt-2 border-t border-white/10">
+                                        <div className="flex justify-between text-sm">
+                                          <span className="text-gray-400">
+                                            Remaining in pool:
+                                          </span>
+                                          <span className="text-yellow-400 font-semibold">
+                                            {(() => {
+                                              const totalPot =
+                                                gameInfo.betAmount * BigInt(2);
+
+                                              // Cas de draw : chaque joueur peut récupérer sa mise
+                                              if (gameInfo.result === 3) {
+                                                // DRAW
+                                                const claimedAmount =
+                                                  (gameInfo.whiteClaimed
+                                                    ? gameInfo.betAmount
+                                                    : BigInt(0)) +
+                                                  (gameInfo.blackClaimed
+                                                    ? gameInfo.betAmount
+                                                    : BigInt(0));
+                                                return formatEther(
+                                                  totalPot - claimedAmount
+                                                );
+                                              }
+                                              // Cas de victoire : le gagnant récupère tout
+                                              else {
+                                                const whiteWon =
+                                                  gameInfo.result === 1; // WHITE_WINS
+                                                const blackWon =
+                                                  gameInfo.result === 2; // BLACK_WINS
+
+                                                if (
+                                                  whiteWon &&
+                                                  gameInfo.whiteClaimed
+                                                )
+                                                  return "0";
+                                                if (
+                                                  blackWon &&
+                                                  gameInfo.blackClaimed
+                                                )
+                                                  return "0";
+
+                                                return formatEther(totalPot);
+                                              }
+                                            })()}{" "}
+                                            MON
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
                             <div className="space-y-4">
                               {gameState.rematchOffer?.offered &&
                               gameState.rematchOffer?.by !==
@@ -3611,9 +3821,130 @@ export default function ChessMultisynqApp() {
           {/* Panel de droite - Chat */}
           <div className="lg:col-span-2">
             <div className="rounded  full flex flex-col h-[800px]    ">
-              <h3 className="text-xl font-semibold text-white mb-3">
+              <h3 className="text-2xl font-semibold text-white mb-2">
                 Nads Chat
               </h3>
+              <div className="flex items-center gap-2 mt-1 mb-4">
+                <button
+                  onClick={() => {
+                    navigator.clipboard
+                      .writeText(
+                        `${window.location.origin}${
+                          window.location.pathname
+                        }?room=${gameState.roomName}${
+                          gameState.roomPassword
+                            ? `&password=${gameState.roomPassword}`
+                            : ""
+                        }`
+                      )
+                      .then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      });
+                  }}
+                  className="px-2 py-1 text-sm flex items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/30 text-white rounded transition-colors"
+                >
+                  Copy Link
+                  {copied ? (
+                    <CheckIcon className="w-3.5 h-3.5" />
+                  ) : (
+                    <CopyIcon className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                <p className="text-white text-base ml-2.5">
+                  Room: {gameState.roomName}
+                </p>
+                {/* Affichage des informations de pari */}
+              </div>
+              {/* NOUVEAU: Affichage du statut du pot en temps réel */}
+              {gameInfo?.betAmount && gameInfo.betAmount > BigInt(0) && (
+                <div className="bg-[#1a1a1a] border border-white/10 rounded p-3 mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-white/80 text-sm font-medium">
+                      Prize Pool
+                    </span>
+                    <span className="text-green-400 font-bold">
+                      {formatEther(gameInfo.betAmount * BigInt(2))} MON
+                    </span>
+                  </div>
+
+                  {gameInfo.state === 2 && ( // FINISHED
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex gap-3">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                          <span
+                            className={
+                              gameInfo.whiteClaimed
+                                ? "text-green-400"
+                                : "text-gray-400"
+                            }
+                          >
+                            {gameInfo.whiteClaimed ? "✓" : "○"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-gray-600 border border-white rounded-full"></div>
+                          <span
+                            className={
+                              gameInfo.blackClaimed
+                                ? "text-green-400"
+                                : "text-gray-400"
+                            }
+                          >
+                            {gameInfo.blackClaimed ? "✓" : "○"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-yellow-400 font-medium">
+                        {(() => {
+                          const totalPot = gameInfo.betAmount * BigInt(2);
+
+                          // Cas de draw : chaque joueur peut récupérer sa mise
+                          if (gameInfo.result === 3) {
+                            // DRAW
+                            const claimedAmount =
+                              (gameInfo.whiteClaimed
+                                ? gameInfo.betAmount
+                                : BigInt(0)) +
+                              (gameInfo.blackClaimed
+                                ? gameInfo.betAmount
+                                : BigInt(0));
+                            const remaining = totalPot - claimedAmount;
+                            return remaining > BigInt(0)
+                              ? `${formatEther(remaining)} left`
+                              : "All claimed";
+                          }
+                          // Cas de victoire : le gagnant récupère tout
+                          else {
+                            const whiteWon = gameInfo.result === 1; // WHITE_WINS
+                            const blackWon = gameInfo.result === 2; // BLACK_WINS
+
+                            if (whiteWon && gameInfo.whiteClaimed)
+                              return (
+                                "Winner claimed" + " " + formatEther(totalPot)
+                              );
+                            if (blackWon && gameInfo.blackClaimed)
+                              return (
+                                "Winner claimed" + " " + formatEther(totalPot)
+                              );
+
+                            return `${formatEther(totalPot)} to claim`;
+                          }
+                        })()}
+                      </span>
+                    </div>
+                  )}
+
+                  {gameInfo.state === 1 && ( // ACTIVE
+                    <div className="text-xs text-center text-blue-400">
+                      Game in progress
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div
                 className="overflow-y-auto space-y-2 h-full flex-1 mb-4"
