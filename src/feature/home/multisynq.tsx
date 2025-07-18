@@ -254,6 +254,43 @@ export default function ChessMultisynqApp() {
     }
   }, [isSuccess, gameId, refetchAll]);
 
+  // Fonction pour finaliser via relayer API
+  const finishGameViaRelayer = async (
+    gameId: bigint,
+    result: 1 | 2 | 3
+  ): Promise<boolean> => {
+    try {
+      console.log("🤖 Tentative de finalisation automatique via relayer...");
+
+      const response = await fetch("/api/finish-game-relayer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          gameId: gameId.toString(),
+          result: result,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        console.log(
+          "✅ Partie finalisée automatiquement par le relayer:",
+          data.transactionHash
+        );
+        return true;
+      } else {
+        console.log("❌ Erreur relayer automatique:", data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Erreur de communication avec le relayer:", error);
+      return false;
+    }
+  };
+
   // Fonction pour terminer une partie avec pari sur le contrat
   const finishGameOnContract = async (gameResult: {
     type: "abandoned" | "draw" | "checkmate" | "stalemate" | "timeout" | null;
@@ -294,8 +331,19 @@ export default function ChessMultisynqApp() {
             : "DRAW",
       });
 
-      await finishBettingGame(gameId, contractResult);
-      console.log("✅ Partie finalisée sur le contrat avec succès");
+      // NOUVEAU: Essayer d'abord le relayer automatique
+      const relayerSuccess = await finishGameViaRelayer(gameId, contractResult);
+
+      if (relayerSuccess) {
+        console.log("✅ Partie finalisée automatiquement via relayer");
+      } else {
+        // Fallback vers la méthode manuelle
+        console.log("⚠️ Relayer automatique échoué, tentative manuelle...");
+        await finishBettingGame(gameId, contractResult);
+        console.log(
+          "✅ Partie finalisée manuellement sur le contrat avec succès"
+        );
+      }
     } catch (error) {
       console.error("❌ Erreur lors de la finalisation sur le contrat:", error);
       // Ne pas faire échouer le jeu si la finalisation échoue
@@ -304,10 +352,14 @@ export default function ChessMultisynqApp() {
 
   const hasPlayerPaid = (color: "white" | "black"): boolean => {
     if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
+      console.log("💰 hasPlayerPaid: No betting requirement");
       return true; // Pas de pari requis
     }
 
-    if (!address) return false;
+    if (!address) {
+      console.log("💰 hasPlayerPaid: No address connected");
+      return false;
+    }
 
     console.log("💰 hasPlayerPaid check:", {
       color,
@@ -315,12 +367,24 @@ export default function ChessMultisynqApp() {
       whitePlayer: gameInfo.whitePlayer?.slice(-4),
       blackPlayer: gameInfo.blackPlayer?.slice(-4),
       gameState: gameInfo.state,
+      contractIsActive: gameInfo.state === 1,
     });
 
+    // CORRECTION: Si le contrat est ACTIVE, tous les paiements sont valides
+    if (gameInfo.state === 1) {
+      console.log("💰 hasPlayerPaid: Contract is ACTIVE - player can play");
+      return true;
+    }
+
+    // Sinon vérifier les adresses individuelles
     if (color === "white") {
-      return gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+      const paid = gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+      console.log(`💰 White player paid: ${paid}`);
+      return paid;
     } else {
-      return gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
+      const paid = gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
+      console.log(`💰 Black player paid: ${paid}`);
+      return paid;
     }
   };
 
@@ -384,12 +448,29 @@ export default function ChessMultisynqApp() {
     }
 
     // Si pas de requirement de betting, considérer comme payé
-    if (!isBettingEnabled || parseFloat(betAmount) <= 0) {
-      return !gameInfo || gameInfo.betAmount <= BigInt(0);
+    if (!hasBettingRequirement()) {
+      console.log("💰 No betting requirement - considered paid");
+      return true;
     }
 
-    // Si betting requis, vérifier les deux paiements
-    return paymentStatus.whitePlayerPaid && paymentStatus.blackPlayerPaid;
+    // CORRECTION: Vérifier d'abord l'état du contrat (plus fiable)
+    if (gameInfo?.state === 1) {
+      // ACTIVE
+      console.log("💰 Contract is ACTIVE - both players have paid");
+      return true;
+    }
+
+    // Fallback: vérifier les status individuels
+    const bothPaid =
+      paymentStatus.whitePlayerPaid && paymentStatus.blackPlayerPaid;
+    console.log("💰 Checking individual payment status:", {
+      whitePlayerPaid: paymentStatus.whitePlayerPaid,
+      blackPlayerPaid: paymentStatus.blackPlayerPaid,
+      bothPaid,
+      contractState: gameInfo?.state,
+    });
+
+    return bothPaid;
   };
   const updatePaymentStatus = () => {
     console.log("💰 UPDATE PAYMENT STATUS - START:", {
@@ -397,6 +478,7 @@ export default function ChessMultisynqApp() {
       betAmount,
       gameInfo: !!gameInfo,
       gameInfoBetAmount: gameInfo?.betAmount?.toString(),
+      gameInfoState: gameInfo?.state,
       address,
     });
 
@@ -432,7 +514,11 @@ export default function ChessMultisynqApp() {
       return;
     }
 
-    // Vérifier les paiements basés sur l'état du contrat
+    // CORRECTION: Logique simplifiée basée sur l'état du contrat
+    // Si le contrat est ACTIVE (state === 1), cela signifie que les DEUX joueurs ont payé
+    const contractIsActive = gameInfo.state === 1;
+
+    // Vérifier les paiements individuels basés sur les adresses
     const whitePlayerPaid = !!(
       gameInfo.whitePlayer &&
       gameInfo.whitePlayer !== "0x0000000000000000000000000000000000000000"
@@ -442,9 +528,6 @@ export default function ChessMultisynqApp() {
       gameInfo.blackPlayer &&
       gameInfo.blackPlayer !== "0x0000000000000000000000000000000000000000"
     );
-
-    // Si l'état est ACTIVE (1), cela signifie que les DEUX joueurs ont payé
-    const bothPlayersPaidFromContract = gameInfo.state === 1;
 
     // Vérifier si le joueur actuel a payé
     let currentPlayerPaid = false;
@@ -462,9 +545,9 @@ export default function ChessMultisynqApp() {
     }
 
     console.log("💰 Payment Status Calculated:", {
+      contractIsActive,
       whitePlayerPaid,
       blackPlayerPaid,
-      bothPlayersPaidFromContract,
       currentPlayerPaid,
       gameState: gameInfo.state,
       userAddress: address?.slice(-4),
@@ -472,9 +555,10 @@ export default function ChessMultisynqApp() {
       blackPlayer: gameInfo.blackPlayer?.slice(-4),
     });
 
+    // NOUVEAU: Si le contrat est ACTIVE, forcer les deux joueurs comme payés
     setPaymentStatus({
-      whitePlayerPaid: bothPlayersPaidFromContract ? true : whitePlayerPaid,
-      blackPlayerPaid: bothPlayersPaidFromContract ? true : blackPlayerPaid,
+      whitePlayerPaid: contractIsActive || whitePlayerPaid,
+      blackPlayerPaid: contractIsActive || blackPlayerPaid,
       currentPlayerPaid: currentPlayerPaid,
     });
   };
@@ -483,6 +567,25 @@ export default function ChessMultisynqApp() {
   useEffect(() => {
     updatePaymentStatus();
   }, [gameInfo, gameState.players, currentPlayerId, bettingGameCreationFailed]);
+
+  // NOUVEAU: Refresh plus fréquent quand les joueurs sont en train de payer
+  useEffect(() => {
+    if (!gameId || !gameInfo || !hasBettingRequirement()) return;
+
+    // Si le contrat existe mais n'est pas encore ACTIVE et qu'il y a 2 joueurs
+    if (gameInfo.state === 0 && gameState.players.length >= 2) {
+      // WAITING state
+      console.log("💰 Refresh fréquent pendant les paiements...");
+
+      const interval = setInterval(() => {
+        console.log("🔄 Refresh automatique des données de paiement");
+        refetchAll();
+        updatePaymentStatus();
+      }, 2000); // Refresh toutes les 2 secondes
+
+      return () => clearInterval(interval);
+    }
+  }, [gameId, gameInfo?.state, gameState.players.length]);
 
   // NOUVEAU: Fonction pour obtenir le montant de pari correct (priorité au contrat actuel)
   const getCorrectBetAmount = (): string => {

@@ -472,6 +472,56 @@ export const useChessBetting = () => {
     [address, writeContract]
   );
 
+  // Fonction pour finaliser via transactions sponsorisées
+
+  // Fonction pour finaliser une partie via le relayer API
+  const finishGameViaRelayer = async (
+    gameId: bigint,
+    result: 1 | 2 | 3
+  ): Promise<boolean> => {
+    try {
+      console.log("🤖 Tentative de finalisation via relayer...");
+
+      const response = await fetch("/api/finish-game-relayer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          gameId: gameId.toString(),
+          result: result,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        console.log(
+          "✅ Partie finalisée par le relayer:",
+          data.transactionHash
+        );
+        return true;
+      } else {
+        console.log("❌ Erreur relayer:", data.error);
+
+        // Si le relayer direct échoue, essayer les transactions sponsorisées
+        if (
+          data.error?.includes("not the contract owner") ||
+          data.error?.includes("Unauthorized") ||
+          data.error?.includes("0x118cdaa7")
+        ) {
+          console.log("🔄 Tentative de transaction sponsorisée...");
+          return await finishGameViaSponsored(gameId, result);
+        }
+
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Erreur de communication avec le relayer:", error);
+      return false;
+    }
+  };
+
   // Réclamer les gains
   const claimWinnings = useCallback(
     async (
@@ -563,79 +613,96 @@ export const useChessBetting = () => {
 
         // 4. Finaliser la partie si nécessaire
         if (gameInfo.state !== GameState.FINISHED) {
-          toast.loading(
-            "Étape 1/2: Finalisation de la partie - Confirmez la transaction pour payer les frais...",
-            {
+          // NOUVEAU: Essayer d'abord le relayer automatique
+          toast.loading("Étape 1/2: Finalisation automatique de la partie...", {
+            id: "claim-process",
+          });
+
+          const relayerSuccess = await finishGameViaRelayer(gameId, result);
+
+          if (relayerSuccess) {
+            toast.loading("✅ Partie finalisée automatiquement !", {
               id: "claim-process",
-            }
-          );
-
-          try {
-            await writeContract({
-              address: CHESS_BETTING_CONTRACT_ADDRESS,
-              abi: CHESS_BETTING_ABI,
-              functionName: "finishGame",
-              args: [gameId, result],
             });
-
-            // Attendre que le hash soit disponible
-            let attempts = 0;
-            while (!hash && attempts < 50) {
-              await new Promise((resolve) => setTimeout(resolve, 100));
-              attempts++;
-            }
-
-            if (hash) {
-              finishGameTxHash = hash;
-              toast.loading("Attente de confirmation de la finalisation...", {
+          } else {
+            // Fallback vers la méthode manuelle
+            toast.loading(
+              "⚠️ Finalisation automatique échouée. Confirmez la transaction pour payer les frais...",
+              {
                 id: "claim-process",
+              }
+            );
+
+            try {
+              await writeContract({
+                address: CHESS_BETTING_CONTRACT_ADDRESS,
+                abi: CHESS_BETTING_ABI,
+                functionName: "finishGame",
+                args: [gameId, result],
               });
 
-              const finishReceipt =
-                await publicClient.waitForTransactionReceipt({
-                  hash: hash,
+              // Attendre que le hash soit disponible
+              let attempts = 0;
+              while (!hash && attempts < 50) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                attempts++;
+              }
+
+              if (hash) {
+                finishGameTxHash = hash;
+                toast.loading("Attente de confirmation de la finalisation...", {
+                  id: "claim-process",
                 });
 
-              if (finishReceipt.status !== "success") {
-                throw new Error("Échec de la finalisation de la partie");
+                const finishReceipt =
+                  await publicClient.waitForTransactionReceipt({
+                    hash: hash,
+                  });
+
+                if (finishReceipt.status !== "success") {
+                  throw new Error("Échec de la finalisation de la partie");
+                }
+
+                toast.loading("Partie finalisée avec succès !", {
+                  id: "claim-process",
+                });
+              }
+            } catch (finishError: unknown) {
+              console.error("Error finishing game:", finishError);
+
+              let errorMessage = "Échec de la finalisation de la partie";
+              if (finishError instanceof Error) {
+                const msg = finishError.message.toLowerCase();
+                if (
+                  msg.includes("user rejected") ||
+                  msg.includes("user denied")
+                ) {
+                  errorMessage =
+                    "Transaction de finalisation annulée par l'utilisateur";
+                } else if (msg.includes("only the contract owner")) {
+                  errorMessage =
+                    "Seul le propriétaire du contrat peut finaliser les parties";
+                } else if (msg.includes("game is not active")) {
+                  errorMessage = "La partie n'est pas active";
+                } else if (finishError.message) {
+                  errorMessage = finishError.message;
+                }
               }
 
-              toast.loading("Partie finalisée avec succès !", {
+              toast.error(errorMessage, {
                 id: "claim-process",
+                duration: 6000,
               });
+              setClaimState({
+                isLoading: false,
+                isSuccess: false,
+                isError: true,
+                error: errorMessage,
+                txHash: null,
+              });
+              onError?.(errorMessage);
+              return;
             }
-          } catch (finishError: unknown) {
-            console.error("Error finishing game:", finishError);
-
-            let errorMessage = "Échec de la finalisation de la partie";
-            if (finishError instanceof Error) {
-              const msg = finishError.message.toLowerCase();
-              if (
-                msg.includes("user rejected") ||
-                msg.includes("user denied")
-              ) {
-                errorMessage =
-                  "Transaction de finalisation annulée par l'utilisateur";
-              } else if (msg.includes("only the contract owner")) {
-                errorMessage =
-                  "Seul le propriétaire du contrat peut finaliser les parties";
-              } else if (msg.includes("game is not active")) {
-                errorMessage = "La partie n'est pas active";
-              } else if (finishError.message) {
-                errorMessage = finishError.message;
-              }
-            }
-
-            toast.error(errorMessage, { id: "claim-process", duration: 6000 });
-            setClaimState({
-              isLoading: false,
-              isSuccess: false,
-              isError: true,
-              error: errorMessage,
-              txHash: null,
-            });
-            onError?.(errorMessage);
-            return;
           }
         }
 
