@@ -2981,7 +2981,7 @@ export default function ChessMultisynqApp() {
         <div className="flex justify-between items-center mb-6 my-8 ">
           <div className="w-full">
             <div className="flex items-center justify-between w-full gap-3">
-              <img src="/synqmate.png" alt="logo" className=" w-[240px]" />
+              {/* <img src="/synqmate.png" alt="logo" className=" w-[240px]" /> */}
 
               {isReconnecting && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-orange-500/20 border border-orange-400 rounded">
@@ -3066,14 +3066,14 @@ export default function ChessMultisynqApp() {
                     <div
                       className={`backdrop-blur-md rounded-lg px-2 py-1 border ${
                         getOpponentTime() <= 30
-                          ? "bg-red-500/20 border-red-400"
-                          : "bg-white/10 border-white/20"
+                          ? "bg-red-500/20 border-red-500"
+                          : "bg-[#252525] border-white/5"
                       }`}
                     >
                       <span
                         className={`text-2xl font-bold ${
                           getOpponentTime() <= 30
-                            ? "text-red-300"
+                            ? "text-red-500"
                             : "text-white"
                         }`}
                       >
@@ -3175,15 +3175,15 @@ export default function ChessMultisynqApp() {
                                 </div>
 
                                 {/* Indicateur de progression */}
-                                <div className="p-3 bg-[#252525] border border-white/5 rounded-lg mt-4">
+                                <div className="rounded-lg mt-4">
                                   <div className="flex items-center justify-between mb-3">
                                     <span className="text-white text-sm">
-                                      Game Progress:
+                                      Payment Progress:
                                     </span>
-                                    <span className="text-[#836EF9] text-sm font-medium">
+                                    <span className="text-white text-sm font-medium">
                                       {(paymentStatus.whitePlayerPaid ? 1 : 0) +
                                         (paymentStatus.blackPlayerPaid ? 1 : 0)}
-                                      /2 Players Paid
+                                      /2
                                     </span>
                                   </div>
                                   <div className="w-full bg-white/10 rounded-full h-3">
@@ -3325,17 +3325,8 @@ export default function ChessMultisynqApp() {
                                   </button>
                                 </div>
                               ) : (
-                                <div className="text-center">
-                                  <div className="p-4 bg-green-500/10 rounded-lg">
-                                    <p className="text-green-300 font-medium mb-2">
-                                      You have paid successfully!
-                                    </p>
-                                    <p className="text-gray-400 text-sm">
-                                      {bothPlayersPaid()
-                                        ? "Both players have paid! The game will start automatically."
-                                        : "Waiting for the other player to pay..."}
-                                    </p>
-                                  </div>
+                                <div className="w-full px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-bold text-lg transition-colors flex items-center justify-center">
+                                  Waiting for opponent...
                                 </div>
                               )}
                             </div>
@@ -3726,37 +3717,11 @@ export default function ChessMultisynqApp() {
                               <div className="font-bold text-xl text-white flex items-center gap-2">
                                 {player.wallet.slice(0, 6)}...
                                 {player.wallet.slice(-4)} (You)
-                                {/* Votre indicateur de connexion */}
                                 {player.connected && !isReconnecting ? (
                                   <span className="w-2 h-2 bg-green-400 rounded-full"></span>
                                 ) : (
                                   <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></span>
                                 )}
-                                {/* Indicateur de paiement */}
-                                {gameInfo?.betAmount &&
-                                  gameInfo.betAmount > BigInt(0) && (
-                                    <span
-                                      className={`px-2 py-1 text-xs rounded-full ${
-                                        (player.color === "white" &&
-                                          gameInfo.whitePlayer.toLowerCase() ===
-                                            address?.toLowerCase()) ||
-                                        (player.color === "black" &&
-                                          gameInfo.blackPlayer.toLowerCase() ===
-                                            address?.toLowerCase())
-                                          ? "bg-green-500/20 text-green-300 border border-green-400"
-                                          : "bg-red-500/20 text-red-300 border border-red-400"
-                                      }`}
-                                    >
-                                      {(player.color === "white" &&
-                                        gameInfo.whitePlayer.toLowerCase() ===
-                                          address?.toLowerCase()) ||
-                                      (player.color === "black" &&
-                                        gameInfo.blackPlayer.toLowerCase() ===
-                                          address?.toLowerCase())
-                                        ? "💰 PAID"
-                                        : "❌ NOT PAID"}
-                                    </span>
-                                  )}
                               </div>
                               <div className="text-sm text-gray-300">
                                 <CapturedPieces
@@ -3774,14 +3739,14 @@ export default function ChessMultisynqApp() {
                     <div
                       className={`backdrop-blur-md rounded-lg px-2 py-1 border ${
                         getCurrentPlayerTime() <= 30
-                          ? "bg-red-500/20 border-red-400"
-                          : "bg-white/10 border-white/20"
+                          ? "bg-red-500/20 border-red-500"
+                          : "bg-[#252525] border-white/5"
                       }`}
                     >
                       <span
                         className={`text-2xl font-bold ${
                           getCurrentPlayerTime() <= 30
-                            ? "text-red-300"
+                            ? "text-red-500"
                             : "text-white"
                         }`}
                       >
@@ -3798,10 +3763,7 @@ export default function ChessMultisynqApp() {
           </div>
           {/* Panel de droite - Chat */}
           <div className="lg:col-span-2">
-            <div className="rounded-lg  full flex flex-col h-[800px]    ">
-              <h3 className="text-2xl font-semibold text-white mb-2">
-                Nads Chat
-              </h3>
+            <div className="rounded-lg  full flex flex-col   h-[800px]  ">
               <div className="flex items-center gap-2 mt-1 mb-4">
                 <button
                   onClick={() => {
@@ -3836,12 +3798,12 @@ export default function ChessMultisynqApp() {
                 {/* Affichage des informations de pari */}
               </div>
               {gameInfo?.betAmount && gameInfo.betAmount > BigInt(0) && (
-                <div className="bg-[#1a1a1a] border border-white/10 rounded-lg p-3 mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-white/80 text-sm font-medium">
+                <div className="bg-[#1a1a1a] border border-white/5 rounded-lg px-3 py-2 mb-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white text-xl font-medium">
                       Prize Pool
                     </span>
-                    <span className="text-green-400 font-bold">
+                    <span className="text-green-400 text-xl font-bold">
                       {(() => {
                         if (!gameInfo.betAmount) return "0";
                         const totalPot = gameInfo.betAmount * BigInt(2);
@@ -3870,86 +3832,16 @@ export default function ChessMultisynqApp() {
                       MON
                     </span>
                   </div>
-
-                  {gameInfo.state === 2 && ( // FINISHED
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex gap-3">
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-white rounded-full"></div>
-                          <span
-                            className={
-                              gameInfo.whiteClaimed
-                                ? "text-green-400"
-                                : "text-gray-400"
-                            }
-                          >
-                            {gameInfo.whiteClaimed ? "✓" : "○"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-gray-600 border border-white rounded-full"></div>
-                          <span
-                            className={
-                              gameInfo.blackClaimed
-                                ? "text-green-400"
-                                : "text-gray-400"
-                            }
-                          >
-                            {gameInfo.blackClaimed ? "✓" : "○"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <span className="text-yellow-400 font-medium">
-                        {(() => {
-                          const totalPot = gameInfo.betAmount * BigInt(2);
-
-                          // Cas de draw : chaque joueur peut récupérer sa mise
-                          if (gameInfo.result === 3) {
-                            // DRAW
-                            const claimedAmount =
-                              (gameInfo.whiteClaimed
-                                ? gameInfo.betAmount
-                                : BigInt(0)) +
-                              (gameInfo.blackClaimed
-                                ? gameInfo.betAmount
-                                : BigInt(0));
-                            const remaining = totalPot - claimedAmount;
-                            return remaining > BigInt(0)
-                              ? `${formatEther(remaining)} left`
-                              : "All claimed";
-                          }
-                          // Cas de victoire : le gagnant récupère tout
-                          else {
-                            const whiteWon = gameInfo.result === 1; // WHITE_WINS
-                            const blackWon = gameInfo.result === 2; // BLACK_WINS
-
-                            if (whiteWon && gameInfo.whiteClaimed)
-                              return (
-                                "Winner claimed" + " " + formatEther(totalPot)
-                              );
-                            if (blackWon && gameInfo.blackClaimed)
-                              return (
-                                "Winner claimed" + " " + formatEther(totalPot)
-                              );
-
-                            return `${formatEther(totalPot)} to claim`;
-                          }
-                        })()}
-                      </span>
-                    </div>
-                  )}
-
-                  {gameInfo.state === 1 && ( // ACTIVE
-                    <div className="text-xs text-center text-blue-400">
-                      Game in progress
-                    </div>
-                  )}
                 </div>
               )}
 
+              <div className="rounded-t-lg px-4 pt-3 bg-[#252525] border border-white/5">
+                <h3 className="text-xl font-semibold text-white mb-3">
+                  Nads Chat
+                </h3>
+              </div>
               <div
-                className="overflow-y-auto space-y-2 h-full flex-1 mb-4"
+                className="overflow-y-auto space-y-2 h-full flex-1 bg-[#1a1a1a] border border-b-0 border-t-0 border-white/5 px-3 py-2"
                 ref={(el) => {
                   if (el) {
                     el.scrollTop = el.scrollHeight;
@@ -3982,7 +3874,7 @@ export default function ChessMultisynqApp() {
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 bg-[#1a1a1a] border border-t-0 border-white/5 rounded-b-lg px-3 py-2">
                 <input
                   type="text"
                   value={newMessage}
@@ -4001,7 +3893,7 @@ export default function ChessMultisynqApp() {
                           address?.toLowerCase())
                     )
                   }
-                  className="flex-1 px-5 h-[45px] bg-[#1E1E1E] border font-normal border-white/5 text-white text-base placeholder-white/70 focus:ring-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 h-[45px] bg-[#1E1E1E] border font-normal border-white/5 text-white text-base placeholder-white/70 focus:outline-none rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
                   onClick={handleSendMessage}
@@ -4023,11 +3915,8 @@ export default function ChessMultisynqApp() {
                   Send
                 </button>
               </div>
-
-              <div className="w-full h-[1px] my-1" />
-
               {/* Box persistante - toujours visible */}
-              <div className="space-y-3">
+              <div className="space-y-3 mt-4">
                 <div className="p-3 bg-[#1E1E1E] border border-white/5 rounded-lg">
                   {gameState.isActive ? (
                     // ========== PARTIE EN COURS ==========
