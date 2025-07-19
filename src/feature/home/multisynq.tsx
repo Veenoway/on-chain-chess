@@ -454,101 +454,43 @@ export default function ChessMultisynqApp() {
   const createRematchWithPayment = async () => {
     if (isCreatingRematch) return; // Empêcher les clics multiples
 
-    if (!multisynqView || !currentPlayerId || !address) {
-      alert("Erreur: Session non disponible");
-      return;
-    }
-
     setIsCreatingRematch(true);
 
     try {
-      console.log("🔄 Envoi d'une demande de revanche");
+      console.log("🔄 Création d'une nouvelle room pour la revanche");
 
-      // Créer un nouveau nom de room avec incrémentation
-      const rematchNumber = gameState.gameNumber + 1;
-      const baseRoomName = gameState.roomName.split("_rematch_")[0];
-      const newRoomName = `${baseRoomName}_rematch_${rematchNumber}`;
+      // Générer le nom de la nouvelle room pour l'invitation
+      const newRoomName = `chess-${Math.random().toString(36).substring(2, 8)}`;
+      const newRoomPassword = Math.random().toString(36).substring(2, 6);
+      const correctBetAmount = getCorrectBetAmount();
 
-      console.log("🔄 Nouveau nom de room proposé:", newRoomName);
+      // Envoyer invitation avec détails de la nouvelle room
+      if (multisynqView && currentPlayerId && address) {
+        multisynqView.sendMessage(
+          `REMATCH_INVITATION:${newRoomName}:${newRoomPassword}:${correctBetAmount}`,
+          currentPlayerId,
+          address
+        );
+      }
 
-      // Envoyer SEULEMENT la demande de revanche (ne pas créer le contrat encore)
-      multisynqView.sendMessage(
-        `REMATCH_REQUEST:${newRoomName}:${
-          gameState.roomPassword || ""
-        }:${getCorrectBetAmount()}`,
-        currentPlayerId,
-        address
-      );
+      // Fermer la modal de fin de partie
+      setShowGameEndModal(false);
 
-      console.log("✅ Demande de revanche envoyée, en attente de réponse...");
+      // Stocker les détails de la room pour handleCreateRoom
+      (window as any).rematchRoomDetails = {
+        roomName: newRoomName,
+        password: newRoomPassword,
+      };
+
+      // EXACTEMENT comme "Create Room" - utiliser la même logique mais avec les noms spécifiques
+      await handleCreateRoom();
+
+      console.log("✅ Nouvelle room de revanche créée");
     } catch (error) {
-      console.error(
-        "❌ Erreur lors de l'envoi de la demande de revanche:",
-        error
-      );
-      alert("Erreur lors de l'envoi de la demande. Veuillez réessayer.");
+      console.error("❌ Erreur lors de la création de la revanche:", error);
+      alert("Erreur lors de la création de la revanche. Veuillez réessayer.");
     } finally {
       setIsCreatingRematch(false);
-    }
-  };
-
-  // Fonction pour accepter une revanche et créer la nouvelle room
-  const acceptRematch = async (
-    roomName: string,
-    password: string,
-    betAmount: string
-  ) => {
-    try {
-      console.log(
-        "✅ Acceptation de la revanche et création de la nouvelle room"
-      );
-
-      // Créer le contrat de pari
-      await createBettingGame(betAmount, roomName);
-      setRoomBetAmount(betAmount);
-
-      // Réinitialiser les états de paiement
-      setPaymentStatus({
-        whitePlayerPaid: false,
-        blackPlayerPaid: false,
-        currentPlayerPaid: false,
-      });
-      setHasClosedPaymentModal(false);
-      setBettingGameCreationFailed(false);
-
-      // Fermer la popup d'invitation
-      setRematchInvitation(null);
-
-      // Transition vers la nouvelle room
-      await createMultisynqSession(roomName, password);
-
-      // Mettre à jour l'URL
-      const newUrl = password
-        ? `${window.location.pathname}?room=${roomName}&password=${password}`
-        : `${window.location.pathname}?room=${roomName}`;
-      window.history.pushState({}, "", newUrl);
-
-      // Fermer le modal de fin de jeu et aller vers l'interface de jeu
-      setShowGameEndModal(false);
-      setGameFlow("game");
-
-      console.log("✅ Revanche acceptée et nouvelle room créée");
-    } catch (error) {
-      console.error("❌ Erreur lors de l'acceptation de la revanche:", error);
-      alert(
-        "Erreur lors de la création de la nouvelle partie. Veuillez réessayer."
-      );
-    }
-  };
-
-  // Fonction pour refuser une revanche
-  const declineRematch = () => {
-    console.log("❌ Revanche refusée");
-    setRematchInvitation(null);
-
-    // Optionnel: envoyer un message pour informer l'autre joueur
-    if (multisynqView && currentPlayerId) {
-      multisynqView.sendMessage("Rematch declined", currentPlayerId, address);
     }
   };
 
@@ -943,15 +885,19 @@ export default function ChessMultisynqApp() {
     betAmount,
   ]);
 
-  // Écouter les demandes de revanche via l'événement custom
+  // Écouter les invitations de rematch
   useEffect(() => {
-    const handleRematchRequest = (event: CustomEvent) => {
-      const { from, roomName, password, betAmount } = event.detail;
-      console.log("🔄 Demande de revanche reçue via événement:", event.detail);
+    const handleRematchInvitation = (event: CustomEvent) => {
+      const { from, senderId, roomName, password } = event.detail;
+      console.log("🔔 Invitation rematch reçue:", event.detail);
 
-      // Stocker le montant de pari pour l'utiliser lors de l'acceptation
-      (window as any).lastRematchBetAmount = betAmount;
+      // Ne pas afficher la popup à l'expéditeur
+      if (senderId === currentPlayerId) {
+        console.log("❌ Popup bloquée - c'est l'expéditeur");
+        return;
+      }
 
+      // Afficher l'invitation dans la popup de fin de game (pas popup séparée)
       setRematchInvitation({
         from,
         roomName,
@@ -960,17 +906,17 @@ export default function ChessMultisynqApp() {
     };
 
     window.addEventListener(
-      "rematchRequest",
-      handleRematchRequest as EventListener
+      "rematchInvitation",
+      handleRematchInvitation as unknown as EventListener
     );
 
     return () => {
       window.removeEventListener(
-        "rematchRequest",
-        handleRematchRequest as EventListener
+        "rematchInvitation",
+        handleRematchInvitation as unknown as EventListener
       );
     };
-  }, []);
+  }, [currentPlayerId]);
 
   useEffect(() => {
     const currentPlayerInGame = gameState.players.find(
@@ -1138,41 +1084,7 @@ export default function ChessMultisynqApp() {
   const gameRef = useRef(new Chess());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Timer fonctionnel - seul le premier joueur gère le timer
-  useEffect(() => {
-    const isFirstPlayer =
-      gameState.players.length > 0 &&
-      gameState.players[0].id === currentPlayerId;
-
-    if (gameState.isActive && !gameState.gameResult.type && isFirstPlayer) {
-      // Démarrer le timer (seulement pour le premier joueur)
-      timerRef.current = setInterval(() => {
-        if (multisynqView) {
-          multisynqView.updateTimer();
-        }
-      }, 1000);
-      console.log("Timer démarré par le premier joueur");
-    } else {
-      // Arrêter le timer
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [
-    gameState.isActive,
-    gameState.gameResult.type,
-    gameState.players,
-    currentPlayerId,
-    multisynqView,
-  ]);
+  // Timer supprimé - utilise celui plus bas qui a plus de conditions
 
   useEffect(() => {
     const currentPlayer = gameState.players.find(
@@ -1355,27 +1267,26 @@ export default function ChessMultisynqApp() {
       gameState.players.length > 0 &&
       gameState.players[0].id === currentPlayerId;
 
-    // CORRECTION: Seulement démarrer le timer si le joueur est connecté et trouvé
-    // ET si les deux joueurs ont payé (en cas de pari)
-    if (
+    // OPTIMISATION: Timer unique avec conditions strictes
+    const shouldRunTimer =
       gameState.isActive &&
       !gameState.gameResult.type &&
       isFirstPlayer &&
       currentPlayer?.connected &&
       !isReconnecting &&
-      bothPlayersPaid()
-    ) {
+      bothPlayersPaid();
+
+    if (shouldRunTimer && !timerRef.current) {
       timerRef.current = setInterval(() => {
         if (multisynqView) {
           multisynqView.updateTimer();
         }
       }, 1000);
-      console.log("⏰ Timer démarré par le premier joueur connecté");
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      console.log("⏰ Timer optimisé démarré");
+    } else if (!shouldRunTimer && timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      console.log("⏰ Timer arrêté");
     }
 
     return () => {
@@ -1860,9 +1771,13 @@ export default function ChessMultisynqApp() {
         handleUpdateTimer() {
           if (!this.state.isActive || this.state.gameResult.type) return;
 
+          let needsUpdate = false;
+
           // Décrémenter exactement 1 seconde pour le joueur actuel
           if (this.state.turn === "w") {
+            const previousTime = this.state.whiteTime;
             this.state.whiteTime = Math.max(0, this.state.whiteTime - 1);
+            needsUpdate = this.state.whiteTime !== previousTime;
 
             if (this.state.whiteTime <= 0) {
               this.state.isActive = false;
@@ -1872,6 +1787,7 @@ export default function ChessMultisynqApp() {
                 message: "Time's up! Black wins",
               };
               this.state.lastGameWinner = "black";
+              needsUpdate = true;
               // Finaliser sur le contrat si pari activé
               // @ts-ignore
               if (globalSetGameState && (window as any).finishGameOnContract) {
@@ -1883,7 +1799,9 @@ export default function ChessMultisynqApp() {
               }
             }
           } else {
+            const previousTime = this.state.blackTime;
             this.state.blackTime = Math.max(0, this.state.blackTime - 1);
+            needsUpdate = this.state.blackTime !== previousTime;
 
             if (this.state.blackTime <= 0) {
               this.state.isActive = false;
@@ -1893,6 +1811,7 @@ export default function ChessMultisynqApp() {
                 message: "Time's up! White wins",
               };
               this.state.lastGameWinner = "white";
+              needsUpdate = true;
               // Finaliser sur le contrat si pari activé
               // @ts-ignore
               if (globalSetGameState && (window as any).finishGameOnContract) {
@@ -1905,9 +1824,11 @@ export default function ChessMultisynqApp() {
             }
           }
 
-          // Mettre à jour le timestamp
-          this.state.lastMoveTime = Date.now();
-          this.publish(this.sessionId, "game-state", this.state);
+          // OPTIMISATION: Ne publier QUE si il y a eu un changement
+          if (needsUpdate) {
+            this.state.lastMoveTime = Date.now();
+            this.publish(this.sessionId, "game-state", this.state);
+          }
         }
 
         handlePlayerJoin(data: { playerId: any; wallet: any }) {
@@ -1993,18 +1914,13 @@ export default function ChessMultisynqApp() {
         }) {
           console.log("💬 Message chat:", message);
 
-          // Vérifier si c'est une demande de revanche
-          if (message.message.startsWith("REMATCH_REQUEST:")) {
-            console.log("🔄 Demande de revanche reçue:", message);
+          // Vérifier si c'est une invitation de rematch
+          if (message.message.startsWith("REMATCH_INVITATION:")) {
+            console.log("🔄 Invitation de rematch reçue:", message);
 
             try {
-              const [, newRoomName, password, betAmount] =
+              const [, roomName, password, betAmount] =
                 message.message.split(":");
-              console.log("🔄 Détails de la demande:", {
-                newRoomName,
-                password,
-                betAmount,
-              });
 
               // Ajouter un message visible dans le chat
               this.state.messages.push({
@@ -2019,36 +1935,20 @@ export default function ChessMultisynqApp() {
                 timestamp: Date.now(),
               });
 
-              // Publier l'état pour que l'interface se mette à jour
-              this.publish(this.sessionId, "game-state", this.state);
-
-              // Déclencher l'affichage de la popup de confirmation côté React
-              // On utilise un événement custom pour communiquer avec le composant React
+              // Déclencher la popup pour l'autre joueur (pas l'expéditeur)
               window.dispatchEvent(
-                new CustomEvent("rematchRequest", {
+                new CustomEvent("rematchInvitation", {
                   detail: {
                     from: message.playerWallet,
-                    roomName: newRoomName,
+                    senderId: message.playerId,
+                    roomName: roomName,
                     password: password,
                     betAmount: betAmount,
                   },
                 })
               );
             } catch (error) {
-              console.error(
-                "❌ Erreur lors du traitement de la demande de revanche:",
-                error
-              );
-
-              // Ajouter un message d'erreur visible
-              this.state.messages.push({
-                ...message,
-                id: `msg_${Date.now()}_${Math.random()
-                  .toString(36)
-                  .substr(2, 9)}`,
-                message: "Rematch request received but failed to process",
-                timestamp: Date.now(),
-              });
+              console.error("❌ Erreur traitement invitation rematch:", error);
             }
           } else {
             // Message de chat normal
@@ -2467,7 +2367,7 @@ export default function ChessMultisynqApp() {
     return false;
   };
 
-  // Créer une session Multisynq
+  // Créer une session Multisynq (avec fermeture de l'ancienne)
   const createMultisynqSession = async (
     roomName: string,
     password: string = ""
@@ -2488,7 +2388,28 @@ export default function ChessMultisynqApp() {
     }
 
     try {
-      console.log("🚀 Création session Multisynq:", { roomName, password });
+      // IMPORTANT: Fermer l'ancienne session si elle existe
+      if (multisynqView) {
+        console.log("🔄 Fermeture de l'ancienne session Multisynq");
+        try {
+          // Tenter de fermer la session via la vue
+          if (multisynqView.session) {
+            multisynqView.session.close();
+          }
+        } catch (error) {
+          console.warn(
+            "Erreur lors de la fermeture de l'ancienne session:",
+            error
+          );
+        }
+        setMultisynqSession(null);
+        setMultisynqView(null);
+      }
+
+      console.log("🚀 Création nouvelle session Multisynq:", {
+        roomName,
+        password,
+      });
 
       const session = await Multisynq.Session.join({
         apiKey,
@@ -2499,10 +2420,10 @@ export default function ChessMultisynqApp() {
         password: password,
       });
 
-      console.log("Session créée:", session);
+      console.log("✅ Nouvelle session créée:", session);
       return session;
     } catch (error) {
-      console.error("Erreur création session:", error);
+      console.error("❌ Erreur création session:", error);
       throw error;
     }
   };
@@ -2537,11 +2458,21 @@ export default function ChessMultisynqApp() {
     setConnectionStatus("Creating room...");
 
     try {
-      const roomName = `chess-${Math.random().toString(36).substring(2, 8)}`;
-      const password = Math.random().toString(36).substring(2, 6);
+      // Utiliser les noms prédéfinis si c'est une rematch, sinon générer nouveaux
+      const rematchDetails = (window as any).rematchRoomDetails;
+      const roomName =
+        rematchDetails?.roomName ||
+        `chess-${Math.random().toString(36).substring(2, 8)}`;
+      const password =
+        rematchDetails?.password || Math.random().toString(36).substring(2, 6);
       const playerId = `player_${address.slice(-8)}_${Math.random()
         .toString(36)
         .substring(2, 6)}`;
+
+      // Nettoyer les détails de rematch
+      if (rematchDetails) {
+        delete (window as any).rematchRoomDetails;
+      }
 
       setCurrentPlayerId(playerId);
 
@@ -3053,7 +2984,7 @@ export default function ChessMultisynqApp() {
                       className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
                     >
                       {isWrongNetwork
-                        ? "🔄 Switch to Monad & Create"
+                        ? "Switch to Monad & Create"
                         : isCreatingRoom
                         ? "Creating..."
                         : !multisynqReady
@@ -3397,6 +3328,21 @@ export default function ChessMultisynqApp() {
                                         }
                                       }
 
+                                      console.log("🎮 Debug Bet & Play:", {
+                                        gameInfo: gameInfo
+                                          ? {
+                                              betAmount:
+                                                gameInfo.betAmount.toString(),
+                                              state: gameInfo.state,
+                                              roomName: gameInfo.roomName,
+                                            }
+                                          : null,
+                                        currentBetAmount: betAmount,
+                                        roomName: gameState.roomName,
+                                        isBettingEnabled,
+                                        paymentStatus,
+                                      });
+
                                       // Cas 1: Création de betting game (pas encore de gameInfo)
                                       if (
                                         (!gameInfo ||
@@ -3451,6 +3397,29 @@ export default function ChessMultisynqApp() {
                                         gameInfo?.betAmount &&
                                         gameInfo.betAmount > BigInt(0)
                                       ) {
+                                        console.log(
+                                          "💰 Tentative de rejoindre le betting game:",
+                                          {
+                                            roomName: gameState.roomName,
+                                            betAmount:
+                                              gameInfo.betAmount.toString(),
+                                            gameInfoState: gameInfo.state,
+                                          }
+                                        );
+
+                                        // Vérifier si le jeu est déjà actif (les deux ont payé)
+                                        if (gameInfo.state === 1) {
+                                          // ACTIVE
+                                          console.log(
+                                            "✅ Jeu déjà actif - pas besoin de payer"
+                                          );
+                                          setPaymentStatus((prev) => ({
+                                            ...prev,
+                                            currentPlayerPaid: true,
+                                          }));
+                                          return;
+                                        }
+
                                         try {
                                           await joinBettingGameByRoom(
                                             gameState.roomName,
@@ -3752,154 +3721,210 @@ export default function ChessMultisynqApp() {
                                 </div>
                               ) : (
                                 <div className="text-center space-y-3">
-                                  {/* Boutons de claim si il y a des gains à récupérer */}
+                                  {/* Boutons de claim - TOUJOURS VISIBLES mais disabled quand approprié */}
                                   <div className="space-y-3">
-                                    {/* Claim winnings si le joueur a gagné - CORRIGÉ pour tenir compte du changement de couleur */}
-                                    {canCurrentPlayerClaim() &&
-                                      gameState.gameResult.winner !==
-                                        "draw" && (
-                                        <button
-                                          onClick={async () => {
-                                            if (gameId) {
-                                              resetClaimState();
+                                    {/* Claim winnings - TOUJOURS AFFICHÉ */}
+                                    {gameState.gameResult.winner !== "draw" && (
+                                      <button
+                                        onClick={async () => {
+                                          if (
+                                            gameId &&
+                                            canCurrentPlayerClaim()
+                                          ) {
+                                            resetClaimState();
 
-                                              await claimWinnings(
-                                                gameId,
-                                                gameState.gameResult.winner ===
-                                                  "white"
-                                                  ? 1
-                                                  : 2,
-                                                () => {},
-                                                (error) => {
-                                                  console.error(
-                                                    "❌ Claim failed:",
-                                                    error
-                                                  );
-                                                }
-                                              );
-                                            }
-                                          }}
-                                          disabled={
-                                            claimState.isLoading ||
-                                            isPending ||
-                                            isConfirming ||
-                                            (gameInfo && gameInfo.state !== 2)
-                                          }
-                                          className={`w-full px-6 py-4 ${
-                                            claimState.isSuccess
-                                              ? "bg-green-800 hover:bg-green-800"
-                                              : claimState.isError
-                                              ? "bg-red-600 hover:bg-red-700"
-                                              : "bg-[#836EF9] hover:bg-[#836EF9]/80"
-                                          } disabled:bg-[#252525] text-white rounded-lg font-bold text-lg transition-colors`}
-                                        >
-                                          {gameInfo && gameInfo.state !== 2
-                                            ? "Game not finalized yet..."
-                                            : claimState.isLoading
-                                            ? "Processing claim..."
-                                            : claimState.isError
-                                            ? "Try again"
-                                            : isPending || isConfirming
-                                            ? "Confirming transaction..."
-                                            : claimState.isSuccess
-                                            ? "Successfully claimed"
-                                            : `Claim  ${
-                                                gameInfo?.betAmount
-                                                  ? formatEther(
-                                                      gameInfo.betAmount *
-                                                        BigInt(2)
-                                                    )
-                                                  : "0"
-                                              } MON`}
-                                        </button>
-                                      )}
-
-                                    {/* Claim draw refund si match nul - CORRIGÉ pour tenir compte du changement de couleur */}
-                                    {canCurrentPlayerClaim() &&
-                                      gameState.gameResult.winner === "draw" &&
-                                      getAvailableAmount() > "0" && (
-                                        <button
-                                          onClick={async () => {
-                                            if (gameId) {
-                                              try {
-                                                await claimDrawRefund(gameId);
-                                              } catch (error) {
+                                            await claimWinnings(
+                                              gameId,
+                                              gameState.gameResult.winner ===
+                                                "white"
+                                                ? 1
+                                                : 2,
+                                              () => {},
+                                              (error) => {
                                                 console.error(
-                                                  "Claim failed:",
+                                                  "❌ Claim failed:",
                                                   error
                                                 );
                                               }
-                                            }
-                                          }}
-                                          disabled={
-                                            isPending ||
-                                            isConfirming ||
-                                            (gameInfo && gameInfo.state !== 2) // Désactiver si le jeu n'est pas FINISHED
+                                            );
                                           }
-                                          className="w-full px-6 py-3 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-gray-600 text-white rounded-lg font-bold text-base transition-colors"
-                                        >
-                                          {gameInfo && gameInfo.state !== 2
-                                            ? "Game not finalized yet..."
-                                            : isPending || isConfirming
-                                            ? "Confirming..."
-                                            : `Claim Refund`}
-                                        </button>
-                                      )}
+                                        }}
+                                        disabled={
+                                          !canCurrentPlayerClaim() ||
+                                          claimState.isLoading ||
+                                          isPending ||
+                                          isConfirming ||
+                                          (gameInfo && gameInfo.state !== 2)
+                                        }
+                                        className={`w-full px-6 py-4 ${
+                                          claimState.isSuccess
+                                            ? "bg-green-800 hover:bg-green-800"
+                                            : claimState.isError
+                                            ? "bg-red-600 hover:bg-red-700"
+                                            : "bg-[#836EF9] hover:bg-[#836EF9]/80"
+                                        } disabled:bg-[#252525] text-white rounded-lg font-bold text-lg transition-colors`}
+                                      >
+                                        {!canCurrentPlayerClaim()
+                                          ? "No winnings to claim"
+                                          : gameInfo && gameInfo.state !== 2
+                                          ? "Game not finalized yet..."
+                                          : claimState.isLoading
+                                          ? "Processing claim..."
+                                          : claimState.isError
+                                          ? "Try again"
+                                          : isPending || isConfirming
+                                          ? "Confirming transaction..."
+                                          : claimState.isSuccess
+                                          ? "Successfully claimed"
+                                          : `Claim  ${
+                                              gameInfo?.betAmount
+                                                ? formatEther(
+                                                    gameInfo.betAmount *
+                                                      BigInt(2)
+                                                  )
+                                                : "0"
+                                            } MON`}
+                                      </button>
+                                    )}
+
+                                    {/* Claim draw refund - TOUJOURS AFFICHÉ si match nul */}
+                                    {gameState.gameResult.winner === "draw" && (
+                                      <button
+                                        onClick={async () => {
+                                          if (
+                                            gameId &&
+                                            canCurrentPlayerClaim()
+                                          ) {
+                                            try {
+                                              await claimDrawRefund(gameId);
+                                            } catch (error) {
+                                              console.error(
+                                                "Claim failed:",
+                                                error
+                                              );
+                                            }
+                                          }
+                                        }}
+                                        disabled={
+                                          !canCurrentPlayerClaim() ||
+                                          getAvailableAmount() <= "0" ||
+                                          isPending ||
+                                          isConfirming ||
+                                          (gameInfo && gameInfo.state !== 2)
+                                        }
+                                        className="w-full px-6 py-3 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-gray-600 text-white rounded-lg font-bold text-base transition-colors"
+                                      >
+                                        {!canCurrentPlayerClaim()
+                                          ? "No refund available"
+                                          : getAvailableAmount() <= "0"
+                                          ? "Already claimed"
+                                          : gameInfo && gameInfo.state !== 2
+                                          ? "Game not finalized yet..."
+                                          : isPending || isConfirming
+                                          ? "Confirming..."
+                                          : `Claim Refund`}
+                                      </button>
+                                    )}
                                   </div>
-                                  {/* Bouton Offer Rematch - visible quand les conditions sont remplies */}
-                                  {canOfferRematch() && (
-                                    <button
-                                      onClick={
-                                        gameInfo?.betAmount &&
-                                        gameInfo.betAmount > BigInt(0)
-                                          ? createRematchWithPayment
-                                          : () => {
-                                              // Pour les parties sans pari, utiliser l'ancienne logique de revanche Multisynq
-                                              if (
-                                                multisynqView &&
-                                                currentPlayerId
-                                              ) {
-                                                const playerColor =
-                                                  gameState.players.find(
-                                                    (p) =>
-                                                      p.id === currentPlayerId
-                                                  )?.color;
+                                  {/* Boutons Rematch - Offer ou Accept/Decline selon la situation */}
+                                  {rematchInvitation &&
+                                  rematchInvitation.from !== address ? (
+                                    // Afficher Accept/Decline SEULEMENT si on a reçu une invitation ET qu'on n'est PAS l'expéditeur
+                                    <div className="space-y-3 mb-3">
+                                      <p className="text-center text-white">
+                                        🔄{" "}
+                                        <strong>
+                                          {rematchInvitation.from.slice(0, 6)}
+                                          ...{rematchInvitation.from.slice(-4)}
+                                        </strong>{" "}
+                                        offers a rematch!
+                                      </p>
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                          onClick={async () => {
+                                            console.log(
+                                              "🔄 Acceptation de la rematch, rejoindre la room:",
+                                              rematchInvitation.roomName
+                                            );
+                                            setRematchInvitation(null);
+                                            setShowGameEndModal(false);
+
+                                            // Utiliser handleAutoJoinRoom pour rejoindre directement
+                                            await handleAutoJoinRoom(
+                                              rematchInvitation.roomName,
+                                              rematchInvitation.password
+                                            );
+                                          }}
+                                          className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-base transition-colors"
+                                        >
+                                          ✅ Accept
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            setRematchInvitation(null)
+                                          }
+                                          className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-base transition-colors"
+                                        >
+                                          ❌ Decline
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    // Afficher Offer Rematch si pas d'invitation reçue OU si on est l'expéditeur
+                                    canOfferRematch() && (
+                                      <button
+                                        onClick={
+                                          gameInfo?.betAmount &&
+                                          gameInfo.betAmount > BigInt(0)
+                                            ? createRematchWithPayment
+                                            : () => {
+                                                // Pour les parties sans pari, utiliser l'ancienne logique de revanche Multisynq
                                                 if (
-                                                  playerColor &&
-                                                  typeof multisynqView.requestRematch ===
-                                                    "function"
+                                                  multisynqView &&
+                                                  currentPlayerId
                                                 ) {
-                                                  multisynqView.requestRematch(
-                                                    currentPlayerId
-                                                  );
-                                                  console.log(
-                                                    "🔄 Revanche demandée (sans pari)"
-                                                  );
+                                                  const playerColor =
+                                                    gameState.players.find(
+                                                      (p) =>
+                                                        p.id === currentPlayerId
+                                                    )?.color;
+                                                  if (
+                                                    playerColor &&
+                                                    typeof multisynqView.requestRematch ===
+                                                      "function"
+                                                  ) {
+                                                    multisynqView.requestRematch(
+                                                      currentPlayerId
+                                                    );
+                                                    console.log(
+                                                      "🔄 Revanche demandée (sans pari)"
+                                                    );
+                                                  }
                                                 }
                                               }
-                                            }
-                                      }
-                                      disabled={isCreatingRematch}
-                                      className={`w-full px-6 py-4 rounded-lg font-bold text-lg transition-all duration-200 mb-3 ${
-                                        isCreatingRematch
-                                          ? "bg-yellow-600 cursor-not-allowed opacity-75"
-                                          : "bg-green-600 hover:bg-green-700 hover:scale-105"
-                                      } text-white`}
-                                    >
-                                      {isCreatingRematch ? (
-                                        <div className="flex items-center justify-center gap-2">
-                                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                          Creating rematch...
-                                        </div>
-                                      ) : gameInfo?.betAmount &&
-                                        gameInfo.betAmount > BigInt(0) ? (
-                                        `🔄 Offer Rematch (${formatEther(
-                                          gameInfo.betAmount
-                                        )} MON each)`
-                                      ) : (
-                                        "🔄 Offer Rematch (Free)"
-                                      )}
-                                    </button>
+                                        }
+                                        disabled={isCreatingRematch}
+                                        className={`w-full px-6 py-4 rounded-lg font-bold text-lg transition-all duration-200 mb-3 ${
+                                          isCreatingRematch
+                                            ? "bg-yellow-600 cursor-not-allowed opacity-75"
+                                            : "bg-green-600 hover:bg-green-700 hover:scale-105"
+                                        } text-white`}
+                                      >
+                                        {isCreatingRematch ? (
+                                          <div className="flex items-center justify-center gap-2">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                            Creating rematch...
+                                          </div>
+                                        ) : gameInfo?.betAmount &&
+                                          gameInfo.betAmount > BigInt(0) ? (
+                                          `🔄 Offer Rematch (${formatEther(
+                                            gameInfo.betAmount
+                                          )} MON each)`
+                                        ) : (
+                                          "🔄 Offer Rematch (Free)"
+                                        )}
+                                      </button>
+                                    )
                                   )}
 
                                   <div className="flex items-center justify-between gap-3">
@@ -3934,51 +3959,6 @@ export default function ChessMultisynqApp() {
                                   </div>
                                 </div>
                               )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* POPUP DE DEMANDE DE REVANCHE */}
-                    {rematchInvitation && (
-                      <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/90 backdrop-blur-sm">
-                        <div className="bg-[#1E1E1E] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
-                          <div className="text-center">
-                            <h3 className="text-2xl font-bold text-white mb-4">
-                              🔄 Rematch Request
-                            </h3>
-                            <p className="text-gray-300 mb-6">
-                              <span className="text-green-400 font-semibold">
-                                {rematchInvitation.from.slice(0, 6)}...
-                                {rematchInvitation.from.slice(-4)}
-                              </span>
-                              <br />
-                              wants to play a rematch!
-                            </p>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <button
-                                onClick={() => {
-                                  const betAmountFromEvent =
-                                    (window as any).lastRematchBetAmount ||
-                                    getCorrectBetAmount();
-                                  acceptRematch(
-                                    rematchInvitation.roomName,
-                                    rematchInvitation.password,
-                                    betAmountFromEvent
-                                  );
-                                }}
-                                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-base transition-colors"
-                              >
-                                ✅ Accept
-                              </button>
-                              <button
-                                onClick={declineRematch}
-                                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-base transition-colors"
-                              >
-                                ❌ Decline
-                              </button>
                             </div>
                           </div>
                         </div>
