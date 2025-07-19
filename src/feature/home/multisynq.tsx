@@ -370,41 +370,185 @@ export default function ChessMultisynqApp() {
     }
   };
 
-  const hasPlayerPaid = (color: "white" | "black"): boolean => {
+  // Fonction supprimée car non utilisée - voir linter error
+
+  // Fonction pour vérifier si tous les gains ont été réclamés et qu'on peut proposer une revanche
+  const canOfferRematch = (): boolean => {
+    // Pour les parties sans pari, vérifier seulement que le jeu est terminé
     if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
-      console.log("💰 hasPlayerPaid: No betting requirement");
-      return true; // Pas de pari requis
+      return (
+        gameState.gameResult.type !== null && !gameState.rematchOffer?.offered
+      );
     }
 
-    if (!address) {
-      console.log("💰 hasPlayerPaid: No address connected");
+    // Pour les parties avec pari, vérifier que le jeu est finalisé et que les gains ont été réclamés
+    if (gameInfo.state !== 2) {
       return false;
     }
 
-    console.log("💰 hasPlayerPaid check:", {
-      color,
-      address: address.slice(-4),
-      whitePlayer: gameInfo.whitePlayer?.slice(-4),
-      blackPlayer: gameInfo.blackPlayer?.slice(-4),
-      gameState: gameInfo.state,
-      contractIsActive: gameInfo.state === 1,
-    });
-
-    // CORRECTION: Si le contrat est ACTIVE, tous les paiements sont valides
-    if (gameInfo.state === 1) {
-      console.log("💰 hasPlayerPaid: Contract is ACTIVE - player can play");
-      return true;
+    // Vérifier selon le type de résultat
+    if (gameInfo.result === 3) {
+      // Draw - les deux doivent avoir claim
+      return gameInfo.whiteClaimed && gameInfo.blackClaimed;
+    } else if (gameInfo.result === 1) {
+      // White wins - white doit avoir claim
+      return gameInfo.whiteClaimed;
+    } else if (gameInfo.result === 2) {
+      // Black wins - black doit avoir claim
+      return gameInfo.blackClaimed;
     }
 
-    // Sinon vérifier les adresses individuelles
-    if (color === "white") {
-      const paid = gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
-      console.log(`💰 White player paid: ${paid}`);
-      return paid;
-    } else {
-      const paid = gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
-      console.log(`💰 Black player paid: ${paid}`);
-      return paid;
+    return false;
+  };
+
+  // Fonction pour vérifier si le joueur connecté peut claim (based on contract address, not Multisynq color)
+  const canCurrentPlayerClaim = (): boolean => {
+    if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
+      return false; // Pas de pari = pas de claim
+    }
+
+    if (gameInfo.state !== 2) {
+      return false; // Jeu pas terminé
+    }
+
+    if (!address) {
+      return false; // Pas connecté
+    }
+
+    // Vérifier directement avec l'adresse du contrat
+    const isWhiteInContract =
+      gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+    const isBlackInContract =
+      gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
+
+    if (!isWhiteInContract && !isBlackInContract) {
+      return false; // Pas un joueur de cette partie
+    }
+
+    // Vérifier selon le résultat du contrat
+    if (gameInfo.result === 3) {
+      // Draw - peut claim si pas encore fait
+      return isWhiteInContract
+        ? !gameInfo.whiteClaimed
+        : !gameInfo.blackClaimed;
+    } else if (gameInfo.result === 1) {
+      // White wins - seul white peut claim
+      return isWhiteInContract && !gameInfo.whiteClaimed;
+    } else if (gameInfo.result === 2) {
+      // Black wins - seul black peut claim
+      return isBlackInContract && !gameInfo.blackClaimed;
+    }
+
+    return false;
+  };
+
+  // Fonction pour créer une nouvelle room de revanche avec paiement
+  // États pour gérer le feedback de la revanche
+  const [isCreatingRematch, setIsCreatingRematch] = useState(false);
+  const [rematchInvitation, setRematchInvitation] = useState<{
+    from: string;
+    roomName: string;
+    password: string;
+  } | null>(null);
+
+  const createRematchWithPayment = async () => {
+    if (isCreatingRematch) return; // Empêcher les clics multiples
+
+    if (!multisynqView || !currentPlayerId || !address) {
+      alert("Erreur: Session non disponible");
+      return;
+    }
+
+    setIsCreatingRematch(true);
+
+    try {
+      console.log("🔄 Envoi d'une demande de revanche");
+
+      // Créer un nouveau nom de room avec incrémentation
+      const rematchNumber = gameState.gameNumber + 1;
+      const baseRoomName = gameState.roomName.split("_rematch_")[0];
+      const newRoomName = `${baseRoomName}_rematch_${rematchNumber}`;
+
+      console.log("🔄 Nouveau nom de room proposé:", newRoomName);
+
+      // Envoyer SEULEMENT la demande de revanche (ne pas créer le contrat encore)
+      multisynqView.sendMessage(
+        `REMATCH_REQUEST:${newRoomName}:${
+          gameState.roomPassword || ""
+        }:${getCorrectBetAmount()}`,
+        currentPlayerId,
+        address
+      );
+
+      console.log("✅ Demande de revanche envoyée, en attente de réponse...");
+    } catch (error) {
+      console.error(
+        "❌ Erreur lors de l'envoi de la demande de revanche:",
+        error
+      );
+      alert("Erreur lors de l'envoi de la demande. Veuillez réessayer.");
+    } finally {
+      setIsCreatingRematch(false);
+    }
+  };
+
+  // Fonction pour accepter une revanche et créer la nouvelle room
+  const acceptRematch = async (
+    roomName: string,
+    password: string,
+    betAmount: string
+  ) => {
+    try {
+      console.log(
+        "✅ Acceptation de la revanche et création de la nouvelle room"
+      );
+
+      // Créer le contrat de pari
+      await createBettingGame(betAmount, roomName);
+      setRoomBetAmount(betAmount);
+
+      // Réinitialiser les états de paiement
+      setPaymentStatus({
+        whitePlayerPaid: false,
+        blackPlayerPaid: false,
+        currentPlayerPaid: false,
+      });
+      setHasClosedPaymentModal(false);
+      setBettingGameCreationFailed(false);
+
+      // Fermer la popup d'invitation
+      setRematchInvitation(null);
+
+      // Transition vers la nouvelle room
+      await createMultisynqSession(roomName, password);
+
+      // Mettre à jour l'URL
+      const newUrl = password
+        ? `${window.location.pathname}?room=${roomName}&password=${password}`
+        : `${window.location.pathname}?room=${roomName}`;
+      window.history.pushState({}, "", newUrl);
+
+      // Fermer le modal de fin de jeu et aller vers l'interface de jeu
+      setShowGameEndModal(false);
+      setGameFlow("game");
+
+      console.log("✅ Revanche acceptée et nouvelle room créée");
+    } catch (error) {
+      console.error("❌ Erreur lors de l'acceptation de la revanche:", error);
+      alert(
+        "Erreur lors de la création de la nouvelle partie. Veuillez réessayer."
+      );
+    }
+  };
+
+  // Fonction pour refuser une revanche
+  const declineRematch = () => {
+    console.log("❌ Revanche refusée");
+    setRematchInvitation(null);
+
+    // Optionnel: envoyer un message pour informer l'autre joueur
+    if (multisynqView && currentPlayerId) {
+      multisynqView.sendMessage("Rematch declined", currentPlayerId, address);
     }
   };
 
@@ -798,6 +942,35 @@ export default function ChessMultisynqApp() {
     isBettingEnabled,
     betAmount,
   ]);
+
+  // Écouter les demandes de revanche via l'événement custom
+  useEffect(() => {
+    const handleRematchRequest = (event: CustomEvent) => {
+      const { from, roomName, password, betAmount } = event.detail;
+      console.log("🔄 Demande de revanche reçue via événement:", event.detail);
+
+      // Stocker le montant de pari pour l'utiliser lors de l'acceptation
+      (window as any).lastRematchBetAmount = betAmount;
+
+      setRematchInvitation({
+        from,
+        roomName,
+        password: password || "",
+      });
+    };
+
+    window.addEventListener(
+      "rematchRequest",
+      handleRematchRequest as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "rematchRequest",
+        handleRematchRequest as EventListener
+      );
+    };
+  }, []);
 
   useEffect(() => {
     const currentPlayerInGame = gameState.players.find(
@@ -1819,11 +1992,75 @@ export default function ChessMultisynqApp() {
           playerWallet: string;
         }) {
           console.log("💬 Message chat:", message);
-          this.state.messages.push({
-            ...message,
-            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            timestamp: Date.now(),
-          });
+
+          // Vérifier si c'est une demande de revanche
+          if (message.message.startsWith("REMATCH_REQUEST:")) {
+            console.log("🔄 Demande de revanche reçue:", message);
+
+            try {
+              const [, newRoomName, password, betAmount] =
+                message.message.split(":");
+              console.log("🔄 Détails de la demande:", {
+                newRoomName,
+                password,
+                betAmount,
+              });
+
+              // Ajouter un message visible dans le chat
+              this.state.messages.push({
+                ...message,
+                id: `msg_${Date.now()}_${Math.random()
+                  .toString(36)
+                  .substr(2, 9)}`,
+                message: `${message.playerWallet.slice(
+                  0,
+                  6
+                )}...${message.playerWallet.slice(-4)} offers a rematch!`,
+                timestamp: Date.now(),
+              });
+
+              // Publier l'état pour que l'interface se mette à jour
+              this.publish(this.sessionId, "game-state", this.state);
+
+              // Déclencher l'affichage de la popup de confirmation côté React
+              // On utilise un événement custom pour communiquer avec le composant React
+              window.dispatchEvent(
+                new CustomEvent("rematchRequest", {
+                  detail: {
+                    from: message.playerWallet,
+                    roomName: newRoomName,
+                    password: password,
+                    betAmount: betAmount,
+                  },
+                })
+              );
+            } catch (error) {
+              console.error(
+                "❌ Erreur lors du traitement de la demande de revanche:",
+                error
+              );
+
+              // Ajouter un message d'erreur visible
+              this.state.messages.push({
+                ...message,
+                id: `msg_${Date.now()}_${Math.random()
+                  .toString(36)
+                  .substr(2, 9)}`,
+                message: "Rematch request received but failed to process",
+                timestamp: Date.now(),
+              });
+            }
+          } else {
+            // Message de chat normal
+            this.state.messages.push({
+              ...message,
+              id: `msg_${Date.now()}_${Math.random()
+                .toString(36)
+                .substr(2, 9)}`,
+              timestamp: Date.now(),
+            });
+          }
+
           this.publish(this.sessionId, "game-state", this.state);
         }
 
@@ -2662,26 +2899,25 @@ export default function ChessMultisynqApp() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] bg-center bg-cover flex items-center justify-center p-4">
         <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/5">
+          <div className="text-center">
+            <h2 className="text-4xl font-bold text-white mb-4">
+              Welcome to SynqMate
+            </h2>
+            <p className="text-white/80 text-lg font-light mb-8 max-w-[500px] mx-auto">
+              SynqMate is a platform for playing chess with friends and betting
+              on the outcome.
+            </p>
+          </div>
           <div className="text-center mb-10">
-            <div className="flex items-center justify-between w-full">
-              <img src="/synqmate.png" alt="logo" className="w-[250px]" />
-              <WalletConnection />
+            <div className="flex items-center justify-center w-full">
+              <WalletConnection className="w-full" />
             </div>
           </div>
 
           {!isConnected ? (
-            <div className="text-center">
-              <h2 className="text-4xl font-bold text-white mb-4">
-                Welcome to SynqMate
-              </h2>
-              <p className="text-white/80 text-lg font-light mb-8 max-w-[500px] mx-auto">
-                SynqMate is a platform for playing chess with friends and
-                betting on the outcome.
-              </p>
-              <p className="text-[#836EF9] text-lg">
-                Connect your wallet to start playing
-              </p>
-            </div>
+            <p className="text-white text-lg mx-auto text-center">
+              Connect your wallet to start playing
+            </p>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4 mb-4">
@@ -3518,12 +3754,10 @@ export default function ChessMultisynqApp() {
                                 <div className="text-center space-y-3">
                                   {/* Boutons de claim si il y a des gains à récupérer */}
                                   <div className="space-y-3">
-                                    {/* Claim winnings si le joueur a gagné */}
-                                    {gameState.gameResult.winner !== "draw" &&
-                                      gameState.gameResult.winner ===
-                                        gameState.players.find(
-                                          (p) => p.id === currentPlayerId
-                                        )?.color && (
+                                    {/* Claim winnings si le joueur a gagné - CORRIGÉ pour tenir compte du changement de couleur */}
+                                    {canCurrentPlayerClaim() &&
+                                      gameState.gameResult.winner !==
+                                        "draw" && (
                                         <button
                                           onClick={async () => {
                                             if (gameId) {
@@ -3580,8 +3814,9 @@ export default function ChessMultisynqApp() {
                                         </button>
                                       )}
 
-                                    {/* Claim draw refund si match nul */}
-                                    {gameState.gameResult.winner === "draw" &&
+                                    {/* Claim draw refund si match nul - CORRIGÉ pour tenir compte du changement de couleur */}
+                                    {canCurrentPlayerClaim() &&
+                                      gameState.gameResult.winner === "draw" &&
                                       getAvailableAmount() > "0" && (
                                         <button
                                           onClick={async () => {
@@ -3611,6 +3846,62 @@ export default function ChessMultisynqApp() {
                                         </button>
                                       )}
                                   </div>
+                                  {/* Bouton Offer Rematch - visible quand les conditions sont remplies */}
+                                  {canOfferRematch() && (
+                                    <button
+                                      onClick={
+                                        gameInfo?.betAmount &&
+                                        gameInfo.betAmount > BigInt(0)
+                                          ? createRematchWithPayment
+                                          : () => {
+                                              // Pour les parties sans pari, utiliser l'ancienne logique de revanche Multisynq
+                                              if (
+                                                multisynqView &&
+                                                currentPlayerId
+                                              ) {
+                                                const playerColor =
+                                                  gameState.players.find(
+                                                    (p) =>
+                                                      p.id === currentPlayerId
+                                                  )?.color;
+                                                if (
+                                                  playerColor &&
+                                                  typeof multisynqView.requestRematch ===
+                                                    "function"
+                                                ) {
+                                                  multisynqView.requestRematch(
+                                                    currentPlayerId
+                                                  );
+                                                  console.log(
+                                                    "🔄 Revanche demandée (sans pari)"
+                                                  );
+                                                }
+                                              }
+                                            }
+                                      }
+                                      disabled={isCreatingRematch}
+                                      className={`w-full px-6 py-4 rounded-lg font-bold text-lg transition-all duration-200 mb-3 ${
+                                        isCreatingRematch
+                                          ? "bg-yellow-600 cursor-not-allowed opacity-75"
+                                          : "bg-green-600 hover:bg-green-700 hover:scale-105"
+                                      } text-white`}
+                                    >
+                                      {isCreatingRematch ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                          Creating rematch...
+                                        </div>
+                                      ) : gameInfo?.betAmount &&
+                                        gameInfo.betAmount > BigInt(0) ? (
+                                        `🔄 Offer Rematch (${formatEther(
+                                          gameInfo.betAmount
+                                        )} MON each)`
+                                      ) : (
+                                        "🔄 Offer Rematch (Free)"
+                                      )}
+                                    </button>
+                                  )}
+
                                   <div className="flex items-center justify-between gap-3">
                                     <button
                                       onClick={handleNewGame}
@@ -3643,6 +3934,51 @@ export default function ChessMultisynqApp() {
                                   </div>
                                 </div>
                               )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* POPUP DE DEMANDE DE REVANCHE */}
+                    {rematchInvitation && (
+                      <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/90 backdrop-blur-sm">
+                        <div className="bg-[#1E1E1E] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+                          <div className="text-center">
+                            <h3 className="text-2xl font-bold text-white mb-4">
+                              🔄 Rematch Request
+                            </h3>
+                            <p className="text-gray-300 mb-6">
+                              <span className="text-green-400 font-semibold">
+                                {rematchInvitation.from.slice(0, 6)}...
+                                {rematchInvitation.from.slice(-4)}
+                              </span>
+                              <br />
+                              wants to play a rematch!
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <button
+                                onClick={() => {
+                                  const betAmountFromEvent =
+                                    (window as any).lastRematchBetAmount ||
+                                    getCorrectBetAmount();
+                                  acceptRematch(
+                                    rematchInvitation.roomName,
+                                    rematchInvitation.password,
+                                    betAmountFromEvent
+                                  );
+                                }}
+                                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-base transition-colors"
+                              >
+                                ✅ Accept
+                              </button>
+                              <button
+                                onClick={declineRematch}
+                                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-base transition-colors"
+                              >
+                                ❌ Decline
+                              </button>
                             </div>
                           </div>
                         </div>

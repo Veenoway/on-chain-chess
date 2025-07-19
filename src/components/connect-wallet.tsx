@@ -1,10 +1,11 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { WalletModal } from "./connect-modal";
 
-export function WalletConnection() {
+export function WalletConnection({ className }: { className?: string }) {
   // const { open } = useAppKit();
   const [open, setOpen] = useState(false);
   const { address, isConnecting, chainId } = useAccount();
@@ -47,10 +48,13 @@ export function WalletConnection() {
     return (
       <button
         onClick={handleSwitchNetwork}
-        className="bg-[#836EF9]
+        className={cn(
+          `bg-[#836EF9]
           flex items-center rounded-lg uppercase h-[40px] sm:h-[50px] w-fit justify-center border border-borderColor px-2.5 sm:px-6 py-5
            text-lg sm:text-lg text-white font-medium transition-all duration-300 ease-in-out
-          disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled:opacity-50 disabled:cursor-not-allowed`,
+          className
+        )}
       >
         Wrong Network
       </button>
@@ -63,10 +67,13 @@ export function WalletConnection() {
         <WalletModal open={open} setOpen={setOpen}>
           <button
             onClick={() => setOpen(true)}
-            className={`bg-[#836EF9]
+            className={cn(
+              `bg-[#836EF9]
              flex items-center justify-center rounded-lg mx-auto w-fit h-[40px] sm:h-[50px] px-2.5 sm:px-6 py-5
              text-lg sm:text-lg text-white font-medium transition-all duration-300 ease-in-out
-             ${isConnecting ? "opacity-50 cursor-not-allowed" : ""}`}
+             ${isConnecting ? "opacity-50 cursor-not-allowed" : ""}`,
+              className
+            )}
           >
             Connect Wallet
           </button>
@@ -76,10 +83,13 @@ export function WalletConnection() {
         <div className="flex items-center gap-4 w-full">
           <button
             onClick={handleDisconnect}
-            className={`bg-[#836EF9]
+            className={cn(
+              `bg-[#836EF9]
                 flex items-center rounded-lg mx-auto h-[40px] sm:h-[50px] w-fit px-2.5 sm:px-6 py-5
                 text-lg sm:text-lg text-white font-semibold justify-center transition-all duration-300 ease-in-out
-                ${isConnecting || isInitialLoading ? "animate-pulse" : ""}`}
+                `,
+              className
+            )}
           >
             {getDisplayText()}
           </button>
