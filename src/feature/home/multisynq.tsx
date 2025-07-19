@@ -2904,31 +2904,31 @@ export default function ChessMultisynqApp() {
             </p>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="mx-auto w-full flex items-center justify-center">
                 <button
                   onClick={() => setMenuActive("create")}
-                  className={`group rounded-xl border ${
+                  className={`group rounded-t-lg  ${
                     menuActive === "create"
-                      ? "border-[#836EF9] bg-[#2b2b2b]"
-                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
-                  } text-white text-lg font-semibold py-4 transition-all duration-200`}
+                      ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
+                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E]"
+                  } text-white text-lg font-semibold py-4 w-[190px] transition-all duration-200 px-4`}
                 >
                   Create Game
                 </button>
 
                 <button
                   onClick={() => setMenuActive("join")}
-                  className={`group rounded-xl border ${
+                  className={`group rounded-t-lg  ${
                     menuActive === "join"
-                      ? "border-[#836EF9] bg-[#2b2b2b]"
-                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
-                  } text-white text-lg font-semibold py-4 transition-all duration-200`}
+                      ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
+                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E]"
+                  } text-white text-lg font-semibold py-4 w-[190px] transition-all duration-200 px-4`}
                 >
                   Join Game
                 </button>
               </div>
               {menuActive === "create" ? (
-                <div className="bg-[#252525] border border-white/5 rounded-2xl p-6">
+                <div className="bg-[#252525] rounded-2xl p-6">
                   <div className="space-y-6">
                     <div>
                       <label className="block text-xl font-medium text-white mb-3">
@@ -3048,7 +3048,7 @@ export default function ChessMultisynqApp() {
                 </div>
               ) : (
                 <div className=" text-center">
-                  <div className="bg-[#252525] border border-white/5 rounded-2xl p-8 pt-6">
+                  <div className="bg-[#252525] rounded-2xl p-8 pt-6">
                     <label className="block text-xl font-medium text-left text-white  mb-3">
                       {" "}
                       Room Code
@@ -3058,7 +3058,7 @@ export default function ChessMultisynqApp() {
                       placeholder="Enter room code (e.g. room:password)"
                       value={roomInput}
                       onChange={(e) => setRoomInput(e.target.value)}
-                      className="w-full p-4 bg-[#2b2b2b] focus:outline-none border border-white/10 text-white rounded-lg text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                      className="w-full p-4 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
                     />
                     <button
                       onClick={handleJoinRoom}
@@ -3746,7 +3746,7 @@ export default function ChessMultisynqApp() {
                                       <span
                                         className={`px-2 py-1 rounded-lg text-xs flex items-center justify-center gap-2 font-medium ${
                                           gameInfo.blackClaimed
-                                            ? "bg-green-500/20 text-green-300"
+                                            ? "bg-[#836EF9] text-white"
                                             : gameInfo.result === 3 ||
                                               gameInfo.result === 2 // DRAW ou BLACK_WINS
                                             ? "bg-yellow-500/20 text-yellow-400"
@@ -3860,9 +3860,9 @@ export default function ChessMultisynqApp() {
                                         }
                                         className={`w-full px-6 py-4 ${
                                           claimState.isSuccess
-                                            ? "bg-green-800 hover:bg-green-800"
+                                            ? "bg-[#252525] border border-[#836EF9] text-[#836EF9]"
                                             : claimState.isError
-                                            ? "bg-red-600 hover:bg-red-700"
+                                            ? "bg-[#252525] border border-[#eb3f3f] text-[#eb3f3f]"
                                             : "bg-[#836EF9] hover:bg-[#836EF9]/80"
                                         } disabled:bg-[#252525] text-white rounded-lg font-bold text-lg transition-colors`}
                                       >
@@ -3870,12 +3870,12 @@ export default function ChessMultisynqApp() {
                                           ? "No winnings to claim"
                                           : gameInfo && gameInfo.state !== 2
                                           ? "Game not finalized yet..."
-                                          : claimState.isLoading
-                                          ? "Processing claim..."
+                                          : isPending ||
+                                            isConfirming ||
+                                            claimState.isLoading
+                                          ? "Confirming transaction..."
                                           : claimState.isError
                                           ? "Try again"
-                                          : isPending || isConfirming
-                                          ? "Confirming transaction..."
                                           : claimState.isSuccess
                                           ? "Successfully claimed"
                                           : `Claim  ${
@@ -3914,7 +3914,7 @@ export default function ChessMultisynqApp() {
                                           isConfirming ||
                                           (gameInfo && gameInfo.state !== 2)
                                         }
-                                        className="w-full px-6 py-3 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-gray-600 text-white rounded-lg font-bold text-base transition-colors"
+                                        className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#252525] text-white rounded-lg font-bold text-base transition-colors"
                                       >
                                         {!canCurrentPlayerClaim()
                                           ? "No refund available"
