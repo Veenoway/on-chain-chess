@@ -245,7 +245,7 @@ export default function ChessMultisynqApp() {
   // Refetch automatique après transactions réussies
   useEffect(() => {
     if (isSuccess && gameId) {
-      console.log("🔄 Transaction réussie, actualisation des données...");
+      console.log("Transaction réussie, actualisation des données...");
       // Attendre un peu avant de refetch pour que les changements se propagent
       setTimeout(() => {
         refetchAll();
@@ -277,7 +277,7 @@ export default function ChessMultisynqApp() {
 
       if (response.ok && data.success) {
         console.log(
-          "✅ Partie finalisée automatiquement par le relayer:",
+          "Partie finalisée automatiquement par le relayer:",
           data.transactionHash
         );
         setTimeout(() => {
@@ -285,11 +285,11 @@ export default function ChessMultisynqApp() {
         }, 2000);
         return true;
       } else {
-        console.log("❌ Erreur relayer automatique:", data.error);
+        console.log("Erreur relayer automatique:", data.error);
         return false;
       }
     } catch (error) {
-      console.error("❌ Erreur de communication avec le relayer:", error);
+      console.error("Erreur de communication avec le relayer:", error);
       setTimeout(() => {
         setIsFinalizingGame(false);
       }, 3000);
@@ -344,7 +344,7 @@ export default function ChessMultisynqApp() {
         });
 
         if (!winnerPlayer) {
-          console.error("❌ Impossible de trouver le joueur gagnant");
+          console.error("Impossible de trouver le joueur gagnant");
           return;
         }
 
@@ -361,9 +361,7 @@ export default function ChessMultisynqApp() {
         } else if (isWinnerBlackInContract) {
           contractResult = 2; // BLACK_WINS dans le contrat
         } else {
-          console.error(
-            "❌ Le gagnant ne correspond à aucun joueur du contrat"
-          );
+          console.error("Le gagnant ne correspond à aucun joueur du contrat");
           return;
         }
       } else {
@@ -385,7 +383,7 @@ export default function ChessMultisynqApp() {
       const relayerSuccess = await finishGameViaRelayer(gameId, contractResult);
 
       if (relayerSuccess) {
-        console.log("✅ Partie finalisée automatiquement via relayer");
+        console.log("Partie finalisée automatiquement via relayer");
       } else {
         // Fallback vers la méthode manuelle
         console.log("⚠️ Relayer automatique échoué, tentative manuelle...");
@@ -393,20 +391,20 @@ export default function ChessMultisynqApp() {
         try {
           await finishBettingGame(gameId, contractResult);
           console.log(
-            "✅ Partie finalisée manuellement sur le contrat avec succès"
+            "Partie finalisée manuellement sur le contrat avec succès"
           );
           setTimeout(() => {
             setIsFinalizingGame(false);
           }, 2000);
         } catch (manualError) {
-          console.error("❌ Erreur finalisation manuelle:", manualError);
+          console.error("Erreur finalisation manuelle:", manualError);
           setTimeout(() => {
             setIsFinalizingGame(false);
           }, 3000);
         }
       }
     } catch (error) {
-      console.error("❌ Erreur lors de la finalisation sur le contrat:", error);
+      console.error("Erreur lors de la finalisation sur le contrat:", error);
       setTimeout(() => {
         setIsFinalizingGame(false);
       }, 3000);
@@ -501,7 +499,7 @@ export default function ChessMultisynqApp() {
     setIsCreatingRematch(true);
 
     try {
-      console.log("🔄 Création d'une nouvelle room pour la revanche");
+      console.log("Création d'une nouvelle room pour la revanche");
 
       // Générer le nom de la nouvelle room pour l'invitation
       const newRoomName = `chess-${Math.random().toString(36).substring(2, 8)}`;
@@ -529,9 +527,9 @@ export default function ChessMultisynqApp() {
       // EXACTEMENT comme "Create Room" - utiliser la même logique mais avec les noms spécifiques
       await handleCreateRoom();
 
-      console.log("✅ Nouvelle room de revanche créée");
+      console.log("Nouvelle room de revanche créée");
     } catch (error) {
-      console.error("❌ Erreur lors de la création de la revanche:", error);
+      console.error("Erreur lors de la création de la revanche:", error);
       alert("Erreur lors de la création de la revanche. Veuillez réessayer.");
     } finally {
       setIsCreatingRematch(false);
@@ -728,7 +726,7 @@ export default function ChessMultisynqApp() {
       console.log("💰 Refresh fréquent pendant les paiements...");
 
       const interval = setInterval(() => {
-        console.log("🔄 Refresh automatique des données de paiement");
+        console.log("Refresh automatique des données de paiement");
         refetchAll();
         updatePaymentStatus();
       }, 2000); // Refresh toutes les 2 secondes
@@ -768,7 +766,7 @@ export default function ChessMultisynqApp() {
       parseFloat(getCorrectBetAmount()) > 0
     ) {
       console.log(
-        "🔄 Revanche acceptée avec paris activés - réinitialisation des paiements"
+        "Revanche acceptée avec paris activés - réinitialisation des paiements"
       );
 
       // NOUVEAU: Activer le mode transition de revanche
@@ -801,7 +799,7 @@ export default function ChessMultisynqApp() {
           await createBettingGame(correctBetAmount, rematchRoomName);
           setRoomBetAmount(correctBetAmount);
 
-          console.log("✅ Nouveau contrat de pari créé pour la revanche");
+          console.log("Nouveau contrat de pari créé pour la revanche");
 
           // CORRECTION: Mettre à jour le gameState.roomName pour pointer vers le nouveau contrat
           setGameState((prev) => ({
@@ -841,7 +839,7 @@ export default function ChessMultisynqApp() {
       ) {
         setTimeout(() => {
           multisynqView.resetRematchAccepted();
-          console.log("✅ Flag rematchAccepted réinitialisé côté Multisynq");
+          console.log("Flag rematchAccepted réinitialisé côté Multisynq");
         }, 2000);
       }
     }
@@ -903,7 +901,7 @@ export default function ChessMultisynqApp() {
       gameState.roomName &&
       gameFlow === "welcome"
     ) {
-      console.log("🔄 Transition vers l'interface de jeu:", gameState.roomName);
+      console.log("Transition vers l'interface de jeu:", gameState.roomName);
 
       // NOUVEAU: Ne pas auto-transitioner si la popup de pari doit s'afficher
       const shouldShowBettingPopup =
@@ -937,7 +935,7 @@ export default function ChessMultisynqApp() {
 
       // Ne pas afficher la popup à l'expéditeur
       if (senderId === currentPlayerId) {
-        console.log("❌ Popup bloquée - c'est l'expéditeur");
+        console.log("Popup bloquée - c'est l'expéditeur");
         return;
       }
 
@@ -1147,7 +1145,7 @@ export default function ChessMultisynqApp() {
       // Si on était en train de se reconnecter, maintenant c'est réussi
       if (isReconnecting) {
         setIsReconnecting(false);
-        console.log("✅ Reconnexion réussie! Joueur retrouvé:", {
+        console.log("Reconnexion réussie! Joueur retrouvé:", {
           id: currentPlayer.id,
           color: currentPlayer.color,
           wallet:
@@ -1404,10 +1402,10 @@ export default function ChessMultisynqApp() {
       }, 200);
 
       setGameFlow("game");
-      setConnectionStatus(`✅ Connecté à: ${roomName}`);
+      setConnectionStatus(`Connecté à: ${roomName}`);
     } catch (error) {
-      console.error("❌ Erreur auto-join:", error);
-      setConnectionStatus("❌ Room introuvable");
+      console.error("Erreur auto-join:", error);
+      setConnectionStatus("Room introuvable");
       window.history.pushState({}, "", window.location.pathname);
     }
   };
@@ -1515,7 +1513,17 @@ export default function ChessMultisynqApp() {
 
   const router = useRouter();
   const handleNewGame = () => {
-    router.push("/");
+    // Si il y a un pari et qu'on peut offrir une revanche, faire une revanche
+    if (
+      gameInfo?.betAmount &&
+      gameInfo.betAmount > BigInt(0) &&
+      canOfferRematch()
+    ) {
+      createRematchWithPayment();
+    } else {
+      // Sinon, retourner à l'accueil
+      router.push("/");
+    }
   };
 
   //   const handleRespondRematch = (data: {
@@ -1709,7 +1717,7 @@ export default function ChessMultisynqApp() {
         }
 
         handleResetRematchAccepted() {
-          console.log("🔄 Réinitialisation du flag rematchAccepted");
+          console.log("Réinitialisation du flag rematchAccepted");
           this.state.rematchAccepted = false;
           this.publish(this.sessionId, "game-state", this.state);
         }
@@ -1890,7 +1898,7 @@ export default function ChessMultisynqApp() {
             // CORRECTION: Mettre à jour le joueur existant avec le nouveau playerId
             this.state.players[existingPlayerIndex].connected = true;
             this.state.players[existingPlayerIndex].id = playerId; // Nouveau ID après refresh
-            console.log("✅ Joueur existant reconnecté avec nouveau ID:", {
+            console.log("Joueur existant reconnecté avec nouveau ID:", {
               wallet: wallet.slice(0, 6) + "..." + wallet.slice(-4),
               oldId: "refresh",
               newId: playerId,
@@ -1930,7 +1938,7 @@ export default function ChessMultisynqApp() {
             };
 
             this.state.players.push(newPlayer);
-            console.log("✅ Nouveau joueur ajouté:", newPlayer);
+            console.log("Nouveau joueur ajouté:", newPlayer);
 
             // Ajouter un message de bienvenue
             this.state.messages.push({
@@ -1960,7 +1968,7 @@ export default function ChessMultisynqApp() {
 
           // Vérifier si c'est une invitation de rematch
           if (message.message.startsWith("REMATCH_INVITATION:")) {
-            console.log("🔄 Invitation de rematch reçue:", message);
+            console.log("Invitation de rematch reçue:", message);
 
             try {
               const [, roomName, password, betAmount] =
@@ -1992,7 +2000,7 @@ export default function ChessMultisynqApp() {
                 })
               );
             } catch (error) {
-              console.error("❌ Erreur traitement invitation rematch:", error);
+              console.error("Erreur traitement invitation rematch:", error);
             }
           } else {
             // Message de chat normal
@@ -2018,7 +2026,7 @@ export default function ChessMultisynqApp() {
             this.state.drawOffer = { offered: false, by: null };
             this.state.rematchOffer = { offered: false, by: null };
 
-            console.log("✅ Partie activée:", {
+            console.log("Partie activée:", {
               players: this.state.players.length,
               isActive: this.state.isActive,
               gameNumber: this.state.gameNumber,
@@ -2190,7 +2198,7 @@ export default function ChessMultisynqApp() {
                 newState.turn !== prevState.turn;
 
               if (hasRealChanges) {
-                console.log("✅ Changements détectés, mise à jour de l'état");
+                console.log("Changements détectés, mise à jour de l'état");
               }
 
               return {
@@ -2435,7 +2443,7 @@ export default function ChessMultisynqApp() {
     try {
       // IMPORTANT: Fermer l'ancienne session si elle existe
       if (multisynqView) {
-        console.log("🔄 Fermeture de l'ancienne session Multisynq");
+        console.log("Fermeture de l'ancienne session Multisynq");
         try {
           // Tenter de fermer la session via la vue
           if (multisynqView.session) {
@@ -2465,10 +2473,10 @@ export default function ChessMultisynqApp() {
         password: password,
       });
 
-      console.log("✅ Nouvelle session créée:", session);
+      console.log("Nouvelle session créée:", session);
       return session;
     } catch (error) {
-      console.error("❌ Erreur création session:", error);
+      console.error("Erreur création session:", error);
       throw error;
     }
   };
@@ -2551,14 +2559,14 @@ export default function ChessMultisynqApp() {
           console.log("💰 Betting game créé, mais n'auto-join pas encore");
           // NE PAS joindre automatiquement - laisser la popup s'afficher
         } catch (error) {
-          console.error("❌ Échec création betting game:", error);
+          console.error("Échec création betting game:", error);
           setBettingGameCreationFailed(true);
           // NE PAS joindre automatiquement - laisser la popup s'afficher pour retry
         }
       } else {
         // Pas de betting - joindre Multisynq normalement
         session.view.joinPlayer(address, playerId);
-        console.log("✅ Partie sans pari - join Multisynq immédiat");
+        console.log("Partie sans pari - join Multisynq immédiat");
       }
 
       // Configurer le temps de jeu
@@ -2574,10 +2582,10 @@ export default function ChessMultisynqApp() {
       window.history.pushState({}, "", newUrl);
 
       setGameFlow("game");
-      setConnectionStatus(`✅ Room created: ${roomName}`);
+      setConnectionStatus(`Room created: ${roomName}`);
     } catch (error) {
-      console.error("❌ Error creating room:", error);
-      setConnectionStatus("❌ Error creating room");
+      console.error("Error creating room:", error);
+      setConnectionStatus("Error creating room");
       alert("Impossible to create the room. Check your Multisynq API key.");
     } finally {
       setIsCreatingRoom(false);
@@ -2647,10 +2655,10 @@ export default function ChessMultisynqApp() {
         : `${window.location.pathname}?room=${roomName}`;
       window.history.pushState({}, "", newUrl);
 
-      console.log("✅ Session créée, transition vers game flow");
+      console.log("Session créée, transition vers game flow");
     } catch (error) {
-      console.error("❌ Error joining room:", error);
-      setConnectionStatus("❌ Room not found");
+      console.error("Error joining room:", error);
+      setConnectionStatus("Room not found");
       alert(
         `Impossible to join the room "${roomName}". Check the code${
           password ? " and the password" : ""
@@ -3063,7 +3071,7 @@ export default function ChessMultisynqApp() {
                       className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
                     >
                       {isWrongNetwork
-                        ? "🔄 Switch to Monad & Join"
+                        ? "Switch to Monad & Join"
                         : isPending
                         ? "Processing..."
                         : "Join Game"}
@@ -3097,7 +3105,7 @@ export default function ChessMultisynqApp() {
                   }}
                   className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-lg transition-colors"
                 >
-                  🔄 Switch to Monad Testnet
+                  Switch to Monad Testnet
                 </button>
               </div>
             </div>
@@ -3125,15 +3133,6 @@ export default function ChessMultisynqApp() {
           <div className="w-full">
             <div className="flex items-center justify-between w-full gap-3">
               {/* <img src="/synqmate.png" alt="logo" className=" w-[240px]" /> */}
-
-              {isReconnecting && (
-                <div className="flex items-center gap-2 px-3 py-1 bg-orange-500/20 border border-orange-400 rounded">
-                  <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
-                  <span className="text-orange-200 text-sm">
-                    Reconnecting...
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -3250,13 +3249,43 @@ export default function ChessMultisynqApp() {
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
                           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
                             <div className="text-center">
-                              <h3 className="text-3xl font-bold text-white mb-6">
+                              <h3 className="text-2xl font-bold text-white mb-6">
                                 Payment Status
                               </h3>
 
+                              {/* Informations de paiement et gains */}
+                              <div className="">
+                                <div className="flex justify-between text-white text-base mb-2">
+                                  <span className="text-gray-300">
+                                    Bet amount:
+                                  </span>
+                                  <span className="font-bold text-white text-base">
+                                    {gameInfo?.betAmount
+                                      ? formatEther(gameInfo.betAmount)
+                                      : betAmount}{" "}
+                                    MON
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-base text-white mb-4">
+                                  <span className="text-gray-300">
+                                    Potential winnings:
+                                  </span>
+                                  <span className="font-bold text-green-400">
+                                    {gameInfo?.betAmount
+                                      ? formatEther(
+                                          gameInfo.betAmount * BigInt(2)
+                                        )
+                                      : (
+                                          parseFloat(betAmount) * 2
+                                        ).toString()}{" "}
+                                    MON
+                                  </span>
+                                </div>
+                              </div>
+
                               <div className="rounded-lg mb-4">
                                 <div className="space-y-3">
-                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded">
+                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded-lg">
                                     <div className="flex flex-col items-start">
                                       <span className="text-white font-medium">
                                         White Player (Creator):
@@ -3273,19 +3302,22 @@ export default function ChessMultisynqApp() {
                                       </span>
                                     </div>
                                     <span
-                                      className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs font-medium ${
                                         paymentStatus.whitePlayerPaid
-                                          ? "bg-green-500/20 text-green-300 border border-green-400"
-                                          : "bg-red-500/20 text-red-500 border border-red-500"
+                                          ? "bg-[#836EF9] text-white border border-white/10"
+                                          : "bg-[#2c2c2c] text-white border border-white/10"
                                       }`}
                                     >
+                                      {paymentStatus.whitePlayerPaid ? null : (
+                                        <div className="inline-block mr-2 animate-spin rounded-full h-3 w-3 border-2 border-white/20 border-t-white/80" />
+                                      )}
                                       {paymentStatus.whitePlayerPaid
-                                        ? "PAID"
-                                        : "NOT PAID"}
+                                        ? "READY"
+                                        : "PENDING"}
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded">
+                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded-lg">
                                     <div className="flex flex-col items-start">
                                       <span className="text-white font-medium">
                                         Black Player (Joiner):
@@ -3304,21 +3336,24 @@ export default function ChessMultisynqApp() {
                                       </span>
                                     </div>
                                     <span
-                                      className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs font-medium ${
                                         paymentStatus.blackPlayerPaid
-                                          ? "bg-green-500/20 text-green-300 border border-green-400"
-                                          : "bg-red-500/20 text-red-500 border border-red-500"
+                                          ? "bg-[#836EF9] text-white border border-white/10"
+                                          : "bg-[#2c2c2c] text-white border border-white/10"
                                       }`}
                                     >
+                                      {paymentStatus.blackPlayerPaid ? null : (
+                                        <div className="inline-block mr-2 animate-spin rounded-full h-3 w-3 border-2 border-white/20 border-t-white/80" />
+                                      )}
                                       {paymentStatus.blackPlayerPaid
-                                        ? "PAID"
-                                        : "NOT PAID"}
+                                        ? "READY"
+                                        : "PENDING"}
                                     </span>
                                   </div>
                                 </div>
 
                                 {/* Indicateur de progression */}
-                                <div className="rounded-lg mt-4">
+                                {/* <div className="rounded-lg mt-4">
                                   <div className="flex items-center justify-between mb-3">
                                     <span className="text-white text-sm">
                                       Payment Progress:
@@ -3345,7 +3380,7 @@ export default function ChessMultisynqApp() {
                                       }}
                                     ></div>
                                   </div>
-                                </div>
+                                </div> */}
                               </div>
 
                               {!paymentStatus.currentPlayerPaid ? (
@@ -3422,13 +3457,13 @@ export default function ChessMultisynqApp() {
                                                 currentPlayerId
                                               );
                                               console.log(
-                                                "✅ Créateur joint Multisynq après création réussie"
+                                                "Créateur joint Multisynq après création réussie"
                                               );
                                             }, 2000);
                                           }
                                         } catch (error) {
                                           console.error(
-                                            "❌ Échec création betting game:",
+                                            "Échec création betting game:",
                                             error
                                           );
                                           setBettingGameCreationFailed(true);
@@ -3456,7 +3491,7 @@ export default function ChessMultisynqApp() {
                                         if (gameInfo.state === 1) {
                                           // ACTIVE
                                           console.log(
-                                            "✅ Jeu déjà actif - pas besoin de payer"
+                                            "Jeu déjà actif - pas besoin de payer"
                                           );
                                           setPaymentStatus((prev) => ({
                                             ...prev,
@@ -3471,11 +3506,11 @@ export default function ChessMultisynqApp() {
                                             gameInfo.betAmount
                                           );
                                           console.log(
-                                            "✅ Paiement réussi pour rejoindre le jeu"
+                                            "Paiement réussi pour rejoindre le jeu"
                                           );
                                         } catch (error) {
                                           console.error(
-                                            "❌ Échec du paiement:",
+                                            "Échec du paiement:",
                                             error
                                           );
                                           alert(
@@ -3678,7 +3713,7 @@ export default function ChessMultisynqApp() {
                                       <span
                                         className={`px-2 py-1 rounded-lg text-xs flex items-center justify-center gap-2 font-medium ${
                                           gameInfo.whiteClaimed
-                                            ? "bg-green-500/20 text-green-300"
+                                            ? "bg-[#836EF9] text-white"
                                             : gameInfo.result === 3 ||
                                               gameInfo.result === 1 // DRAW ou WHITE_WINS
                                             ? "bg-yellow-500/20 text-yellow-400"
@@ -3809,7 +3844,7 @@ export default function ChessMultisynqApp() {
                                               () => {},
                                               (error) => {
                                                 console.error(
-                                                  "❌ Claim failed:",
+                                                  "Claim failed:",
                                                   error
                                                 );
                                               }
@@ -3893,24 +3928,20 @@ export default function ChessMultisynqApp() {
                                       </button>
                                     )}
                                   </div>
-                                  {/* Boutons Rematch - Offer ou Accept/Decline selon la situation */}
+                                  {/* Accept/Decline seulement si on a reçu une invitation */}
                                   {rematchInvitation &&
                                   rematchInvitation.from !== address ? (
-                                    // Afficher Accept/Decline SEULEMENT si on a reçu une invitation ET qu'on n'est PAS l'expéditeur
                                     <div className="space-y-3 mb-3">
-                                      <p className="text-center text-white">
-                                        🔄{" "}
-                                        <strong>
-                                          {rematchInvitation.from.slice(0, 6)}
-                                          ...{rematchInvitation.from.slice(-4)}
-                                        </strong>{" "}
-                                        offers a rematch!
+                                      <p className="text-center text-base text-white">
+                                        Your opponent offers you a rematch.{" "}
+                                        <br />
+                                        Do you want to accept?
                                       </p>
                                       <div className="grid grid-cols-2 gap-3">
                                         <button
                                           onClick={async () => {
                                             console.log(
-                                              "🔄 Acceptation de la rematch, rejoindre la room:",
+                                              "Acceptation de la rematch, rejoindre la room:",
                                               rematchInvitation.roomName
                                             );
                                             setRematchInvitation(null);
@@ -3924,7 +3955,7 @@ export default function ChessMultisynqApp() {
                                           }}
                                           className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-base transition-colors"
                                         >
-                                          ✅ Accept
+                                          Accept
                                         </button>
                                         <button
                                           onClick={() =>
@@ -3932,98 +3963,50 @@ export default function ChessMultisynqApp() {
                                           }
                                           className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-base transition-colors"
                                         >
-                                          ❌ Decline
+                                          Decline
                                         </button>
                                       </div>
                                     </div>
                                   ) : (
-                                    // Afficher Offer Rematch si pas d'invitation reçue OU si on est l'expéditeur
-                                    canOfferRematch() && (
+                                    <div className="flex items-center justify-between gap-3">
                                       <button
-                                        onClick={
-                                          gameInfo?.betAmount &&
-                                          gameInfo.betAmount > BigInt(0)
-                                            ? createRematchWithPayment
-                                            : () => {
-                                                // Pour les parties sans pari, utiliser l'ancienne logique de revanche Multisynq
-                                                if (
-                                                  multisynqView &&
-                                                  currentPlayerId
-                                                ) {
-                                                  const playerColor =
-                                                    gameState.players.find(
-                                                      (p) =>
-                                                        p.id === currentPlayerId
-                                                    )?.color;
-                                                  if (
-                                                    playerColor &&
-                                                    typeof multisynqView.requestRematch ===
-                                                      "function"
-                                                  ) {
-                                                    multisynqView.requestRematch(
-                                                      currentPlayerId
-                                                    );
-                                                    console.log(
-                                                      "🔄 Revanche demandée (sans pari)"
-                                                    );
-                                                  }
-                                                }
-                                              }
+                                        onClick={handleNewGame}
+                                        disabled={
+                                          gameState.rematchOffer?.offered ||
+                                          shouldDisableNavigationButtons()
                                         }
-                                        disabled={isCreatingRematch}
-                                        className={`w-full px-6 py-4 rounded-lg font-bold text-lg transition-all duration-200 mb-3 ${
-                                          isCreatingRematch
-                                            ? "bg-yellow-600 cursor-not-allowed opacity-75"
-                                            : "bg-green-600 hover:bg-green-700 hover:scale-105"
-                                        } text-white`}
+                                        className="w-full h-[45px] bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg font-bold text-base transition-colors"
                                       >
-                                        {isCreatingRematch ? (
-                                          <div className="flex items-center justify-center gap-2">
-                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                            Creating rematch...
-                                          </div>
-                                        ) : gameInfo?.betAmount &&
-                                          gameInfo.betAmount > BigInt(0) ? (
-                                          `🔄 Offer Rematch (${formatEther(
-                                            gameInfo.betAmount
-                                          )} MON each)`
-                                        ) : (
-                                          "🔄 Offer Rematch (Free)"
-                                        )}
+                                        {shouldDisableNavigationButtons()
+                                          ? gameInfo && gameInfo.state !== 2
+                                            ? "Finalizing..."
+                                            : gameInfo?.betAmount &&
+                                              gameInfo.betAmount > BigInt(0) &&
+                                              canOfferRematch()
+                                            ? "Rematch"
+                                            : "New game"
+                                          : gameState.rematchOffer?.offered
+                                          ? "Waiting for opponent"
+                                          : gameInfo?.betAmount &&
+                                            gameInfo.betAmount > BigInt(0) &&
+                                            canOfferRematch()
+                                          ? "Rematch"
+                                          : "New game"}
                                       </button>
-                                    )
+
+                                      <button
+                                        onClick={handleCloseGameEndModal}
+                                        disabled={shouldDisableNavigationButtons()}
+                                        className="w-full h-[45px] bg-[#404040] hover:bg-[#4a4a4a] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg font-bold text-base transition-colors"
+                                      >
+                                        {shouldDisableNavigationButtons()
+                                          ? gameInfo && gameInfo.state !== 2
+                                            ? "Finalizing..."
+                                            : "Analysis"
+                                          : "Analysis"}
+                                      </button>
+                                    </div>
                                   )}
-
-                                  <div className="flex items-center justify-between gap-3">
-                                    <button
-                                      onClick={handleNewGame}
-                                      disabled={
-                                        gameState.rematchOffer?.offered ||
-                                        shouldDisableNavigationButtons()
-                                      }
-                                      className="w-full h-[45px] bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg font-bold text-base transition-colors"
-                                    >
-                                      {shouldDisableNavigationButtons()
-                                        ? gameInfo && gameInfo.state !== 2
-                                          ? "Finalizing..."
-                                          : "New game"
-                                        : gameState.rematchOffer?.offered
-                                        ? "Waiting for opponent"
-                                        : "New game"}
-                                    </button>
-
-                                    <button
-                                      onClick={handleCloseGameEndModal}
-                                      disabled={shouldDisableNavigationButtons()}
-                                      className="w-full h-[45px] bg-[#404040] hover:bg-[#4a4a4a] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg font-bold text-base transition-colors"
-                                    >
-                                      {shouldDisableNavigationButtons()
-                                        ? gameInfo && gameInfo.state !== 2
-                                          ? "Finalizing..."
-                                          : "Analysis"
-                                        : "Analysis"}
-                                    </button>
-                                  </div>
                                 </div>
                               )}
                             </div>
@@ -4145,7 +4128,7 @@ export default function ChessMultisynqApp() {
               </div>
 
               <div className="rounded-t-lg px-3 pt-2 bg-[#1E1E1E] border border-b-2 border-white/5">
-                <h3 className="text-xl font-semibold text-white mb-2">
+                <h3 className="text-base font-semibold text-white mb-2">
                   Nads Chat
                 </h3>
               </div>
@@ -4391,6 +4374,10 @@ export default function ChessMultisynqApp() {
                                 : "Claim first"
                               : gameState.rematchOffer?.offered
                               ? "Waiting "
+                              : gameInfo?.betAmount &&
+                                gameInfo.betAmount > BigInt(0) &&
+                                canOfferRematch()
+                              ? "Rematch"
                               : "New game"}
                           </button>
                         </div>
