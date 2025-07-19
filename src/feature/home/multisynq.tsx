@@ -318,22 +318,66 @@ export default function ChessMultisynqApp() {
     try {
       let contractResult: 1 | 2 | 3;
 
-      if (gameResult.winner === "white") {
-        contractResult = 1; // WHITE_WINS
-      } else if (gameResult.winner === "black") {
-        contractResult = 2; // BLACK_WINS
-      } else {
+      if (gameResult.winner === "draw") {
         contractResult = 3; // DRAW
+      } else if (
+        gameResult.winner === "white" ||
+        gameResult.winner === "black"
+      ) {
+        // CORRECTION: Déterminer qui a gagné par adresse et l'associer à la position dans le contrat
+        const winnerColor = gameResult.winner;
+        const winnerPlayer = gameState.players.find(
+          (p) => p.color === winnerColor
+        );
+
+        console.log("🎯 Détermination du gagnant:", {
+          winnerColorInGame: winnerColor,
+          winnerPlayer: winnerPlayer
+            ? {
+                id: winnerPlayer.id,
+                wallet: winnerPlayer.wallet,
+                color: winnerPlayer.color,
+              }
+            : null,
+          contractWhitePlayer: gameInfo?.whitePlayer,
+          contractBlackPlayer: gameInfo?.blackPlayer,
+        });
+
+        if (!winnerPlayer) {
+          console.error("❌ Impossible de trouver le joueur gagnant");
+          return;
+        }
+
+        // Vérifier si le gagnant est whitePlayer ou blackPlayer dans le contrat
+        const isWinnerWhiteInContract =
+          gameInfo?.whitePlayer?.toLowerCase() ===
+          winnerPlayer.wallet.toLowerCase();
+        const isWinnerBlackInContract =
+          gameInfo?.blackPlayer?.toLowerCase() ===
+          winnerPlayer.wallet.toLowerCase();
+
+        if (isWinnerWhiteInContract) {
+          contractResult = 1; // WHITE_WINS dans le contrat
+        } else if (isWinnerBlackInContract) {
+          contractResult = 2; // BLACK_WINS dans le contrat
+        } else {
+          console.error(
+            "❌ Le gagnant ne correspond à aucun joueur du contrat"
+          );
+          return;
+        }
+      } else {
+        contractResult = 3; // DRAW par défaut
       }
 
       console.log("💰 Tentative de finalisation sur le contrat:", {
         gameId: gameId.toString(),
         result: contractResult,
         resultText:
-          gameResult.winner === "white"
-            ? "WHITE_WINS"
-            : gameResult.winner === "black"
-            ? "BLACK_WINS"
+          contractResult === 1
+            ? "WHITE_WINS (dans le contrat)"
+            : contractResult === 2
+            ? "BLACK_WINS (dans le contrat)"
             : "DRAW",
       });
 
@@ -2351,16 +2395,17 @@ export default function ChessMultisynqApp() {
       gameState.gameResult.winner === "black"
     ) {
       // 1. Le jeu n'est pas encore finalisé par le relayer
-      if (gameInfo.state !== 2) {
+      if (gameInfo?.state !== 2) {
         return true; // Désactiver pendant la finalisation
       }
 
-      // 2. OU le jeu est finalisé mais le gagnant n'a pas claim
-      if (gameState.gameResult.winner === "white" && !gameInfo.whiteClaimed) {
-        return true;
+      // 2. OU le jeu est finalisé mais des gains peuvent encore être claim
+      // CORRECTION: Utiliser la logique du contrat plutôt que les couleurs locales
+      if (gameInfo?.result === 1 && !gameInfo?.whiteClaimed) {
+        return true; // White a gagné dans le contrat mais n'a pas claim
       }
-      if (gameState.gameResult.winner === "black" && !gameInfo.blackClaimed) {
-        return true;
+      if (gameInfo?.result === 2 && !gameInfo?.blackClaimed) {
+        return true; // Black a gagné dans le contrat mais n'a pas claim
       }
     }
 
@@ -3733,12 +3778,34 @@ export default function ChessMultisynqApp() {
                                           ) {
                                             resetClaimState();
 
+                                            // CORRECTION: Déterminer le résultat basé sur l'adresse du joueur, pas sa couleur
+                                            let resultParam: 1 | 2 | 3 = 2; // Par défaut BLACK_WINS
+
+                                            if (gameInfo?.result === 1) {
+                                              resultParam = 1; // WHITE_WINS
+                                            } else if (gameInfo?.result === 2) {
+                                              resultParam = 2; // BLACK_WINS
+                                            } else if (gameInfo?.result === 3) {
+                                              resultParam = 3; // DRAW
+                                            }
+
+                                            console.log(
+                                              "🎯 Claim avec résultat du contrat:",
+                                              {
+                                                gameInfoResult:
+                                                  gameInfo?.result,
+                                                paramEnvoyé: resultParam,
+                                                currentPlayerAddress: address,
+                                                whitePlayerContract:
+                                                  gameInfo?.whitePlayer,
+                                                blackPlayerContract:
+                                                  gameInfo?.blackPlayer,
+                                              }
+                                            );
+
                                             await claimWinnings(
                                               gameId,
-                                              gameState.gameResult.winner ===
-                                                "white"
-                                                ? 1
-                                                : 2,
+                                              resultParam,
                                               () => {},
                                               (error) => {
                                                 console.error(
