@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { GameState } from "@/types/chess";
 import { MultisynqView } from "@/types/multisynq";
 import { Chess } from "chess.js";
