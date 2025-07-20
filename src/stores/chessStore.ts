@@ -105,6 +105,7 @@ export interface ChessState {
   resign: () => void;
   requestRematch: () => void;
   respondRematch: (accepted: boolean) => void;
+  setGameFlow: (flow: "welcome" | "lobby" | "game") => void;
 }
 
 const initialState = {
@@ -294,6 +295,8 @@ export const useChessStore = create<ChessState>()(
             multisynqView.respondRematch(currentPlayerId, accepted);
           }
         },
+
+        setGameFlow: (flow) => set({ gameFlow: flow }),
       }),
       {
         name: "chess-game-storage",

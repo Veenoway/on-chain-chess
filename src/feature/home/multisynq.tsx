@@ -108,8 +108,6 @@ export default function ChessMultisynqApp() {
   const [selectedGameTime, setSelectedGameTime] = useState(600);
   const [newMessage, setNewMessage] = useState("");
   const [, setConnectionStatus] = useState("Prêt à jouer");
-
-  // États pour les paris
   const [betAmount, setBetAmount] = useState("1");
   const [isBettingEnabled, setIsBettingEnabled] = useState(true);
   const [, setRoomBetAmount] = useState<string | null>(null);
@@ -356,7 +354,7 @@ export default function ChessMultisynqApp() {
           setTimeout(() => {
             setIsFinalizingGame(false);
           }, 2000);
-        } catch (manualError) {
+        } catch {
           setTimeout(() => {
             setIsFinalizingGame(false);
           }, 3000);
@@ -2069,9 +2067,6 @@ export default function ChessMultisynqApp() {
       multisynqView.offerDraw(currentPlayerId);
     } else {
       console.error("offerDraw n'est pas une fonction:", multisynqView);
-      alert(
-        "Erreur: Fonction d'offre de match nul non disponible. Veuillez recharger la page."
-      );
     }
   };
 
@@ -2085,9 +2080,6 @@ export default function ChessMultisynqApp() {
       multisynqView.respondDraw(currentPlayerId, accepted);
     } else {
       console.error("Respond draw n'est pas une fonction:", multisynqView);
-      alert(
-        "Erreur: Fonction de réponse au draw non disponible. Veuillez recharger la page."
-      );
     }
   };
 
@@ -2209,11 +2201,7 @@ export default function ChessMultisynqApp() {
           handleCreateRoom();
         }, 2000);
         return;
-      } catch (error) {
-        console.error("Failed to switch network:", error);
-        alert(
-          "Failed to switch to Monad Testnet. Please switch manually in your wallet."
-        );
+      } catch {
         return;
       }
     }
@@ -2296,7 +2284,6 @@ export default function ChessMultisynqApp() {
     } catch (error) {
       console.error("Error creating room:", error);
       setConnectionStatus("Error creating room");
-      alert("Impossible to create the room. Check your Multisynq API key.");
     } finally {
       setIsCreatingRoom(false);
     }
@@ -2316,11 +2303,7 @@ export default function ChessMultisynqApp() {
           handleJoinRoom();
         }, 1000);
         return;
-      } catch (error) {
-        console.error("Failed to switch network:", error);
-        alert(
-          "Failed to switch to Monad Testnet. Please switch manually in your wallet."
-        );
+      } catch {
         return;
       }
     }
@@ -2366,11 +2349,6 @@ export default function ChessMultisynqApp() {
     } catch (error) {
       console.error("Error joining room:", error);
       setConnectionStatus("Room not found");
-      alert(
-        `Impossible to join the room "${roomName}". Check the code${
-          password ? " and the password" : ""
-        }.`
-      );
     }
   };
 
@@ -2772,6 +2750,69 @@ export default function ChessMultisynqApp() {
       squareStyles,
     ]
   );
+
+  const handleBackHome = () => {
+    // 1. Fermer la session Multisynq actuelle
+    if (multisynqView) {
+      try {
+        if (multisynqView.session) {
+          multisynqView.session.close();
+        }
+      } catch (error) {
+        console.warn("Erreur lors de la fermeture de la session:", error);
+      }
+    }
+
+    // 2. Réinitialiser tous les états
+    setMultisynqSession(null);
+    setMultisynqView(null);
+    setCurrentPlayerId(null);
+    setGameState({
+      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      isActive: false,
+      turn: "w",
+      players: [],
+      maxPlayers: 2,
+      whiteTime: 600,
+      blackTime: 600,
+      gameTimeLimit: 600,
+      lastMoveTime: null,
+      roomName: "",
+      roomPassword: "",
+      messages: [],
+      gameResult: { type: null },
+      drawOffer: { offered: false, by: null },
+      rematchOffer: { offered: false, by: null },
+      gameNumber: 1,
+      lastGameWinner: null,
+      createdAt: Date.now(),
+    });
+
+    // 3. Réinitialiser les autres états
+    setShowGameEndModal(false);
+    setHasClosedModal(false);
+    setHasClosedPaymentModal(false);
+    setIsRematchTransition(false);
+    setRematchInvitation(null);
+    setPaymentStatus({
+      whitePlayerPaid: false,
+      blackPlayerPaid: false,
+      currentPlayerPaid: false,
+    });
+    setBettingGameCreationFailed(false);
+
+    // 4. Réinitialiser l'historique des coups
+    setMoveHistory([]);
+    setCurrentMoveIndex(-1);
+    setFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+    // 5. Nettoyer l'URL
+    window.history.pushState({}, "", window.location.pathname);
+
+    // 6. Retourner à la page welcome
+    setGameFlow("welcome");
+    setConnectionStatus("Ready to play");
+  };
 
   // Fonction pour convertir la notation d'échecs en position pixel
   const getSquarePosition = (square: string) => {
@@ -3406,21 +3447,55 @@ export default function ChessMultisynqApp() {
                                 </div>
                               ) : (
                                 <>
-                                  {canCancel && (
+                                  {canCancel ? (
+                                    <>
+                                      {cancelState.isLoading ? (
+                                        <button
+                                          disabled
+                                          className="w-full mt-5 px-6 py-4 bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                        >
+                                          {cancelState.txHash
+                                            ? "Confirming..."
+                                            : "Cancelling..."}
+                                        </button>
+                                      ) : cancelState.isSuccess ? (
+                                        <button
+                                          disabled
+                                          className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                        >
+                                          Back Home
+                                        </button>
+                                      ) : cancelState.isError ? (
+                                        <button
+                                          onClick={() =>
+                                            cancelBettingGame(gameId as bigint)
+                                          }
+                                          className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                        >
+                                          Retry Cancel
+                                          {cancelState.error && (
+                                            <span className="ml-2 text-sm">
+                                              ({cancelState.error})
+                                            </span>
+                                          )}
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() =>
+                                            cancelBettingGame(gameId as bigint)
+                                          }
+                                          className="w-full mt-5 px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] text-white rounded-lg font-medium text-lg transition-colors"
+                                        >
+                                          Cancel & Get Refund
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
                                     <button
-                                      onClick={() =>
-                                        cancelBettingGame(
-                                          gameId as bigint,
-                                          () => {},
-                                          (error) => console.error(error)
-                                        )
-                                      }
+                                      onClick={handleBackHome}
                                       className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
-                                      disabled={cancelState.isLoading}
                                     >
-                                      {cancelState.isLoading
-                                        ? "Cancelling..."
-                                        : `Cancel & Get Refund`}
+                                      Back Home
                                     </button>
                                   )}
                                 </>
@@ -3796,7 +3871,7 @@ export default function ChessMultisynqApp() {
                                   {rematchInvitation &&
                                   rematchInvitation.from !== address ? (
                                     <div className="space-y-3 mb-3">
-                                      <p className="text-center text-base text-white">
+                                      <p className="text-center text-base text-white/80 font-thin">
                                         Your opponent offers you a rematch.{" "}
                                         <br />
                                         Do you want to accept?

@@ -1,7 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "react-hot-toast";
 import { Address, formatEther, parseEther } from "viem";
 import { readContract, waitForTransactionReceipt } from "viem/actions";
 import {
@@ -291,7 +289,7 @@ export const GameResult = {
 export const useChessBetting = () => {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const router = useRouter();
+
   const { writeContract, data: hash, error, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isSuccess } =
     useWaitForTransactionReceipt({
@@ -369,7 +367,7 @@ export const useChessBetting = () => {
           txHash: hash,
         }));
 
-        toast.success("🎉 Gains réclamés avec succès !", {
+        console.log("🎉 Gains réclamés avec succès !", {
           id: "claim-process",
           duration: 6000,
         });
@@ -383,11 +381,6 @@ export const useChessBetting = () => {
           isLoading: false,
           txHash: hash,
         }));
-
-        toast.success("🎉 Partie annulée et remboursement effectué !", {
-          id: "cancel-process",
-          duration: 6000,
-        });
       }
 
       setTimeout(() => {
@@ -406,7 +399,6 @@ export const useChessBetting = () => {
   const createBettingGame = useCallback(
     async (betAmountMON: string, roomName: string) => {
       if (!address) {
-        toast.error("Please connect your wallet");
         return;
       }
 
@@ -415,7 +407,7 @@ export const useChessBetting = () => {
 
         // Vérifier le solde
         if (balance && betAmount > balance.value) {
-          toast.error("Insufficient MON balance");
+          console.log("Insufficient MON balance");
           return;
         }
 
@@ -427,10 +419,10 @@ export const useChessBetting = () => {
           value: betAmount,
         });
 
-        toast.success("Creating betting game...");
+        console.log("Creating betting game...");
       } catch (error) {
         console.error("Error creating betting game:", error);
-        toast.error("Failed to create betting game");
+        console.log("Failed to create betting game");
       }
     },
     [address, writeContract, balance]
@@ -440,14 +432,13 @@ export const useChessBetting = () => {
   const joinBettingGame = useCallback(
     async (gameId: bigint, betAmount: bigint) => {
       if (!address) {
-        toast.error("Please connect your wallet");
         return;
       }
 
       try {
         // Vérifier le solde
         if (balance && betAmount > balance.value) {
-          toast.error("Insufficient MON balance");
+          console.log("Insufficient MON balance");
           return;
         }
 
@@ -459,10 +450,10 @@ export const useChessBetting = () => {
           value: betAmount,
         });
 
-        toast.success("Joining betting game...");
+        console.log("Joining betting game...");
       } catch (error) {
         console.error("Error joining betting game:", error);
-        toast.error("Failed to join betting game");
+        console.log("Failed to join betting game");
       }
     },
     [address, writeContract, balance]
@@ -472,14 +463,13 @@ export const useChessBetting = () => {
   const joinBettingGameByRoom = useCallback(
     async (roomName: string, betAmount: bigint) => {
       if (!address) {
-        toast.error("Please connect your wallet");
         return;
       }
 
       try {
         // Vérifier le solde
         if (balance && betAmount > balance.value) {
-          toast.error("Insufficient MON balance");
+          console.log("Insufficient MON balance");
           return;
         }
 
@@ -491,20 +481,18 @@ export const useChessBetting = () => {
           value: betAmount,
         });
 
-        toast.success("Joining betting game...");
+        console.log("Joining betting game...");
       } catch (error) {
         console.error("Error joining betting game by room:", error);
-        toast.error("Failed to join betting game");
+        console.log("Failed to join betting game");
       }
     },
     [address, writeContract, balance]
   );
 
-  // Terminer une partie (réservé à l'owner du contrat)
   const finishBettingGame = useCallback(
     async (gameId: bigint, result: 1 | 2 | 3) => {
       if (!address) {
-        toast.error("Please connect your wallet");
         return;
       }
 
@@ -515,31 +503,7 @@ export const useChessBetting = () => {
           functionName: "finishGame",
           args: [gameId, result],
         });
-
-        const resultText =
-          result === GameResult.WHITE_WINS
-            ? "White wins"
-            : result === GameResult.BLACK_WINS
-            ? "Black wins"
-            : "Draw";
-
-        alert(`Finishing game with result: ${resultText}...`);
-      } catch (error) {
-        console.error("Error finishing betting game:", error);
-
-        const errorMessage = error instanceof Error ? error.message : "";
-        if (errorMessage.includes("Ownable: caller is not the owner")) {
-          toast.error("Only the contract owner can finish games");
-        } else if (errorMessage.includes("Game is not active")) {
-          toast.error("Game is not active");
-        } else if (errorMessage.includes("Game has no black player")) {
-          toast.error("Game has no black player");
-        } else if (errorMessage.includes("Invalid result")) {
-          toast.error("Invalid game result");
-        } else {
-          toast.error("Failed to finish betting game");
-        }
-      }
+      } catch {}
     },
     [address, writeContract]
   );
@@ -602,7 +566,7 @@ export const useChessBetting = () => {
     ) => {
       if (!address) {
         const errorMsg = "Veuillez connecter votre portefeuille";
-        toast.error(errorMsg);
+        console.log(errorMsg);
         setClaimState((prev) => ({ ...prev, isError: true, error: errorMsg }));
         onError?.(errorMsg);
         return;
@@ -623,7 +587,7 @@ export const useChessBetting = () => {
       try {
         if (!publicClient) {
           const errorMsg = "Réseau non disponible";
-          toast.error(errorMsg);
+          console.log(errorMsg);
           setClaimState((prev) => ({
             ...prev,
             isLoading: false,
@@ -635,7 +599,7 @@ export const useChessBetting = () => {
         }
 
         // 1. Vérifier d'abord les informations du jeu
-        toast.loading("Vérification des informations de la partie...", {
+        console.log("Vérification des informations de la partie...", {
           id: "claim-process",
         });
 
@@ -651,7 +615,7 @@ export const useChessBetting = () => {
         // 2. Vérifications préliminaires
         if (!gameInfo) {
           const errorMsg = "Partie introuvable";
-          toast.error(errorMsg, { id: "claim-process" });
+          console.log(errorMsg, { id: "claim-process" });
           setClaimState((prev) => ({
             ...prev,
             isLoading: false,
@@ -670,7 +634,7 @@ export const useChessBetting = () => {
 
         if (!isWhitePlayer && !isBlackPlayer) {
           const errorMsg = "Vous n'êtes pas un joueur de cette partie";
-          toast.error(errorMsg, { id: "claim-process" });
+          console.log(errorMsg, { id: "claim-process" });
           setClaimState((prev) => ({
             ...prev,
             isLoading: false,
@@ -683,18 +647,18 @@ export const useChessBetting = () => {
 
         // 4. Finaliser la partie si nécessaire
         if (gameInfo.state !== GameState.FINISHED) {
-          toast.loading("Étape 1/2: Finalisation automatique de la partie...", {
+          console.log("Étape 1/2: Finalisation automatique de la partie...", {
             id: "claim-process",
           });
 
           const relayerSuccess = await finishGameViaRelayer(gameId, result);
 
           if (relayerSuccess) {
-            toast.loading("✅ Partie finalisée automatiquement !", {
+            console.log("✅ Partie finalisée automatiquement !", {
               id: "claim-process",
             });
           } else {
-            toast.loading(
+            console.log(
               "⚠️ Finalisation automatique échouée. Confirmez la transaction pour payer les frais...",
               {
                 id: "claim-process",
@@ -717,7 +681,7 @@ export const useChessBetting = () => {
 
               if (hash) {
                 finishGameTxHash = hash;
-                toast.loading("Attente de confirmation de la finalisation...", {
+                console.log("Attente de confirmation de la finalisation...", {
                   id: "claim-process",
                 });
 
@@ -730,7 +694,7 @@ export const useChessBetting = () => {
                   throw new Error("Échec de la finalisation de la partie");
                 }
 
-                toast.loading("Partie finalisée avec succès !", {
+                console.log("Partie finalisée avec succès !", {
                   id: "claim-process",
                 });
               }
@@ -756,7 +720,7 @@ export const useChessBetting = () => {
                 }
               }
 
-              toast.error(errorMessage, {
+              console.log(errorMessage, {
                 id: "claim-process",
                 duration: 6000,
               });
@@ -774,7 +738,7 @@ export const useChessBetting = () => {
         }
 
         // 5. Vérifier l'éligibilité pour le claim
-        toast.loading("Vérification de l'éligibilité pour la réclamation...", {
+        console.log("Vérification de l'éligibilité pour la réclamation...", {
           id: "claim-process",
         });
 
@@ -787,7 +751,7 @@ export const useChessBetting = () => {
 
         if (!canClaim) {
           const errorMsg = "Impossible de réclamer les gains pour le moment";
-          toast.error(errorMsg, { id: "claim-process" });
+          console.log(errorMsg, { id: "claim-process" });
           setClaimState((prev) => ({
             ...prev,
             isLoading: false,
@@ -806,7 +770,7 @@ export const useChessBetting = () => {
         })) as bigint;
 
         // 6. Procéder au claim
-        toast.loading(
+        console.log(
           `Étape 2/2: Réclamation de ${formatEther(
             winnings
           )} MON - Confirmez la transaction...`,
@@ -820,7 +784,7 @@ export const useChessBetting = () => {
           args: [gameId],
         });
 
-        toast.loading("Transaction envoyée, confirmation en cours...", {
+        console.log("Transaction envoyée, confirmation en cours...", {
           id: "claim-process",
         });
       } catch (error: unknown) {
@@ -852,7 +816,7 @@ export const useChessBetting = () => {
           }
         }
 
-        toast.error(errorMessage, { id: "claim-process", duration: 6000 });
+        console.log(errorMessage, { id: "claim-process", duration: 6000 });
 
         setClaimState({
           isLoading: false,
@@ -871,13 +835,12 @@ export const useChessBetting = () => {
   const claimDrawRefund = useCallback(
     async (gameId: bigint) => {
       if (!address) {
-        toast.error("Please connect your wallet");
         return;
       }
 
       try {
         if (!publicClient) {
-          toast.error("Network not available");
+          console.log("Network not available");
           return;
         }
 
@@ -889,17 +852,17 @@ export const useChessBetting = () => {
         })) as GameInfo;
 
         if (!gameInfo) {
-          toast.error("Game not found");
+          console.log("Game not found");
           return;
         }
 
         if (gameInfo.state !== GameState.FINISHED) {
-          toast.error("Game is not finished yet");
+          console.log("Game is not finished yet");
           return;
         }
 
         if (gameInfo.result !== GameResult.DRAW) {
-          toast.error("Game did not end in a draw");
+          console.log("Game did not end in a draw");
           return;
         }
 
@@ -909,7 +872,7 @@ export const useChessBetting = () => {
           gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
 
         if (!isWhitePlayer && !isBlackPlayer) {
-          toast.error("You are not a player in this game");
+          console.log("You are not a player in this game");
           return;
         }
 
@@ -917,7 +880,7 @@ export const useChessBetting = () => {
           ? gameInfo.whiteClaimed
           : gameInfo.blackClaimed;
         if (alreadyClaimed) {
-          toast.error("Refund already claimed");
+          console.log("Refund already claimed");
           return;
         }
 
@@ -929,7 +892,7 @@ export const useChessBetting = () => {
         })) as boolean;
 
         if (!canClaim) {
-          toast.error("Cannot claim draw refund at this time");
+          console.log("Cannot claim draw refund at this time");
           return;
         }
 
@@ -947,10 +910,10 @@ export const useChessBetting = () => {
           args: [gameId],
         });
 
-        toast.success(`Claiming ${formatEther(refundAmount)} MON refund...`);
+        console.log(`Claiming ${formatEther(refundAmount)} MON refund...`);
       } catch (error: unknown) {
         console.error("Error claiming draw refund:", error);
-        toast.error("Failed to claim draw refund. Please try again.");
+        console.log("Failed to claim draw refund. Please try again.");
       }
     },
     [address, writeContract, publicClient]
@@ -964,12 +927,11 @@ export const useChessBetting = () => {
     ) => {
       if (!address) {
         const errorMsg = "Please connect your wallet";
-        toast.error(errorMsg);
+        console.log(errorMsg);
         onError?.(errorMsg);
         return;
       }
 
-      // Réinitialiser l'état d'annulation
       setCancelState({
         isLoading: true,
         isSuccess: false,
@@ -981,7 +943,7 @@ export const useChessBetting = () => {
       try {
         if (!publicClient) {
           const errorMsg = "Network not available";
-          toast.error(errorMsg);
+          console.log(errorMsg);
           setCancelState((prev) => ({
             ...prev,
             isLoading: false,
@@ -992,7 +954,7 @@ export const useChessBetting = () => {
           return;
         }
 
-        toast.loading("Checking game information...", {
+        console.log("Checking game information...", {
           id: "cancel-process",
         });
 
@@ -1004,14 +966,15 @@ export const useChessBetting = () => {
         })) as GameInfo;
 
         if (!gameInfo) {
-          const errorMsg = "Partie introuvable";
-          toast.error(errorMsg, { id: "cancel-process" });
-          setCancelState((prev) => ({
-            ...prev,
+          const errorMsg = "Game not found";
+          console.log(errorMsg, { id: "cancel-process" });
+          setCancelState({
             isLoading: false,
+            isSuccess: false,
             isError: true,
             error: errorMsg,
-          }));
+            txHash: null,
+          });
           onError?.(errorMsg);
           return;
         }
@@ -1020,14 +983,15 @@ export const useChessBetting = () => {
           gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
 
         if (!isCreator) {
-          const errorMsg = "Seul le créateur de la partie peut l'annuler";
-          toast.error(errorMsg, { id: "cancel-process" });
-          setCancelState((prev) => ({
-            ...prev,
+          const errorMsg = "Only the creator can cancel the game";
+          console.log(errorMsg, { id: "cancel-process" });
+          setCancelState({
             isLoading: false,
+            isSuccess: false,
             isError: true,
             error: errorMsg,
-          }));
+            txHash: null,
+          });
           onError?.(errorMsg);
           return;
         }
@@ -1047,13 +1011,14 @@ export const useChessBetting = () => {
               break;
           }
 
-          toast.error(errorMsg, { id: "cancel-process" });
-          setCancelState((prev) => ({
-            ...prev,
+          console.log(errorMsg, { id: "cancel-process" });
+          setCancelState({
             isLoading: false,
+            isSuccess: false,
             isError: true,
             error: errorMsg,
-          }));
+            txHash: null,
+          });
           onError?.(errorMsg);
           return;
         }
@@ -1064,32 +1029,34 @@ export const useChessBetting = () => {
         if (hasBlackPlayer) {
           const errorMsg =
             "Cannot cancel: an opponent has already joined the game";
-          toast.error(errorMsg, { id: "cancel-process" });
-          setCancelState((prev) => ({
-            ...prev,
+          console.log(errorMsg, { id: "cancel-process" });
+          setCancelState({
             isLoading: false,
+            isSuccess: false,
             isError: true,
             error: errorMsg,
-          }));
+            txHash: null,
+          });
           onError?.(errorMsg);
           return;
         }
 
         if (gameInfo.betAmount <= BigInt(0)) {
           const errorMsg = "No amount to refund";
-          toast.error(errorMsg, { id: "cancel-process" });
-          setCancelState((prev) => ({
-            ...prev,
+          console.log(errorMsg, { id: "cancel-process" });
+          setCancelState({
             isLoading: false,
+            isSuccess: false,
             isError: true,
             error: errorMsg,
-          }));
+            txHash: null,
+          });
           onError?.(errorMsg);
           return;
         }
 
         const refundAmount = formatEther(gameInfo.betAmount);
-        toast.loading(`Cancelling... Refunding ${refundAmount} MON`, {
+        console.log(`Cancelling game... Refunding ${refundAmount} MON`, {
           id: "cancel-process",
         });
 
@@ -1100,12 +1067,34 @@ export const useChessBetting = () => {
           args: [gameId],
         });
 
-        // Attendre la confirmation
-        await waitForTransactionReceipt(publicClient, {
-          hash: (result as unknown as { hash: `0x${string}` }).hash,
+        const txHash = (result as unknown as { hash: `0x${string}` }).hash;
+
+        setCancelState((prev) => ({
+          ...prev,
+          txHash,
+        }));
+
+        console.log("Transaction sent, waiting for confirmation...", {
+          id: "cancel-process",
+          txHash,
         });
 
-        router.push("/");
+        await waitForTransactionReceipt(publicClient, {
+          hash: txHash,
+        });
+
+        console.log("Transaction confirmed successfully", {
+          id: "cancel-process",
+          txHash,
+        });
+
+        setCancelState({
+          isLoading: false,
+          isSuccess: true,
+          isError: false,
+          error: null,
+          txHash,
+        });
 
         onSuccess?.();
       } catch (error: unknown) {
@@ -1131,26 +1120,23 @@ export const useChessBetting = () => {
             errorMessage = "No amount to refund";
           } else if (
             msg.includes("user rejected") ||
-            msg.includes("user denied")
+            msg.includes("user denied") ||
+            msg.includes("user cancelled")
           ) {
-            errorMessage = "Transaction cancelled by the user";
+            errorMessage = "Transaction cancelled by user";
           } else if (msg.includes("insufficient funds")) {
-            errorMessage = "Insufficient funds to pay transaction fees";
+            errorMessage = "Insufficient funds for transaction fees";
           } else if (msg.includes("network")) {
             errorMessage = "Network error, please try again";
+          } else if (msg.includes("timeout")) {
+            errorMessage = "Transaction timeout, please try again";
           } else if (error.message) {
             errorMessage = error.message;
           }
         }
 
-        toast.error(errorMessage, { id: "cancel-process", duration: 6000 });
-        setCancelState({
-          isLoading: false,
-          isSuccess: false,
-          isError: true,
-          error: errorMessage,
-          txHash: null,
-        });
+        console.log(errorMessage, { id: "cancel-process", duration: 6000 });
+
         onError?.(errorMessage);
       }
     },
@@ -1165,6 +1151,7 @@ export const useChessBetting = () => {
     claimDrawRefund,
     cancelBettingGame,
     finishBettingGame,
+    finishGameViaRelayer,
     isPending,
     isConfirming,
     isSuccess,
@@ -1172,10 +1159,8 @@ export const useChessBetting = () => {
     hash,
     balance: balance?.value || BigInt(0),
     balanceFormatted: balance ? formatEther(balance.value) : "0",
-    // États spécifiques au claim
     claimState,
     resetClaimState,
-    // États spécifiques à l'annulation
     cancelState,
     resetCancelState,
   };

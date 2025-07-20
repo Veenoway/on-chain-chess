@@ -36,7 +36,7 @@ export const WalletModal: FC<
                 connect({ connector });
                 setOpen(false);
               }}
-              className=" bg-[#252525] hover:border-[#836EF9] hover:bg-[#836EF9]/20 border border-white/5 transition-all duration-300 ease-in-out flex items-center justify-center rounded h-[50px] px-2 font-thin text-base sm:text-lg"
+              className=" bg-[#252525] hover:border-[#836EF9] hover:bg-[#836EF9]/20 border border-white/5 transition-all duration-300 ease-in-out flex items-center justify-center rounded h-[50px] px-2 font-light text-base sm:text-lg"
             >
               <img
                 src={connector.icon}
