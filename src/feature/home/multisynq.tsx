@@ -3036,25 +3036,25 @@ export default function ChessMultisynqApp() {
     // Highlighting pour checkmate
     if (getCheckmatedKingSquare) {
       styles[getCheckmatedKingSquare] = {
-        backgroundColor: "rgba(255, 68, 68, 0.3)",
-        boxShadow: "inset 0 0 15px rgba(255, 68, 68, 0.6)",
+        backgroundColor: "rgba(131, 110, 249, 0.3)",
+        boxShadow: "inset 0 0 15px rgba(131, 110, 249, 0.6)",
       };
     }
 
-    // Case sélectionnée - jaune intense
+    // Case sélectionnée - violet intense
     if (selectedSquare) {
       styles[selectedSquare] = {
-        backgroundColor: "rgba(255, 255, 0, 0.6)",
-        boxShadow: "inset 0 0 8px rgba(255, 255, 0, 0.8)",
+        backgroundColor: "rgba(131, 110, 249, 0.6)",
+        boxShadow: "inset 0 0 8px rgba(131, 110, 249, 0.8)",
       };
     }
 
-    // Coups possibles - jaune plus clair comme chess.com
+    // Coups possibles - violet plus clair
     possibleMoves.forEach((square) => {
       if (square !== selectedSquare) {
         styles[square] = {
-          backgroundColor: "rgba(255, 255, 0, 0.3)",
-          boxShadow: "inset 0 0 5px rgba(255, 255, 0, 0.5)",
+          backgroundColor: "rgba(131, 110, 249, 0.3)",
+          boxShadow: "inset 0 0 5px rgba(131, 110, 249, 0.5)",
         };
       }
     });
