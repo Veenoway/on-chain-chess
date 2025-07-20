@@ -1328,7 +1328,7 @@ export default function ChessMultisynqApp() {
         if (multisynqView) {
           multisynqView.updateTimer();
         }
-      }, 1000);
+      }, 5000); // Réduire à 5 secondes au lieu de 1 seconde pour éviter le lag
       console.log("⏰ Timer optimisé démarré");
     } else if (!shouldRunTimer && timerRef.current) {
       clearInterval(timerRef.current);
@@ -1733,9 +1733,8 @@ export default function ChessMultisynqApp() {
           promotion: any;
           playerId: any;
         }) {
-          console.log("🏃 Traitement mouvement:", data);
+          // Traitement optimisé sans logs
           const { from, to, promotion } = data;
-
           const chess = new Chess(this.state.fen);
 
           try {
@@ -1749,6 +1748,9 @@ export default function ChessMultisynqApp() {
               this.state.fen = chess.fen();
               this.state.turn = chess.turn();
               this.state.lastMoveTime = Date.now();
+
+              // Publication IMMÉDIATE de l'état après chaque coup
+              this.publish(this.sessionId, "game-state", this.state);
 
               // Vérifier fin de partie
               if (chess.isGameOver()) {
@@ -1820,8 +1822,8 @@ export default function ChessMultisynqApp() {
                 this.publish(this.sessionId, "game-state", this.state);
               }
             }
-          } catch (error) {
-            console.error("Mouvement invalide:", error);
+          } catch {
+            // Ignorer les erreurs de mouvement pour éviter le lag
           }
         }
 
@@ -2231,7 +2233,7 @@ export default function ChessMultisynqApp() {
 
         // Méthodes pour envoyer des actions
         makeMove(from: any, to: any, playerId: any, promotion: any) {
-          console.log("📤 Envoi mouvement:", { from, to, playerId });
+          // Publication instantanée sans log pour éviter le lag
           this.publish(this.sessionId, "move", {
             from,
             to,
@@ -2241,12 +2243,12 @@ export default function ChessMultisynqApp() {
         }
 
         joinPlayer(wallet: any, playerId: any) {
-          console.log("📤 Envoi join player:", { wallet, playerId });
+          // Publication rapide sans log
           this.publish(this.sessionId, "join-player", { wallet, playerId });
         }
 
         sendMessage(message: any, playerId: any, playerWallet: any) {
-          console.log("📤 Envoi message:", { message, playerId });
+          // Publication rapide sans log
           this.publish(this.sessionId, "chat-message", {
             message,
             playerId,
@@ -2265,7 +2267,7 @@ export default function ChessMultisynqApp() {
         }
 
         updateTimer() {
-          console.log("📤 Envoi update timer");
+          // Publication timer réduite pour éviter le lag
           this.publish(this.sessionId, "update-timer", {});
         }
 
@@ -2732,7 +2734,19 @@ export default function ChessMultisynqApp() {
         });
 
         if (moveResult) {
-          // Envoyer IMMÉDIATEMENT - pas d'attente
+          // MISE À JOUR INSTANTANÉE DE L'INTERFACE (optimistic update)
+          setFen(tempGame.fen());
+
+          // Mettre à jour l'historique immédiatement
+          const newHistory = [...moveHistory, tempGame.fen()];
+          setMoveHistory(newHistory);
+          setCurrentMoveIndex(newHistory.length - 1);
+
+          // Désélectionner la pièce après mouvement réussi
+          setSelectedSquare(null);
+          setPossibleMoves([]);
+
+          // Envoyer en parallèle - sans attendre
           multisynqView.makeMove(
             sourceSquare,
             targetSquare,
@@ -2880,10 +2894,6 @@ export default function ChessMultisynqApp() {
           const board = chess.board();
           const checkmatedColor = chess.turn(); // Couleur qui ne peut pas jouer = perdant
 
-          console.log(
-            `Checkmate confirmé par chess.js - Couleur perdante: ${checkmatedColor}`
-          );
-
           for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
               const piece = board[row][col];
@@ -2895,9 +2905,7 @@ export default function ChessMultisynqApp() {
                 // Convertir les coordonnées en notation d'échecs
                 const file = String.fromCharCode(97 + col); // a-h
                 const rank = (8 - row).toString(); // 1-8
-                console.log(
-                  `Roi en échec et mat trouvé en ${file}${rank}, couleur: ${checkmatedColor}`
-                );
+
                 return file + rank;
               }
             }
@@ -2913,10 +2921,119 @@ export default function ChessMultisynqApp() {
     return null;
   }, [fen, gameState.gameResult.type]);
 
-  // Styles personnalisés pour l'échiquier (highlighting checkmate)
-  const customSquareStyles = useMemo(() => {
-    const styles: { [square: string]: React.CSSProperties } = {};
+  // État pour la sélection de pièce et coups possibles
+  const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
 
+  // Calculer les coups possibles pour une case (avec useCallback pour performance)
+  const getPossibleMoves = useCallback(
+    (square: string): string[] => {
+      try {
+        const chess = new Chess(fen);
+        const moves = chess.moves({ square: square as any, verbose: true });
+        return moves.map((move: any) => move.to);
+      } catch {
+        return [];
+      }
+    },
+    [fen]
+  );
+
+  // Fonction commune pour sélectionner une pièce et afficher les coups
+  const selectPiece = useCallback(
+    (piece: { pieceType: string }, square: string | null) => {
+      if (!square || !gameState.isActive || gameState.gameResult.type) return;
+
+      const currentPlayer = gameState.players.find(
+        (p) => p.id === currentPlayerId
+      );
+      if (!currentPlayer) return;
+
+      const isMyTurn =
+        (gameState.turn === "w" && currentPlayer.color === "white") ||
+        (gameState.turn === "b" && currentPlayer.color === "black");
+
+      if (!isMyTurn) return;
+
+      // Vérifier si c'est notre pièce
+      const pieceColor = piece.pieceType.charAt(0) === "w" ? "white" : "black";
+      if (pieceColor !== currentPlayer.color) return;
+
+      // Sélectionner la pièce et afficher les coups possibles
+      setSelectedSquare(square);
+      setPossibleMoves(getPossibleMoves(square));
+    },
+    [
+      gameState.isActive,
+      gameState.gameResult.type,
+      gameState.turn,
+      gameState.players,
+      currentPlayerId,
+      getPossibleMoves, // AJOUTÉ: dépendance manquante !
+    ]
+  );
+
+  // Gestionnaire de clic sur une pièce (API react-chessboard)
+  const onPieceClick = useCallback(
+    ({
+      piece,
+      square,
+    }: {
+      piece: { pieceType: string };
+      square: string | null;
+    }) => {
+      selectPiece(piece, square);
+    },
+    [selectPiece]
+  );
+
+  // Gestionnaire de début de drag d'une pièce (API react-chessboard)
+  const onPieceDrag = useCallback(
+    ({
+      piece,
+      square,
+    }: {
+      piece: { pieceType: string };
+      square: string | null;
+    }) => {
+      selectPiece(piece, square);
+    },
+    [selectPiece]
+  );
+
+  // Gestionnaire de clic sur une case (API react-chessboard)
+  const onSquareClick = useCallback(
+    ({
+      piece,
+      square,
+    }: {
+      piece: { pieceType: string } | null;
+      square: string;
+    }) => {
+      // Si une pièce est sélectionnée et on clique sur un coup possible
+      if (selectedSquare && possibleMoves.includes(square)) {
+        const args = {
+          sourceSquare: selectedSquare,
+          targetSquare: square,
+          piece: {} as any,
+        };
+        onPieceDrop(args);
+        setSelectedSquare(null);
+        setPossibleMoves([]);
+      } else if (!piece) {
+        // Clic sur case vide - désélectionner
+        setSelectedSquare(null);
+        setPossibleMoves([]);
+      }
+    },
+    [selectedSquare, possibleMoves, onPieceDrop]
+  );
+
+  // Styles pour l'échiquier (coups possibles + checkmate)
+  const squareStyles = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+
+    // Highlighting pour checkmate
     if (getCheckmatedKingSquare) {
       styles[getCheckmatedKingSquare] = {
         backgroundColor: "rgba(255, 68, 68, 0.3)",
@@ -2924,54 +3041,76 @@ export default function ChessMultisynqApp() {
       };
     }
 
-    return styles;
-  }, [getCheckmatedKingSquare]);
+    // Case sélectionnée - jaune intense
+    if (selectedSquare) {
+      styles[selectedSquare] = {
+        backgroundColor: "rgba(255, 255, 0, 0.6)",
+        boxShadow: "inset 0 0 8px rgba(255, 255, 0, 0.8)",
+      };
+    }
 
+    // Coups possibles - jaune plus clair comme chess.com
+    possibleMoves.forEach((square) => {
+      if (square !== selectedSquare) {
+        styles[square] = {
+          backgroundColor: "rgba(255, 255, 0, 0.3)",
+          boxShadow: "inset 0 0 5px rgba(255, 255, 0, 0.5)",
+        };
+      }
+    });
+
+    return styles;
+  }, [selectedSquare, possibleMoves, getCheckmatedKingSquare]);
+
+  // Configuration de l'échiquier avec les nouvelles APIs
   const chessboardOptions = useMemo(
     () => ({
       position: fen,
       onPieceDrop: onPieceDrop,
+      onPieceClick: onPieceClick,
+      onPieceDrag: onPieceDrag,
+      onSquareClick: onSquareClick,
       boardOrientation: playerColor,
       arePiecesDraggable: gameState.isActive,
       boardWidth: 580,
-      animationDuration: 100,
-      customSquareStyles,
+      animationDuration: 50,
+      squareStyles: squareStyles,
     }),
-    [fen, onPieceDrop, playerColor, gameState.isActive, customSquareStyles]
+    [
+      fen,
+      onPieceDrop,
+      onPieceClick,
+      onPieceDrag,
+      onSquareClick,
+      playerColor,
+      gameState.isActive,
+      squareStyles,
+    ]
   );
 
   // Fonction pour convertir la notation d'échecs en position pixel
-  const getSquarePosition = useMemo(() => {
-    return (square: string) => {
-      if (!square) return null;
+  const getSquarePosition = (square: string) => {
+    if (!square) return null;
 
-      const file = square.charCodeAt(0) - 97; // a=0, b=1, etc.
-      const rank = parseInt(square[1]) - 1; // 1=0, 2=1, etc.
+    const file = square.charCodeAt(0) - 97; // a=0, b=1, etc.
+    const rank = parseInt(square[1]) - 1; // 1=0, 2=1, etc.
 
-      // Utiliser l'orientation du plateau depuis chessboardOptions
-      const boardOrientation = chessboardOptions.boardOrientation;
-      const isFlipped = boardOrientation === "black";
-      const x = isFlipped ? 7 - file : file;
-      const y = isFlipped ? rank : 7 - rank;
+    // Utiliser l'orientation du plateau
+    const isFlipped = playerColor === "black";
+    const x = isFlipped ? 7 - file : file;
+    const y = isFlipped ? rank : 7 - rank;
 
-      const squareSize = 580 / 8; // 72.5px par case
+    const squareSize = 580 / 8; // 72.5px par case
 
-      console.log(
-        `Position checkmate: case ${square}, file=${file}, rank=${rank}, x=${x}, y=${y}, isFlipped=${isFlipped}, boardOrientation=${boardOrientation}, position=left:${
-          x * squareSize + squareSize / 2
-        }, top:${y * squareSize + squareSize / 2}`
-      );
-
-      return {
-        left: x * squareSize + squareSize / 2,
-        top: y * squareSize + squareSize / 2,
-      };
+    return {
+      left: x * squareSize + squareSize / 2,
+      top: y * squareSize + squareSize / 2,
     };
-  }, [chessboardOptions.boardOrientation]);
+  };
 
-  const checkmateIconPosition = useMemo(() => {
-    return getSquarePosition(getCheckmatedKingSquare || "");
-  }, [getSquarePosition, getCheckmatedKingSquare]);
+  const checkmateIconPosition = getSquarePosition(
+    getCheckmatedKingSquare || ""
+  );
 
   const [menuActive, setMenuActive] = useState("create");
 
@@ -3329,7 +3468,7 @@ export default function ChessMultisynqApp() {
                     {/* Icône de checkmate */}
                     {checkmateIconPosition && getCheckmatedKingSquare && (
                       <div
-                        className="absolute pointer-events-none z-10"
+                        className="absolute pointer-events-none z-1"
                         style={{
                           left: `${checkmateIconPosition.left}px`,
                           top: `${checkmateIconPosition.top}px`,
