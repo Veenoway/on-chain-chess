@@ -114,7 +114,7 @@ export default function ChessMultisynqApp() {
   const [bettingGameCreationFailed, setBettingGameCreationFailed] =
     useState(false);
   const [isRematchTransition, setIsRematchTransition] = useState(false);
-
+  let globalPlayOpponentMoveSound: (moveData: any) => void;
   const [paymentStatus, setPaymentStatus] = useState<{
     whitePlayerPaid: boolean;
     blackPlayerPaid: boolean;
@@ -1535,6 +1535,20 @@ export default function ChessMultisynqApp() {
               this.state.turn = chess.turn();
               this.state.lastMoveTime = Date.now();
 
+              // NOUVEAU: Jouer le son pour l'adversaire
+              // @ts-ignore
+              if (
+                globalPlayOpponentMoveSound &&
+                typeof globalPlayOpponentMoveSound === "function"
+              ) {
+                // Vérifier si c'est un mouvement adverse en comparant avec le joueur actuel
+                // (cette logique peut être adaptée selon votre implémentation)
+                setTimeout(() => {
+                  // @ts-ignore
+                  globalPlayOpponentMoveSound({ from, to, promotion });
+                }, 100);
+              }
+
               // Publication IMMÉDIATE de l'état après chaque coup
               this.publish(this.sessionId, "game-state", this.state);
 
@@ -1934,15 +1948,38 @@ export default function ChessMultisynqApp() {
           if (globalSetGameState) {
             // @ts-ignore
             globalSetGameState((prevState: GameState) => {
-              // NOUVEAU: Vérifier si c'est une vraie mise à jour
-              const hasRealChanges =
-                JSON.stringify(newState.players) !==
-                  JSON.stringify(prevState.players) ||
-                newState.isActive !== prevState.isActive ||
-                newState.fen !== prevState.fen ||
-                newState.turn !== prevState.turn;
+              // NOUVEAU: Détecter un nouveau coup adverse
+              const hasNewMove = newState.fen !== prevState.fen && newState.fen;
+              const isOpponentMove =
+                hasNewMove &&
+                newState.lastMoveTime &&
+                newState.lastMoveTime !== prevState.lastMoveTime;
 
-              if (hasRealChanges) {
+              // Si c'est un nouveau coup et que ce n'est pas nous qui l'avons fait
+              if (isOpponentMove && globalPlayOpponentMoveSound) {
+                // Jouer le son avec un délai pour éviter les conflits
+                setTimeout(() => {
+                  const chess = new Chess(prevState.fen);
+                  try {
+                    // Trouver le coup joué en comparant les positions
+                    const moves = chess.moves({ verbose: true });
+                    for (const move of moves) {
+                      const testGame = new Chess(prevState.fen);
+                      testGame.move(move);
+                      if (testGame.fen() === newState.fen) {
+                        // @ts-ignore
+                        globalPlayOpponentMoveSound({
+                          from: move.from,
+                          to: move.to,
+                          promotion: move.promotion,
+                        });
+                        break;
+                      }
+                    }
+                  } catch (error) {
+                    console.error("Error detecting opponent move:", error);
+                  }
+                }, 50);
               }
 
               return {
@@ -2352,6 +2389,106 @@ export default function ChessMultisynqApp() {
     }
   };
 
+  const [audioCache] = useState(() => {
+    const sounds = {
+      move: new Audio("/move-self.mp3"),
+      capture: new Audio("/capture.mp3"),
+      check: new Audio("/move-check.mp3"),
+      checkmate: new Audio("/game-end.mp3"),
+      castle: new Audio("/castle.mp3"),
+      moveOpponent: new Audio("/move-opponent.mp3"),
+      promotion: new Audio("/promote.mp3"),
+    };
+
+    // Précharger et configurer les volumes avec gestion d'erreur
+    Object.entries(sounds).forEach(([name, audio]) => {
+      audio.preload = "auto";
+      audio.volume = 0.5;
+
+      // Debug: vérifier si le fichier se charge
+      audio.addEventListener("canplaythrough", () => {
+        console.log(`✅ Audio ${name} loaded successfully`);
+      });
+
+      audio.addEventListener("error", (e) => {
+        console.warn(`⚠️ Failed to load audio ${name}:`, e);
+      });
+    });
+
+    // Volume spécifique pour certains sons
+    sounds.move.volume = 0.4;
+    sounds.moveOpponent.volume = 0.3;
+    sounds.checkmate.volume = 0.7;
+    sounds.promotion.volume = 0.6;
+
+    return sounds;
+  });
+
+  const playMoveSound = useCallback(
+    (moveResult: any, tempGame: Chess, isOpponentMove: boolean = false) => {
+      try {
+        let soundToPlay: HTMLAudioElement;
+        let soundName: string;
+
+        // Vérifier d'abord les conditions de fin de partie
+        if (tempGame.isCheckmate()) {
+          soundToPlay = audioCache.checkmate;
+          soundName = "checkmate";
+        }
+        // Ensuite les conditions spéciales de mouvement
+        else if (moveResult.captured) {
+          soundToPlay = audioCache.capture;
+          soundName = "capture";
+        } else if (tempGame.inCheck()) {
+          soundToPlay = audioCache.check;
+          soundName = "check";
+        }
+        // Vérifier la promotion (pion qui atteint la dernière rangée)
+        else if (moveResult.flags.includes("p")) {
+          soundToPlay = audioCache.promotion;
+          soundName = "promotion";
+        }
+        // Vérifier le roque (roi ou dame)
+        else if (
+          moveResult.flags.includes("k") || // roque côté roi
+          moveResult.flags.includes("q") // roque côté dame
+        ) {
+          soundToPlay = audioCache.castle;
+          soundName = "castle";
+        }
+        // Mouvement normal - distinguer joueur vs adversaire
+        else {
+          if (isOpponentMove) {
+            soundToPlay = audioCache.moveOpponent;
+            soundName = "move-opponent";
+          } else {
+            soundToPlay = audioCache.move;
+            soundName = "move-self";
+          }
+        }
+
+        console.log(`🔊 Playing sound: ${soundName}`);
+
+        // Réinitialiser la position si le son était déjà en cours
+        soundToPlay.currentTime = 0;
+
+        // Jouer le son avec gestion d'erreur
+        soundToPlay
+          .play()
+          .then(() => {
+            console.log(`✅ Sound ${soundName} played successfully`);
+          })
+          .catch((error) => {
+            console.warn(`⚠️ Failed to play sound ${soundName}:`, error);
+          });
+      } catch (error) {
+        console.error("❌ Error in playMoveSound:", error);
+      }
+    },
+    [audioCache]
+  );
+
+  // 2. Version améliorée de onPieceDrop avec sons
   const onPieceDrop = useCallback(
     (args: PieceDropHandlerArgs): boolean => {
       const { sourceSquare, targetSquare } = args;
@@ -2400,6 +2537,9 @@ export default function ChessMultisynqApp() {
         });
 
         if (moveResult) {
+          // Jouer le son approprié AVANT la mise à jour de l'interface
+          playMoveSound(moveResult, tempGame, false);
+
           // MISE À JOUR INSTANTANÉE DE L'INTERFACE (optimistic update)
           setFen(tempGame.fen());
 
@@ -2442,8 +2582,60 @@ export default function ChessMultisynqApp() {
       gameInfo?.blackPlayer,
       gameInfo?.state,
       address,
+      moveHistory, // Ajouté pour l'historique
     ]
   );
+
+  const playOpponentMoveSound = useCallback(
+    (moveResult: any, tempGame: Chess) => {
+      playMoveSound(moveResult, tempGame, true);
+    },
+    [playMoveSound]
+  );
+
+  const handleOpponentMove = (moveData: any) => {
+    // Reconstituez le mouvement de l'adversaire
+    const tempGame = new Chess(gameState.fen);
+    try {
+      const moveResult = tempGame.move({
+        from: moveData.from,
+        to: moveData.to,
+        promotion: moveData.promotion || "q",
+      });
+
+      if (moveResult) {
+        // Jouer le son pour le mouvement de l'adversaire
+        playOpponentMoveSound(moveResult, tempGame);
+      }
+    } catch (error) {
+      console.error("Error processing opponent move:", error);
+    }
+  };
+
+  useEffect(() => {
+    globalSetGameState = setGameState;
+    (window as any).finishGameOnContract = finishGameOnContract;
+
+    // NOUVEAU: Exposer la fonction de son adversaire globalement
+    globalPlayOpponentMoveSound = (moveData: any) => {
+      // Reconstituez le mouvement de l'adversaire
+      const tempGame = new Chess(gameState.fen);
+      try {
+        const moveResult = tempGame.move({
+          from: moveData.from,
+          to: moveData.to,
+          promotion: moveData.promotion || "q",
+        });
+
+        if (moveResult) {
+          // Jouer le son pour le mouvement de l'adversaire
+          playMoveSound(moveResult, tempGame, true);
+        }
+      } catch (error) {
+        console.error("Error processing opponent move:", error);
+      }
+    };
+  }, [gameState.fen, playMoveSound]);
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !currentPlayerId || !address || !multisynqView)
@@ -2902,7 +3094,7 @@ export default function ChessMultisynqApp() {
                           setSelectedGameTime(Number(value))
                         }
                       >
-                        <SelectTrigger className="w-full text-lg bg-[#2b2b2b] border-white/5 h-[50px] text-white">
+                        <SelectTrigger className="w-full text-lg bg-[#2b2b2b] border-white/5 focus:outline-none h-[50px] text-white focus:ring-0 focus:ring-offset-0  focus:ring-0 focus:ring-offset-0 ">
                           <SelectValue
                             placeholder="Select game duration"
                             className="text-lg"
@@ -2963,30 +3155,22 @@ export default function ChessMultisynqApp() {
                     {isBettingEnabled && (
                       <div className="space-y-2">
                         <input
-                          type="number"
-                          step="1"
-                          min="1"
+                          type="text"
+                          inputMode="decimal"
+                          pattern="^[0-9]*[.,]?[0-9]*$"
                           value={betAmount}
                           onChange={(e) => setBetAmount(e.target.value)}
                           placeholder="Enter bet amount"
                           className="w-full px-4 py-3 focus:outline-none bg-[#2b2b2b] border border-white/5 rounded-lg text-white text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
                         />
-                        <div className="text-base text-white/80">
-                          Balance:{" "}
+                        <div className="text-base text-white font-bold">
+                          <span className="font-light text-white/80">
+                            Balance:
+                          </span>{" "}
                           {balanceFormatted?.split(".")?.[0] +
                             "." +
                             balanceFormatted?.split(".")?.[1]?.slice(0, 2)}{" "}
                           MON
-                          {(isPending || isConfirming) && (
-                            <span className="ml-2 text-yellow-400">
-                              {isPending ? "Signing..." : "Confirming..."}
-                            </span>
-                          )}
-                          {isSuccess && (
-                            <span className="ml-2 text-green-400">
-                              Confirmed
-                            </span>
-                          )}
                         </div>
                       </div>
                     )}
@@ -3658,7 +3842,7 @@ export default function ChessMultisynqApp() {
                                         }`}
                                       >
                                         {isFinalizingGame && (
-                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-yellow-400" />
+                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-white/90" />
                                         )}
                                         {gameInfo.whiteClaimed
                                           ? "Claimed"
@@ -3666,6 +3850,8 @@ export default function ChessMultisynqApp() {
                                           ? "Can claim"
                                           : gameInfo.result === 1 // WHITE_WINS
                                           ? "Can claim"
+                                          : isFinalizingGame
+                                          ? "Loading..."
                                           : "Lost"}
                                       </span>
                                     </div>
@@ -3689,7 +3875,7 @@ export default function ChessMultisynqApp() {
                                         }`}
                                       >
                                         {isFinalizingGame && (
-                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-yellow-400" />
+                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-white/90" />
                                         )}
 
                                         {gameInfo.blackClaimed
@@ -3698,6 +3884,8 @@ export default function ChessMultisynqApp() {
                                           ? "Can claim"
                                           : gameInfo.result === 2 // BLACK_WINS
                                           ? "Can claim"
+                                          : isFinalizingGame
+                                          ? "Loading..."
                                           : "Lost"}
                                       </span>
                                     </div>
