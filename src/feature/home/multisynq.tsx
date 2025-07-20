@@ -3637,7 +3637,7 @@ export default function ChessMultisynqApp() {
                                       onClick={handleBackHome}
                                       className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
                                     >
-                                      Back Home
+                                      Waiting for opponent...
                                     </button>
                                   )}
                                 </>
@@ -4267,7 +4267,7 @@ export default function ChessMultisynqApp() {
                           address?.toLowerCase())
                     )
                   }
-                  className="flex-1 px-3 h-[45px] bg-[#1E1E1E] min-w-[200px] border font-light border-white/5 text-white text-base placeholder-white/70 focus:outline-none rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 h-[40px] bg-[#1E1E1E] min-w-[200px] border font-light border-white/5 text-white text-sm placeholder-white/70 focus:outline-none rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
                   onClick={handleSendMessage}
@@ -4284,7 +4284,7 @@ export default function ChessMultisynqApp() {
                             address?.toLowerCase())
                       ))
                   }
-                  className="px-4 h-[45px] bg-[#836EF9]/80 border border-white/5     text-white rounded-lg text-base font-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 h-[40px] bg-[#836EF9]/80 border border-white/5     text-white rounded-lg text-sm font-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Send
                 </button>
