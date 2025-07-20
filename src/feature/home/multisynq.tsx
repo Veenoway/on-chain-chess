@@ -1240,10 +1240,10 @@ export default function ChessMultisynqApp() {
   // Ouvrir le modal quand la partie se termine (seulement si pas fermé manuellement)
   useEffect(() => {
     if (gameState.gameResult.type && !showGameEndModal && !hasClosedModal) {
-      // Délai de 3 secondes pour laisser voir le coup final comme sur chess.com
+      // Délai de 1 seconde pour que l'user comprenne rapidement
       const timer = setTimeout(() => {
         setShowGameEndModal(true);
-      }, 3000);
+      }, 1000);
 
       return () => clearTimeout(timer);
     } else if (!gameState.gameResult.type && showGameEndModal) {
@@ -2874,23 +2874,32 @@ export default function ChessMultisynqApp() {
     if (gameState.gameResult.type === "checkmate") {
       try {
         const chess = new Chess(fen);
-        const board = chess.board();
 
-        // Trouver le roi de la couleur qui a perdu (celui qui est en échec et mat)
-        const checkmatedColor = chess.turn(); // La couleur qui ne peut pas jouer
+        // Simple: si c'est checkmate, le joueur actuel (chess.turn()) est celui qui ne peut pas jouer = le perdant
+        if (chess.isCheckmate()) {
+          const board = chess.board();
+          const checkmatedColor = chess.turn(); // Couleur qui ne peut pas jouer = perdant
 
-        for (let row = 0; row < 8; row++) {
-          for (let col = 0; col < 8; col++) {
-            const piece = board[row][col];
-            if (
-              piece &&
-              piece.type === "k" &&
-              piece.color === checkmatedColor
-            ) {
-              // Convertir les coordonnées en notation d'échecs
-              const file = String.fromCharCode(97 + col); // a-h
-              const rank = (8 - row).toString(); // 1-8
-              return file + rank;
+          console.log(
+            `Checkmate confirmé par chess.js - Couleur perdante: ${checkmatedColor}`
+          );
+
+          for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+              const piece = board[row][col];
+              if (
+                piece &&
+                piece.type === "k" &&
+                piece.color === checkmatedColor
+              ) {
+                // Convertir les coordonnées en notation d'échecs
+                const file = String.fromCharCode(97 + col); // a-h
+                const rank = (8 - row).toString(); // 1-8
+                console.log(
+                  `Roi en échec et mat trouvé en ${file}${rank}, couleur: ${checkmatedColor}`
+                );
+                return file + rank;
+              }
             }
           }
         }
@@ -2918,30 +2927,6 @@ export default function ChessMultisynqApp() {
     return styles;
   }, [getCheckmatedKingSquare]);
 
-  // Fonction pour convertir la notation d'échecs en position pixel
-  const getSquarePosition = (square: string) => {
-    if (!square) return null;
-
-    const file = square.charCodeAt(0) - 97; // a=0, b=1, etc.
-    const rank = parseInt(square[1]) - 1; // 1=0, 2=1, etc.
-
-    // Ajuster selon l'orientation du plateau
-    const isFlipped = playerColor === "black";
-    const x = isFlipped ? 7 - file : file;
-    const y = isFlipped ? rank : 7 - rank;
-
-    const squareSize = 580 / 8; // 72.5px par case
-
-    return {
-      left: x * squareSize + squareSize / 2,
-      top: y * squareSize + squareSize / 2,
-    };
-  };
-
-  const checkmateIconPosition = getSquarePosition(
-    getCheckmatedKingSquare || ""
-  );
-
   const chessboardOptions = useMemo(
     () => ({
       position: fen,
@@ -2954,6 +2939,39 @@ export default function ChessMultisynqApp() {
     }),
     [fen, onPieceDrop, playerColor, gameState.isActive, customSquareStyles]
   );
+
+  // Fonction pour convertir la notation d'échecs en position pixel
+  const getSquarePosition = useMemo(() => {
+    return (square: string) => {
+      if (!square) return null;
+
+      const file = square.charCodeAt(0) - 97; // a=0, b=1, etc.
+      const rank = parseInt(square[1]) - 1; // 1=0, 2=1, etc.
+
+      // Utiliser l'orientation du plateau depuis chessboardOptions
+      const boardOrientation = chessboardOptions.boardOrientation;
+      const isFlipped = boardOrientation === "black";
+      const x = isFlipped ? 7 - file : file;
+      const y = isFlipped ? rank : 7 - rank;
+
+      const squareSize = 580 / 8; // 72.5px par case
+
+      console.log(
+        `Position checkmate: case ${square}, file=${file}, rank=${rank}, x=${x}, y=${y}, isFlipped=${isFlipped}, boardOrientation=${boardOrientation}, position=left:${
+          x * squareSize + squareSize / 2
+        }, top:${y * squareSize + squareSize / 2}`
+      );
+
+      return {
+        left: x * squareSize + squareSize / 2,
+        top: y * squareSize + squareSize / 2,
+      };
+    };
+  }, [chessboardOptions.boardOrientation]);
+
+  const checkmateIconPosition = useMemo(() => {
+    return getSquarePosition(getCheckmatedKingSquare || "");
+  }, [getSquarePosition, getCheckmatedKingSquare]);
 
   const [menuActive, setMenuActive] = useState("create");
 
@@ -3318,12 +3336,12 @@ export default function ChessMultisynqApp() {
                           transform: "translate(-50%, -50%)",
                         }}
                       >
-                        <div className="relative z-[0]">
-                          {/* Arrière-plan circulaire */}
-                          <div className="absolute inset-0 w-6 h-6 bg-red-600 rounded-full opacity-90 -translate-x-1/2 -translate-y-1/2 z-[0]" />
-                          {/* Icône checkmate */}
-                          <div className="relative text-xl text-white font-bold flex items-center justify-center w-6 h-6 -translate-x-1/2 -translate-y-1/2 z-[0]">
-                            ✗
+                        <div className="relative z-[0] animate-in zoom-in-50 duration-200">
+                          <div className="absolute inset-0 w-10 h-10 bg-red-500 rounded-full opacity-40 animate-ping -translate-x-1/2 -translate-y-1/2 z-[0]" />
+                          <div className="absolute inset-0 w-8 h-8 bg-red-600 rounded-full opacity-95 -translate-x-1/2 -translate-y-1/2 z-[0]">
+                            <div className="relative text-xl text-white font-bold flex items-center justify-center w-8 h-8 ">
+                              ✗
+                            </div>
                           </div>
                         </div>
                       </div>
