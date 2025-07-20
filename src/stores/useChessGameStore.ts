@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // stores/useChessGameStore.ts
 import { GameFlow, GameState, PaymentStatus } from "@/types/chess";
 import { create } from "zustand";
@@ -150,7 +151,7 @@ const initialPaymentStatus: PaymentStatus = {
 
 export const useChessGameStore = create<ChessGameStore>()(
   devtools(
-    subscribeWithSelector((set, get) => ({
+    subscribeWithSelector((set) => ({
       // Initial State
       gameState: initialGameState,
       gameFlow: "welcome",
