@@ -449,10 +449,6 @@ export default function ChessMultisynqApp() {
       return false; // Pas de pari = pas de claim
     }
 
-    if (gameInfo.state !== 2) {
-      return false; // Jeu pas terminé
-    }
-
     if (!address) {
       return false; // Pas connecté
     }
@@ -467,18 +463,36 @@ export default function ChessMultisynqApp() {
       return false; // Pas un joueur de cette partie
     }
 
-    // Vérifier selon le résultat du contrat
-    if (gameInfo.result === 3) {
-      // Draw - peut claim si pas encore fait
-      return isWhiteInContract
-        ? !gameInfo.whiteClaimed
-        : !gameInfo.blackClaimed;
-    } else if (gameInfo.result === 1) {
-      // White wins - seul white peut claim
-      return isWhiteInContract && !gameInfo.whiteClaimed;
-    } else if (gameInfo.result === 2) {
-      // Black wins - seul black peut claim
-      return isBlackInContract && !gameInfo.blackClaimed;
+    // NOUVEAU: Si le jeu est terminé localement mais pas encore finalisé dans le contrat
+    if (gameInfo.state !== 2 && gameState.gameResult.type) {
+      // Vérifier si le joueur local peut potentiellement claim basé sur le résultat local
+      const localWinner = gameState.gameResult.winner;
+      const currentPlayer = gameState.players.find(
+        (p) => p.id === currentPlayerId
+      );
+
+      if (localWinner === "draw") {
+        return true; // Les deux peuvent claim en cas de draw
+      } else if (currentPlayer && localWinner === currentPlayer.color) {
+        return true; // Le gagnant local peut claim
+      }
+      return false;
+    }
+
+    // Si le contrat est finalisé, vérifier selon le résultat du contrat
+    if (gameInfo.state === 2) {
+      if (gameInfo.result === 3) {
+        // Draw - peut claim si pas encore fait
+        return isWhiteInContract
+          ? !gameInfo.whiteClaimed
+          : !gameInfo.blackClaimed;
+      } else if (gameInfo.result === 1) {
+        // White wins - seul white peut claim
+        return isWhiteInContract && !gameInfo.whiteClaimed;
+      } else if (gameInfo.result === 2) {
+        // Black wins - seul black peut claim
+        return isBlackInContract && !gameInfo.blackClaimed;
+      }
     }
 
     return false;
@@ -492,6 +506,27 @@ export default function ChessMultisynqApp() {
     roomName: string;
     password: string;
   } | null>(null);
+
+  // Reset claim state lors des transitions de partie
+  useEffect(() => {
+    if (gameFlow === "welcome" || gameFlow === "lobby" || isRematchTransition) {
+      resetClaimState();
+    }
+  }, [gameFlow, isRematchTransition, resetClaimState]);
+
+  // Reset claim state quand une nouvelle partie commence
+  useEffect(() => {
+    if (gameState.gameNumber > 0 && gameState.isActive) {
+      resetClaimState();
+    }
+  }, [gameState.gameNumber, gameState.isActive, resetClaimState]);
+
+  // Reset claim state quand le gameId change (nouvelle partie avec pari)
+  useEffect(() => {
+    if (gameId !== undefined) {
+      resetClaimState();
+    }
+  }, [gameId, resetClaimState]);
 
   const createRematchWithPayment = async () => {
     if (isCreatingRematch) return; // Empêcher les clics multiples
@@ -4113,36 +4148,43 @@ export default function ChessMultisynqApp() {
                                           claimState.isLoading ||
                                           isPending ||
                                           isConfirming ||
-                                          (gameInfo && gameInfo.state !== 2)
+                                          (gameInfo &&
+                                            gameInfo.state === 2 &&
+                                            claimState.isSuccess)
                                         }
                                         className={`w-full px-6 py-4 ${
                                           claimState.isSuccess
                                             ? "bg-[#252525] border border-[#836EF9] text-[#836EF9]"
                                             : claimState.isError
                                             ? "bg-[#252525] border border-[#eb3f3f] text-[#eb3f3f]"
+                                            : gameInfo && gameInfo.state !== 2
+                                            ? "bg-[#252525] border border-white/5 text-white"
                                             : "bg-[#836EF9] hover:bg-[#836EF9]/80"
-                                        } disabled:bg-[#252525] text-white rounded-lg font-bold text-lg transition-colors`}
+                                        } disabled:bg-[#252525] text-white rounded-lg border border-white/5 font-bold text-lg transition-colors`}
                                       >
-                                        {!canCurrentPlayerClaim()
-                                          ? "No winnings to claim"
-                                          : gameInfo && gameInfo.state !== 2
-                                          ? "Game not finalized yet..."
-                                          : isPending ||
-                                            isConfirming ||
-                                            claimState.isLoading
-                                          ? "Confirming transaction..."
-                                          : claimState.isError
-                                          ? "Try again"
-                                          : claimState.isSuccess
-                                          ? "Successfully claimed"
-                                          : `Claim  ${
-                                              gameInfo?.betAmount
-                                                ? formatEther(
-                                                    gameInfo.betAmount *
-                                                      BigInt(2)
-                                                  )
-                                                : "0"
-                                            } MON`}
+                                        {!canCurrentPlayerClaim() ? (
+                                          "No winnings to claim"
+                                        ) : gameInfo && gameInfo.state !== 2 ? (
+                                          <div className="flex items-center justify-center gap-2">
+                                            Waiting for game finalization...
+                                          </div>
+                                        ) : isPending ||
+                                          isConfirming ||
+                                          claimState.isLoading ? (
+                                          "Confirming transaction..."
+                                        ) : claimState.isError ? (
+                                          "Try again"
+                                        ) : claimState.isSuccess ? (
+                                          "Successfully claimed"
+                                        ) : (
+                                          `Claim  ${
+                                            gameInfo?.betAmount
+                                              ? formatEther(
+                                                  gameInfo.betAmount * BigInt(2)
+                                                )
+                                              : "0"
+                                          } MON`
+                                        )}
                                       </button>
                                     )}
 
@@ -4169,19 +4211,30 @@ export default function ChessMultisynqApp() {
                                           getAvailableAmount() <= "0" ||
                                           isPending ||
                                           isConfirming ||
-                                          (gameInfo && gameInfo.state !== 2)
+                                          (gameInfo &&
+                                            gameInfo.state === 2 &&
+                                            claimState.isSuccess)
                                         }
-                                        className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#252525] text-white rounded-lg font-bold text-base transition-colors"
+                                        className={`w-full px-6 py-4 ${
+                                          gameInfo && gameInfo.state !== 2
+                                            ? "bg-[#252525] border border-white/5 text-white"
+                                            : "bg-[#836EF9] hover:bg-[#937EF9]"
+                                        } disabled:bg-[#252525] text-white rounded-lg font-bold text-base transition-colors`}
                                       >
-                                        {!canCurrentPlayerClaim()
-                                          ? "No refund available"
-                                          : getAvailableAmount() <= "0"
-                                          ? "Already claimed"
-                                          : gameInfo && gameInfo.state !== 2
-                                          ? "Game not finalized yet..."
-                                          : isPending || isConfirming
-                                          ? "Confirming..."
-                                          : `Claim Refund`}
+                                        {!canCurrentPlayerClaim() ? (
+                                          "No refund available"
+                                        ) : getAvailableAmount() <= "0" ? (
+                                          "Already claimed"
+                                        ) : gameInfo && gameInfo.state !== 2 ? (
+                                          <div className="flex items-center justify-center gap-2">
+                                            <div className="w-4 h-4 border border-white/20 border-t-white rounded-full animate-spin" />
+                                            Waiting for game finalization...
+                                          </div>
+                                        ) : isPending || isConfirming ? (
+                                          "Confirming..."
+                                        ) : (
+                                          `Claim Refund`
+                                        )}
                                       </button>
                                     )}
                                   </div>
@@ -4197,10 +4250,6 @@ export default function ChessMultisynqApp() {
                                       <div className="grid grid-cols-2 gap-3">
                                         <button
                                           onClick={async () => {
-                                            console.log(
-                                              "Acceptation de la rematch, rejoindre la room:",
-                                              rematchInvitation.roomName
-                                            );
                                             setRematchInvitation(null);
                                             setShowGameEndModal(false);
 
@@ -4232,7 +4281,7 @@ export default function ChessMultisynqApp() {
                                           gameState.rematchOffer?.offered ||
                                           shouldDisableNavigationButtons()
                                         }
-                                        className="w-full h-[45px] bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg font-bold text-base transition-colors"
+                                        className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-bold text-base transition-colors"
                                       >
                                         {shouldDisableNavigationButtons()
                                           ? gameInfo && gameInfo.state !== 2
@@ -4254,7 +4303,7 @@ export default function ChessMultisynqApp() {
                                       <button
                                         onClick={handleCloseGameEndModal}
                                         disabled={shouldDisableNavigationButtons()}
-                                        className="w-full h-[45px] bg-[#404040] hover:bg-[#4a4a4a] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg font-bold text-base transition-colors"
+                                        className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-bold text-base transition-colors"
                                       >
                                         {shouldDisableNavigationButtons()
                                           ? gameInfo && gameInfo.state !== 2
