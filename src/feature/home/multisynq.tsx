@@ -2434,30 +2434,22 @@ export default function ChessMultisynqApp() {
         if (tempGame.isCheckmate()) {
           soundToPlay = audioCache.checkmate;
           soundName = "checkmate";
-        }
-        // Ensuite les conditions spéciales de mouvement
-        else if (moveResult.captured) {
-          soundToPlay = audioCache.capture;
-          soundName = "capture";
         } else if (tempGame.inCheck()) {
           soundToPlay = audioCache.check;
           soundName = "check";
-        }
-        // Vérifier la promotion (pion qui atteint la dernière rangée)
-        else if (moveResult.flags.includes("p")) {
+        } else if (moveResult.captured) {
+          soundToPlay = audioCache.capture;
+          soundName = "capture";
+        } else if (moveResult.flags.includes("p")) {
           soundToPlay = audioCache.promotion;
           soundName = "promotion";
-        }
-        // Vérifier le roque (roi ou dame)
-        else if (
+        } else if (
           moveResult.flags.includes("k") || // roque côté roi
           moveResult.flags.includes("q") // roque côté dame
         ) {
           soundToPlay = audioCache.castle;
           soundName = "castle";
-        }
-        // Mouvement normal - distinguer joueur vs adversaire
-        else {
+        } else {
           if (isOpponentMove) {
             soundToPlay = audioCache.moveOpponent;
             soundName = "move-opponent";
@@ -2467,12 +2459,8 @@ export default function ChessMultisynqApp() {
           }
         }
 
-        console.log(`🔊 Playing sound: ${soundName}`);
-
-        // Réinitialiser la position si le son était déjà en cours
         soundToPlay.currentTime = 0;
 
-        // Jouer le son avec gestion d'erreur
         soundToPlay
           .play()
           .then(() => {
