@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // hooks/multisynq/useMultisynq.ts
 import { GameState } from "@/types/chess";
 import { MultisynqSession, MultisynqView } from "@/types/multisynq";
@@ -161,6 +163,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
                   };
                   // Finaliser sur le contrat si pari activé
                   if (
+                    // @ts-ignore
                     globalSetGameState &&
                     (window as any).finishGameOnContract
                   ) {
@@ -179,6 +182,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
                     message: "Pat ! Draw",
                   };
                   if (
+                    // @ts-ignore
                     globalSetGameState &&
                     (window as any).finishGameOnContract
                   ) {
@@ -197,6 +201,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
                     message: "Draw",
                   };
                   if (
+                    // @ts-ignore
                     globalSetGameState &&
                     (window as any).finishGameOnContract
                   ) {
@@ -381,6 +386,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
               };
               this.state.lastGameWinner = "black";
               needsUpdate = true;
+              // @ts-ignore
               if (globalSetGameState && (window as any).finishGameOnContract) {
                 setTimeout(
                   () =>
@@ -403,6 +409,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
               };
               this.state.lastGameWinner = "white";
               needsUpdate = true;
+              // @ts-ignore
               if (globalSetGameState && (window as any).finishGameOnContract) {
                 setTimeout(
                   () =>
@@ -468,6 +475,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
               message: "Draw accepted",
             };
             this.state.lastGameWinner = "draw";
+            // @ts-ignore
             if (globalSetGameState && (window as any).finishGameOnContract) {
               setTimeout(
                 () =>
@@ -507,7 +515,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
           };
           this.state.lastGameWinner =
             player.color === "white" ? "black" : "white";
-
+          // @ts-ignore
           if (globalSetGameState && (window as any).finishGameOnContract) {
             setTimeout(
               () => (window as any).finishGameOnContract(this.state.gameResult),
@@ -608,6 +616,7 @@ export function useMultisynq({ setGameState }: UseMultisynqProps) {
           });
 
           if (globalSetGameState) {
+            // @ts-ignore
             globalSetGameState((prevState: GameState) => {
               return {
                 ...prevState,

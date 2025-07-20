@@ -61,9 +61,9 @@ export function GameEndModal({
   const getGameResultText = () => {
     if (isDraw) return "Draw";
 
-    const opponentPlayer = gameState.players.find(
-      (p) => p.id !== currentPlayerId
-    );
+    // const opponentPlayer = gameState.players.find(
+    //   (p) => p.id !== currentPlayerId
+    // );
     const didCurrentPlayerWin =
       gameState.gameResult.winner === currentPlayer?.color;
 
@@ -334,7 +334,9 @@ function MainActionButtons({
               claimState.isLoading ||
               isPending ||
               isConfirming ||
-              (gameInfo && gameInfo.state === 2 && claimState.isSuccess)
+              ((gameInfo &&
+                gameInfo.state === 2 &&
+                claimState.isSuccess) as boolean)
             }
             className={`w-full px-6 py-4 ${
               claimState.isSuccess
@@ -377,7 +379,9 @@ function MainActionButtons({
               getAvailableAmount() <= "0" ||
               isPending ||
               isConfirming ||
-              (gameInfo && gameInfo.state === 2 && claimState.isSuccess)
+              ((gameInfo &&
+                gameInfo.state === 2 &&
+                claimState.isSuccess) as boolean)
             }
             className={`w-full px-6 py-4 ${
               gameInfo && gameInfo.state !== 2
