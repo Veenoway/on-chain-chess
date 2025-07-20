@@ -1,15 +1,14 @@
 import { Header } from "@/layouts/header";
 import ContextProvider from "@/lib/wagmi/provider";
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Unbounded } from "next/font/google";
 import { headers } from "next/headers";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
-const poppins = Poppins({
-  variable: "--font-beba",
+const poppins = Unbounded({
+  variable: "--font-poppins",
   subsets: ["latin"],
-  weight: "400",
 });
 
 export const metadata: Metadata = {
