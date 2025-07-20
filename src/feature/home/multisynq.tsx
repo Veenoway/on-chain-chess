@@ -1240,7 +1240,12 @@ export default function ChessMultisynqApp() {
   // Ouvrir le modal quand la partie se termine (seulement si pas fermé manuellement)
   useEffect(() => {
     if (gameState.gameResult.type && !showGameEndModal && !hasClosedModal) {
-      setShowGameEndModal(true);
+      // Délai de 3 secondes pour laisser voir le coup final comme sur chess.com
+      const timer = setTimeout(() => {
+        setShowGameEndModal(true);
+      }, 3000);
+
+      return () => clearTimeout(timer);
     } else if (!gameState.gameResult.type && showGameEndModal) {
       setShowGameEndModal(false);
       setHasClosedModal(false); // Réinitialiser pour la prochaine partie
@@ -2864,6 +2869,79 @@ export default function ChessMultisynqApp() {
   };
   const [copied, setCopied] = useState(false);
 
+  // Fonction pour obtenir la position du roi en échec et mat
+  const getCheckmatedKingSquare = useMemo(() => {
+    if (gameState.gameResult.type === "checkmate") {
+      try {
+        const chess = new Chess(fen);
+        const board = chess.board();
+
+        // Trouver le roi de la couleur qui a perdu (celui qui est en échec et mat)
+        const checkmatedColor = chess.turn(); // La couleur qui ne peut pas jouer
+
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const piece = board[row][col];
+            if (
+              piece &&
+              piece.type === "k" &&
+              piece.color === checkmatedColor
+            ) {
+              // Convertir les coordonnées en notation d'échecs
+              const file = String.fromCharCode(97 + col); // a-h
+              const rank = (8 - row).toString(); // 1-8
+              return file + rank;
+            }
+          }
+        }
+      } catch (error) {
+        console.log(
+          "Erreur lors de la détection du roi en échec et mat:",
+          error
+        );
+      }
+    }
+    return null;
+  }, [fen, gameState.gameResult.type]);
+
+  // Styles personnalisés pour l'échiquier (highlighting checkmate)
+  const customSquareStyles = useMemo(() => {
+    const styles: { [square: string]: React.CSSProperties } = {};
+
+    if (getCheckmatedKingSquare) {
+      styles[getCheckmatedKingSquare] = {
+        backgroundColor: "rgba(255, 68, 68, 0.3)",
+        boxShadow: "inset 0 0 15px rgba(255, 68, 68, 0.6)",
+      };
+    }
+
+    return styles;
+  }, [getCheckmatedKingSquare]);
+
+  // Fonction pour convertir la notation d'échecs en position pixel
+  const getSquarePosition = (square: string) => {
+    if (!square) return null;
+
+    const file = square.charCodeAt(0) - 97; // a=0, b=1, etc.
+    const rank = parseInt(square[1]) - 1; // 1=0, 2=1, etc.
+
+    // Ajuster selon l'orientation du plateau
+    const isFlipped = playerColor === "black";
+    const x = isFlipped ? 7 - file : file;
+    const y = isFlipped ? rank : 7 - rank;
+
+    const squareSize = 580 / 8; // 72.5px par case
+
+    return {
+      left: x * squareSize + squareSize / 2,
+      top: y * squareSize + squareSize / 2,
+    };
+  };
+
+  const checkmateIconPosition = getSquarePosition(
+    getCheckmatedKingSquare || ""
+  );
+
   const chessboardOptions = useMemo(
     () => ({
       position: fen,
@@ -2872,8 +2950,9 @@ export default function ChessMultisynqApp() {
       arePiecesDraggable: gameState.isActive,
       boardWidth: 580,
       animationDuration: 100,
+      customSquareStyles,
     }),
-    [fen, onPieceDrop, playerColor, gameState.isActive]
+    [fen, onPieceDrop, playerColor, gameState.isActive, customSquareStyles]
   );
 
   const [menuActive, setMenuActive] = useState("create");
@@ -3228,6 +3307,27 @@ export default function ChessMultisynqApp() {
                   {/* Container de l'échiquier avec overlay */}
                   <div className="relative aspect-square max-w-full w-full mx-auto">
                     <Chessboard options={chessboardOptions} />
+
+                    {/* Icône de checkmate */}
+                    {checkmateIconPosition && getCheckmatedKingSquare && (
+                      <div
+                        className="absolute pointer-events-none z-10"
+                        style={{
+                          left: `${checkmateIconPosition.left}px`,
+                          top: `${checkmateIconPosition.top}px`,
+                          transform: "translate(-50%, -50%)",
+                        }}
+                      >
+                        <div className="relative z-[0]">
+                          {/* Arrière-plan circulaire */}
+                          <div className="absolute inset-0 w-6 h-6 bg-red-600 rounded-full opacity-90 -translate-x-1/2 -translate-y-1/2 z-[0]" />
+                          {/* Icône checkmate */}
+                          <div className="relative text-xl text-white font-bold flex items-center justify-center w-6 h-6 -translate-x-1/2 -translate-y-1/2 z-[0]">
+                            ✗
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Modal de paiement */}
                     {((isBettingEnabled &&
