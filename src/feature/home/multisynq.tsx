@@ -2415,7 +2415,6 @@ export default function ChessMultisynqApp() {
       });
     });
 
-    // Volume spécifique pour certains sons
     sounds.move.volume = 0.4;
     sounds.moveOpponent.volume = 0.3;
     sounds.checkmate.volume = 0.7;
@@ -2574,39 +2573,11 @@ export default function ChessMultisynqApp() {
     ]
   );
 
-  const playOpponentMoveSound = useCallback(
-    (moveResult: any, tempGame: Chess) => {
-      playMoveSound(moveResult, tempGame, true);
-    },
-    [playMoveSound]
-  );
-
-  const handleOpponentMove = (moveData: any) => {
-    // Reconstituez le mouvement de l'adversaire
-    const tempGame = new Chess(gameState.fen);
-    try {
-      const moveResult = tempGame.move({
-        from: moveData.from,
-        to: moveData.to,
-        promotion: moveData.promotion || "q",
-      });
-
-      if (moveResult) {
-        // Jouer le son pour le mouvement de l'adversaire
-        playOpponentMoveSound(moveResult, tempGame);
-      }
-    } catch (error) {
-      console.error("Error processing opponent move:", error);
-    }
-  };
-
   useEffect(() => {
     globalSetGameState = setGameState;
     (window as any).finishGameOnContract = finishGameOnContract;
 
-    // NOUVEAU: Exposer la fonction de son adversaire globalement
     globalPlayOpponentMoveSound = (moveData: any) => {
-      // Reconstituez le mouvement de l'adversaire
       const tempGame = new Chess(gameState.fen);
       try {
         const moveResult = tempGame.move({
@@ -2616,7 +2587,6 @@ export default function ChessMultisynqApp() {
         });
 
         if (moveResult) {
-          // Jouer le son pour le mouvement de l'adversaire
           playMoveSound(moveResult, tempGame, true);
         }
       } catch (error) {
