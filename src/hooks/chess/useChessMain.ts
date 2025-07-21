@@ -2,7 +2,7 @@
 // hooks/useChessGameMain.ts - VERSION MISE À JOUR
 import { Chess } from "chess.js";
 import { useEffect, useMemo, useState } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useAccount } from "wagmi";
 
 // Import all our custom hooks
 import { useAudio } from "./useAudio";
@@ -38,13 +38,11 @@ export const useChessGameMain = () => {
     setGameFlow,
     isReconnecting,
     setIsReconnecting,
-    lastKnownGameState,
     setLastKnownGameState,
     resetGameState,
   } = useGameState();
 
   const {
-    multisynqSession,
     setMultisynqSession,
     multisynqView,
     setMultisynqView,
@@ -66,7 +64,6 @@ export const useChessGameMain = () => {
     setSelectedSquare,
     possibleMoves,
     setPossibleMoves,
-    gameRef,
     getPossibleMoves,
     getCheckmatedKingSquare,
     squareStyles,
@@ -77,10 +74,6 @@ export const useChessGameMain = () => {
     setMoveHistory,
     currentMoveIndex,
     setCurrentMoveIndex,
-    moveHistoryRef,
-    currentMoveIndexRef,
-    resetHistory,
-    loadHistoryFromStorage,
     goToPreviousMove,
     goToNextMove,
     goToFirstMove,
@@ -97,9 +90,7 @@ export const useChessGameMain = () => {
   const [copied, setCopied] = useState(false);
 
   const { address, isConnected, chainId } = useAccount();
-  const { switchChain } = useSwitchChain();
 
-  // 🎯 REMPLACEMENT: Utilisation de vos vrais hooks de betting
   const {
     createBettingGame,
     joinBettingGameByRoom,
@@ -120,7 +111,6 @@ export const useChessGameMain = () => {
   const { gameInfo, refetchAll } = useCompleteGameInfo(gameId);
   const { canCancel } = useCanCancelGame(gameId);
 
-  // Écouter les événements du contrat pour ce gameId
   useContractEvents(gameId);
 
   const {
@@ -128,7 +118,6 @@ export const useChessGameMain = () => {
     setBetAmount,
     isBettingEnabled,
     setIsBettingEnabled,
-    roomBetAmount,
     setRoomBetAmount,
     bettingGameCreationFailed,
     setBettingGameCreationFailed,
@@ -199,9 +188,7 @@ export const useChessGameMain = () => {
     roomInput,
     setRoomInput,
     isCreatingRoom,
-    setIsCreatingRoom,
     isCreatingRematch,
-    setIsCreatingRematch,
     isWrongNetwork,
     handleCreateRoom,
     handleJoinRoom,
@@ -213,7 +200,7 @@ export const useChessGameMain = () => {
     setMultisynqSession,
     setMultisynqView,
     setGameState,
-    setGameFlow,
+    setGameFlow as any,
     setConnectionStatus,
     setHasClosedPaymentModal,
     selectedGameTime,
@@ -1481,6 +1468,9 @@ export const useChessGameMain = () => {
     finishBettingGame,
     refetchAll,
     setRoomBetAmount,
+    setBettingGameCreationFailed,
+    multisynqView,
+    setPaymentStatus,
 
     // Account
     address,

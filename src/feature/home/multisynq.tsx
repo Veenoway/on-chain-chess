@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { WalletConnection } from "@/components/connect-wallet";
 import {
@@ -73,22 +74,21 @@ export default function ChessMultisynqApp() {
     // Betting
     paymentStatus,
     bothPlayersPaid,
-    hasBettingRequirement,
     canCurrentPlayerClaim,
     getAvailableAmount,
     isFinalizingGame,
-    bettingGameCreationFailed,
 
     // Modals
     showGameEndModal,
     setShowGameEndModal,
     hasClosedPaymentModal,
-    setHasClosedPaymentModal,
     rematchInvitation,
     setRematchInvitation,
     shouldDisableNavigationButtons,
     canOfferRematch,
     isRematchTransition,
+    setBettingGameCreationFailed,
+    multisynqView,
 
     // États wallet et contract
     isConnected,
@@ -99,7 +99,6 @@ export default function ChessMultisynqApp() {
     gameId,
     isPending,
     isConfirming,
-    isSuccess,
     balanceFormatted,
     claimState,
     resetClaimState,
@@ -112,6 +111,7 @@ export default function ChessMultisynqApp() {
     cancelBettingGame,
     setRoomBetAmount,
     handleCloseGameEndModal,
+    setPaymentStatus,
 
     // État de reconnexion
     isReconnecting,
@@ -464,7 +464,7 @@ export default function ChessMultisynqApp() {
 
                   {/* Container de l'échiquier avec overlay */}
                   <div className="relative aspect-square max-w-full w-full mx-auto">
-                    <Chessboard options={chessboardOptions} />
+                    <Chessboard options={chessboardOptions as any} />
 
                     {/* Icône de checkmate */}
                     {checkmateIconPosition && getCheckmatedKingSquare && (
