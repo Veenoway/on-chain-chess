@@ -19,7 +19,10 @@ export const useRematchLogic = (
   createBettingGame: (amount: string, roomName: string) => Promise<void>,
   setRoomBetAmount: (amount: string) => void,
   getCorrectBetAmount: () => string,
-  handleCreateRoom: () => Promise<void>
+  handleCreateRoom: () => Promise<void>,
+  setFen: (fen: string) => void,
+  setMoveHistory: (history: string[]) => void,
+  setCurrentMoveIndex: (index: number) => void
 ) => {
   const [isCreatingRematch, setIsCreatingRematch] = useState(false);
   const [rematchInvitation, setRematchInvitation] =
@@ -28,14 +31,12 @@ export const useRematchLogic = (
   const router = useRouter();
 
   const canOfferRematch = (): boolean => {
-    // Pour les jeux sans pari, on peut proposer un rematch dès que la partie est terminée
     if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
       return (
         gameState.gameResult.type !== null && !gameState.rematchOffer?.offered
       );
     }
 
-    // Pour les jeux avec pari, il faut que le jeu soit terminé (state 2)
     if (gameInfo.state !== 2) {
       return false;
     }
@@ -102,7 +103,31 @@ export const useRematchLogic = (
       // 3. Fermer la modal de fin de jeu
       setShowGameEndModal(false);
 
-      // 4. Stocker les détails pour handleCreateRoom
+      // 4. Réinitialiser immédiatement l'état local du jeu pour le créateur
+      console.log(
+        "🔄 Réinitialisation immédiate de l'état du jeu pour le créateur"
+      );
+      const initialFen =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+      // Réinitialiser l'affichage de l'échiquier
+      setFen(initialFen);
+      setMoveHistory([initialFen]);
+      setCurrentMoveIndex(0);
+
+      // Réinitialiser l'état du jeu
+      setGameState((prev: any) => ({
+        ...prev,
+        fen: initialFen,
+        gameResult: { type: null },
+        isActive: false,
+        turn: "w",
+        drawOffer: { offered: false, by: null },
+        rematchOffer: { offered: false, by: null },
+        lastMoveTime: null,
+      }));
+
+      // 5. Stocker les détails pour handleCreateRoom
       (window as any).rematchRoomDetails = {
         roomName: newRoomName,
         password: newRoomPassword,

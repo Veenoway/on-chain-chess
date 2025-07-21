@@ -35,26 +35,56 @@ export const useChessboardInteraction = (
   // Fonction pour sélectionner une pièce et afficher les coups possibles
   const selectPiece = useCallback(
     (piece: { pieceType: string }, square: string | null) => {
-      if (!square || !gameState.isActive || gameState.gameResult.type) return;
+      console.log("🎯 selectPiece appelé:", {
+        piece,
+        square,
+        gameActive: gameState.isActive,
+      });
+
+      if (!square || !gameState.isActive || gameState.gameResult.type) {
+        console.log("❌ Conditions non remplies pour sélection");
+        return;
+      }
 
       const currentPlayer = gameState.players.find(
         (p: any) => p.id === currentPlayerId
       );
-      if (!currentPlayer) return;
+      if (!currentPlayer) {
+        console.log("❌ Joueur actuel non trouvé");
+        return;
+      }
 
       const isMyTurn =
         (gameState.turn === "w" && currentPlayer.color === "white") ||
         (gameState.turn === "b" && currentPlayer.color === "black");
 
-      if (!isMyTurn) return;
+      console.log("🔄 Vérification du tour:", {
+        gameTurn: gameState.turn,
+        playerColor: currentPlayer.color,
+        isMyTurn,
+      });
+
+      if (!isMyTurn) {
+        console.log("❌ Ce n'est pas votre tour");
+        return;
+      }
 
       // Vérifier si c'est notre pièce
       const pieceColor = piece.pieceType.charAt(0) === "w" ? "white" : "black";
-      if (pieceColor !== currentPlayer.color) return;
+      if (pieceColor !== currentPlayer.color) {
+        console.log("❌ Ce n'est pas votre pièce:", {
+          pieceColor,
+          playerColor: currentPlayer.color,
+        });
+        return;
+      }
 
       // Sélectionner la pièce et afficher les coups possibles
+      const moves = getPossibleMoves(square);
+      console.log("✅ Sélection de pièce:", { square, moves });
+
       setSelectedSquare(square);
-      setPossibleMoves(getPossibleMoves(square));
+      setPossibleMoves(moves);
     },
     [
       gameState.isActive,
@@ -197,8 +227,16 @@ export const useChessboardInteraction = (
       piece: { pieceType: string } | null;
       square: string;
     }) => {
+      console.log("🎯 onSquareClick:", {
+        piece,
+        square,
+        selectedSquare,
+        possibleMoves,
+      });
+
       // Si une pièce est sélectionnée et on clique sur un coup possible
       if (selectedSquare && possibleMoves.includes(square)) {
+        console.log("✅ Exécution du coup:", selectedSquare, "->", square);
         const args = {
           sourceSquare: selectedSquare,
           targetSquare: square,
@@ -209,8 +247,13 @@ export const useChessboardInteraction = (
         setPossibleMoves([]);
       } else if (!piece) {
         // Clic sur case vide - désélectionner
+        console.log("🔄 Désélection (case vide)");
         setSelectedSquare(null);
         setPossibleMoves([]);
+      } else if (piece) {
+        // Clic sur une pièce - la sélectionner
+        console.log("🎯 Sélection nouvelle pièce via onSquareClick");
+        selectPiece(piece, square);
       }
     },
     [

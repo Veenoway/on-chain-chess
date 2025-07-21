@@ -1132,8 +1132,8 @@ export default function ChessMultisynqApp() {
                                     <div className="space-y-3 mb-3">
                                       <p className="text-center text-base text-white/80 font-thin">
                                         Your opponent offers you a rematch
-                                        {rematchInvitation.betAmount
-                                          ? ` for ${rematchInvitation.betAmount} MON`
+                                        {rematchInvitation?.betAmount
+                                          ? ` for ${rematchInvitation?.betAmount} MON`
                                           : ""}
                                         . <br />
                                         Do you want to accept?

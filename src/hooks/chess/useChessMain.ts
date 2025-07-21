@@ -240,7 +240,10 @@ export const useChessGameMain = () => {
       createBettingGame,
       setRoomBetAmount,
       getCorrectBetAmount,
-      handleCreateRoom
+      handleCreateRoom,
+      setFen,
+      setMoveHistory,
+      setCurrentMoveIndex
     );
 
   // Initialize Multisynq
@@ -430,6 +433,13 @@ export const useChessGameMain = () => {
           playerId: any;
         }) {
           const { from, to, promotion } = data;
+          console.log("🎯 Multisynq handleMove reçu:", {
+            from,
+            to,
+            promotion,
+            playerId: data.playerId,
+          });
+
           const chess = new Chess(this.state.fen);
 
           try {
@@ -443,6 +453,16 @@ export const useChessGameMain = () => {
               this.state.fen = chess.fen();
               this.state.turn = chess.turn();
               this.state.lastMoveTime = Date.now();
+
+              console.log("✅ Coup validé dans Multisynq:", {
+                newFen: this.state.fen,
+                newTurn: this.state.turn,
+                timestamp: this.state.lastMoveTime,
+              });
+
+              // ✅ NOUVEAU: Publication immédiate pour synchronisation rapide
+              this.publish(this.sessionId, "game-state", this.state);
+              console.log("📡 État publié immédiatement");
 
               // NOUVEAU: Jouer le son pour l'adversaire
               if (
@@ -458,8 +478,6 @@ export const useChessGameMain = () => {
                   });
                 }, 100);
               }
-
-              this.publish(this.sessionId, "game-state", this.state);
 
               // Vérifier fin de partie
               if (chess.isGameOver()) {
@@ -845,6 +863,12 @@ export const useChessGameMain = () => {
         }
 
         updateGameState(newState: any) {
+          console.log("🔄 Multisynq updateGameState reçu:", {
+            newFen: newState.fen,
+            newTurn: newState.turn,
+            timestamp: newState.lastMoveTime,
+          });
+
           if (typeof (window as any).globalSetGameState === "function") {
             (window as any).globalSetGameState((prevState: any) => {
               // NOUVEAU: Détecter un nouveau coup adverse pour jouer le son
@@ -853,6 +877,32 @@ export const useChessGameMain = () => {
                 hasNewMove &&
                 newState.lastMoveTime &&
                 newState.lastMoveTime !== prevState.lastMoveTime;
+
+              // ✅ NOUVEAU: Mettre à jour immédiatement le FEN local
+              if (hasNewMove && (window as any).globalSetFen) {
+                console.log("🎯 Mise à jour immédiate du FEN:", newState.fen);
+                (window as any).globalSetFen(newState.fen);
+
+                // Mettre à jour l'historique des coups
+                if (
+                  (window as any).globalSetMoveHistory &&
+                  (window as any).globalSetCurrentMoveIndex
+                ) {
+                  const currentHistory = prevState.moveHistory || [];
+                  if (!currentHistory.includes(newState.fen)) {
+                    const newHistory = [...currentHistory, newState.fen];
+                    (window as any).globalSetMoveHistory(newHistory);
+                    (window as any).globalSetCurrentMoveIndex(
+                      newHistory.length - 1
+                    );
+                    console.log(
+                      "📋 Historique mis à jour:",
+                      newHistory.length,
+                      "coups"
+                    );
+                  }
+                }
+              }
 
               // Si c'est un nouveau coup et que ce n'est pas nous qui l'avons fait
               if (
@@ -1238,10 +1288,8 @@ export const useChessGameMain = () => {
           currentPlayerPaid: false,
         });
 
-        // ✅ NOUVEAU: Réinitialiser l'état local du jeu
         const initialFen =
           "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        setFen(initialFen);
         setGameState((prev: any) => ({
           ...prev,
           fen: initialFen,
@@ -1487,7 +1535,10 @@ export const useChessGameMain = () => {
     (window as any).globalSetGameState = setGameState;
     (window as any).finishGameOnContract = finishGameOnContract;
 
-    // Fonction globale pour jouer les sons des mouvements adverses
+    (window as any).globalSetFen = setFen;
+    (window as any).globalSetMoveHistory = setMoveHistory;
+    (window as any).globalSetCurrentMoveIndex = setCurrentMoveIndex;
+
     (window as any).globalPlayOpponentMoveSound = (moveData: any) => {
       const tempGame = new Chess(fen);
       try {
@@ -1504,7 +1555,15 @@ export const useChessGameMain = () => {
         console.error("Error processing opponent move:", error);
       }
     };
-  }, [setGameState, finishGameOnContract, fen, playMoveSound]);
+  }, [
+    setGameState,
+    finishGameOnContract,
+    fen,
+    playMoveSound,
+    setFen,
+    setMoveHistory,
+    setCurrentMoveIndex,
+  ]);
 
   return {
     // Game state
