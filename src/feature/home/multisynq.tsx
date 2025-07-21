@@ -3605,7 +3605,7 @@ export default function ChessMultisynqApp() {
                                           disabled
                                           className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
                                         >
-                                          Back Home
+                                          Back to Home
                                         </button>
                                       ) : cancelState.isError ? (
                                         <button
@@ -3637,7 +3637,7 @@ export default function ChessMultisynqApp() {
                                       onClick={handleBackHome}
                                       className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
                                     >
-                                      Waiting for opponent...
+                                      Back to Home
                                     </button>
                                   )}
                                 </>
