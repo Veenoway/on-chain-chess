@@ -462,11 +462,9 @@ export default function ChessMultisynqApp() {
                     </div>
                   </div>
 
-                  {/* Container de l'échiquier avec overlay */}
                   <div className="relative aspect-square max-w-full w-full mx-auto">
                     <Chessboard options={chessboardOptions as any} />
 
-                    {/* Icône de checkmate */}
                     {checkmateIconPosition && getCheckmatedKingSquare && (
                       <div
                         className="absolute pointer-events-none z-1"
@@ -487,7 +485,6 @@ export default function ChessMultisynqApp() {
                       </div>
                     )}
 
-                    {/* Modal de paiement */}
                     {((isBettingEnabled &&
                       parseFloat(betAmount) > 0 &&
                       gameState.roomName &&
@@ -501,9 +498,17 @@ export default function ChessMultisynqApp() {
                         !bothPlayersPaid()) ||
                       (isRematchTransition &&
                         isBettingEnabled &&
-                        parseFloat(betAmount) > 0)) &&
+                        parseFloat(betAmount) > 0) ||
+                      // ✅ NOUVEAU: Afficher pour les rooms de rematch
+                      (gameState.roomName &&
+                        gameState.roomName.startsWith("rematch-") &&
+                        gameInfo?.betAmount &&
+                        gameInfo.betAmount > BigInt(0) &&
+                        !bothPlayersPaid())) &&
                       !hasClosedPaymentModal &&
-                      gameFlow === "game" && (
+                      gameFlow === "game" &&
+                      gameState.gameResult.type === null && // ✅ Ne pas afficher si jeu terminé
+                      !gameState.isActive && ( // ✅ Ne pas afficher si jeu déjà actif
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
                           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
                             <div className="text-center">
@@ -609,36 +614,6 @@ export default function ChessMultisynqApp() {
                                     </span>
                                   </div>
                                 </div>
-
-                                {/* Indicateur de progression */}
-                                {/* <div className="rounded-lg mt-4">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <span className="text-white text-sm">
-                                      Payment Progress:
-                                    </span>
-                                    <span className="text-white text-sm font-medium">
-                                      {(paymentStatus.whitePlayerPaid ? 1 : 0) +
-                                        (paymentStatus.blackPlayerPaid ? 1 : 0)}
-                                      /2
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-white/10 rounded-full h-3">
-                                    <div
-                                      className="bg-[#836EF9] h-3 rounded-full transition-all duration-500"
-                                      style={{
-                                        width: `${
-                                          ((paymentStatus.whitePlayerPaid
-                                            ? 1
-                                            : 0) +
-                                            (paymentStatus.blackPlayerPaid
-                                              ? 1
-                                              : 0)) *
-                                          50
-                                        }%`,
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div> */}
                               </div>
 
                               {!paymentStatus.currentPlayerPaid ? (
@@ -670,7 +645,6 @@ export default function ChessMultisynqApp() {
                                           setBettingGameCreationFailed(false);
                                           setRoomBetAmount(betAmount);
 
-                                          // Après création réussie, joindre automatiquement
                                           if (
                                             multisynqView &&
                                             currentPlayerId &&
@@ -686,9 +660,7 @@ export default function ChessMultisynqApp() {
                                         } catch {
                                           setBettingGameCreationFailed(true);
                                         }
-                                      }
-                                      // Cas 2: Join d'un betting game existant
-                                      else if (
+                                      } else if (
                                         gameInfo?.betAmount &&
                                         gameInfo.betAmount > BigInt(0)
                                       ) {
@@ -1159,30 +1131,48 @@ export default function ChessMultisynqApp() {
                                   rematchInvitation.from !== address ? (
                                     <div className="space-y-3 mb-3">
                                       <p className="text-center text-base text-white/80 font-thin">
-                                        Your opponent offers you a rematch.{" "}
-                                        <br />
+                                        Your opponent offers you a rematch
+                                        {rematchInvitation.betAmount
+                                          ? ` for ${rematchInvitation.betAmount} MON`
+                                          : ""}
+                                        . <br />
                                         Do you want to accept?
                                       </p>
                                       <div className="grid grid-cols-2 gap-3">
                                         <button
                                           onClick={async () => {
+                                            console.log(
+                                              "✅ Acceptation du rematch:",
+                                              rematchInvitation
+                                            );
                                             setRematchInvitation(null);
                                             setShowGameEndModal(false);
 
-                                            // Utiliser handleAutoJoinRoom pour rejoindre directement
-                                            await handleAutoJoinRoom(
-                                              rematchInvitation.roomName,
-                                              rematchInvitation.password
-                                            );
+                                            // ✅ NOUVEAU: Rejoindre directement la nouvelle room du rematch
+                                            try {
+                                              await handleAutoJoinRoom(
+                                                rematchInvitation.roomName,
+                                                rematchInvitation.password
+                                              );
+                                              console.log(
+                                                "🎮 Rejoint la room de rematch avec succès"
+                                              );
+                                            } catch (error) {
+                                              console.error(
+                                                "❌ Erreur lors du join de rematch:",
+                                                error
+                                              );
+                                            }
                                           }}
                                           className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-normal text-base transition-colors"
                                         >
                                           Accept
                                         </button>
                                         <button
-                                          onClick={() =>
-                                            setRematchInvitation(null)
-                                          }
+                                          onClick={() => {
+                                            console.log("❌ Refus du rematch");
+                                            setRematchInvitation(null);
+                                          }}
                                           className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-normal text-base transition-colors"
                                         >
                                           Decline

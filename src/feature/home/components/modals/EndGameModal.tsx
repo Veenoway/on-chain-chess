@@ -290,27 +290,48 @@ export function EndGameModal({
                 {rematchInvitation && rematchInvitation.from !== address ? (
                   <div className="space-y-3 mb-3">
                     <p className="text-center text-base text-white/80 font-light">
-                      Your opponent offers you a rematch. <br />
+                      Your opponent offers you a rematch
+                      {rematchInvitation.betAmount
+                        ? ` for ${rematchInvitation.betAmount} MON`
+                        : ""}
+                      . <br />
                       Do you want to accept?
                     </p>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={async () => {
+                          console.log(
+                            "✅ Acceptation du rematch:",
+                            rematchInvitation
+                          );
                           setRematchInvitation(null);
                           setShowGameEndModal(false);
 
-                          // Utiliser handleAutoJoinRoom pour rejoindre directement
-                          await handleAutoJoinRoom(
-                            rematchInvitation.roomName,
-                            rematchInvitation.password
-                          );
+                          // ✅ NOUVEAU: Rejoindre directement la nouvelle room du rematch
+                          try {
+                            await handleAutoJoinRoom(
+                              rematchInvitation.roomName,
+                              rematchInvitation.password
+                            );
+                            console.log(
+                              "🎮 Rejoint la room de rematch avec succès"
+                            );
+                          } catch (error) {
+                            console.error(
+                              "❌ Erreur lors du join de rematch:",
+                              error
+                            );
+                          }
                         }}
                         className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-base transition-colors"
                       >
                         Accept
                       </button>
                       <button
-                        onClick={() => setRematchInvitation(null)}
+                        onClick={() => {
+                          console.log("❌ Refus du rematch");
+                          setRematchInvitation(null);
+                        }}
                         className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-base transition-colors"
                       >
                         Decline

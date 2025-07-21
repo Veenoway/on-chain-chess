@@ -240,8 +240,7 @@ export const useChessGameMain = () => {
       createBettingGame,
       setRoomBetAmount,
       getCorrectBetAmount,
-      handleCreateRoom,
-      isBettingEnabled
+      handleCreateRoom
     );
 
   // Initialize Multisynq
@@ -642,17 +641,28 @@ export const useChessGameMain = () => {
           this.publish(this.sessionId, "game-state", this.state);
         }
 
-        // MÉTHODE MANQUANTE: Gestion complète du chat avec invitations
+        // MÉTHODE: Gestion complète du chat avec invitations
         handleChatMessage(message: {
           message: string;
           playerId: string;
           playerWallet: string;
         }) {
+          console.log("💬 Message chat reçu:", message);
+
           if (message.message.startsWith("REMATCH_INVITATION:")) {
             try {
               const [, roomName, password, betAmount] =
                 message.message.split(":");
 
+              console.log("🎯 Invitation de rematch détectée:", {
+                roomName,
+                password,
+                betAmount,
+                from: message.playerWallet,
+                senderId: message.playerId,
+              });
+
+              // Ajouter un message visible dans le chat
               this.state.messages.push({
                 ...message,
                 id: `msg_${Date.now()}_${Math.random()
@@ -665,6 +675,8 @@ export const useChessGameMain = () => {
                 timestamp: Date.now(),
               });
 
+              // ✅ Déclencher l'événement pour afficher la popup
+              console.log("📨 Déclenchement de l'événement rematchInvitation");
               window.dispatchEvent(
                 new CustomEvent("rematchInvitation", {
                   detail: {
@@ -676,8 +688,12 @@ export const useChessGameMain = () => {
                   },
                 })
               );
+
+              console.log(
+                "✅ Événement rematchInvitation déclenché avec succès"
+              );
             } catch (error) {
-              console.error("Error processing rematch invitation:", error);
+              console.error("❌ Erreur traitement invitation rematch:", error);
             }
           } else {
             // Message de chat normal
@@ -941,10 +957,15 @@ export const useChessGameMain = () => {
         }
 
         requestRematch(playerId: string) {
+          console.log("🔄 Demande de rematch classique:", { playerId });
           this.publish(this.sessionId, "request-rematch", { playerId });
         }
 
         respondRematch(playerId: string, accepted: boolean) {
+          console.log("🔄 Réponse au rematch classique:", {
+            playerId,
+            accepted,
+          });
           this.publish(this.sessionId, "respond-rematch", {
             playerId,
             accepted,
@@ -973,6 +994,23 @@ export const useChessGameMain = () => {
     (window as any).globalSetGameState = setGameState;
     (window as any).finishGameOnContract = finishGameOnContract;
   }, [setGameState, finishGameOnContract]);
+
+  // AJOUT: Fermer automatiquement la modal quand le jeu se termine
+  useEffect(() => {
+    if (gameState.gameResult.type && !hasClosedPaymentModal) {
+      setHasClosedPaymentModal(true);
+    }
+  }, [
+    gameState.gameResult.type,
+    hasClosedPaymentModal,
+    setHasClosedPaymentModal,
+  ]);
+
+  useEffect(() => {
+    if (gameState.isActive && !hasClosedPaymentModal) {
+      setHasClosedPaymentModal(true);
+    }
+  }, [gameState.isActive, hasClosedPaymentModal, setHasClosedPaymentModal]);
 
   // Auto-join from URL
   useEffect(() => {
@@ -1186,6 +1224,42 @@ export const useChessGameMain = () => {
 
       const hasBetting = hasBettingRequirement();
 
+      // ✅ NOUVEAU: Réinitialiser les modals et états pour une nouvelle room
+      if (gameState.roomName && gameState.roomName.startsWith("rematch-")) {
+        console.log(
+          "🔄 Nouvelle room de rematch détectée, réinitialisation complète des états"
+        );
+
+        // Réinitialiser les modals
+        setHasClosedPaymentModal(false);
+        setPaymentStatus({
+          whitePlayerPaid: false,
+          blackPlayerPaid: false,
+          currentPlayerPaid: false,
+        });
+
+        // ✅ NOUVEAU: Réinitialiser l'état local du jeu
+        const initialFen =
+          "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        setFen(initialFen);
+        setGameState((prev: any) => ({
+          ...prev,
+          fen: initialFen,
+          gameResult: { type: null },
+          isActive: false,
+          turn: "w",
+          drawOffer: { offered: false, by: null },
+          rematchOffer: { offered: false, by: null },
+          lastMoveTime: null,
+        }));
+
+        // Réinitialiser l'historique des coups
+        setMoveHistory([initialFen]);
+        setCurrentMoveIndex(0);
+
+        console.log("✅ État du jeu complètement réinitialisé pour le rematch");
+      }
+
       // Joindre immédiatement si pas de betting OU si les deux ont payé
       if (!hasBetting || bothPlayersPaid()) {
         multisynqView.joinPlayer(address, currentPlayerId);
@@ -1210,6 +1284,7 @@ export const useChessGameMain = () => {
     }
   }, [
     gameState.players,
+    gameState.roomName,
     multisynqView,
     currentPlayerId,
     address,
@@ -1220,6 +1295,8 @@ export const useChessGameMain = () => {
     paymentStatus.blackPlayerPaid,
     hasBettingRequirement,
     bothPlayersPaid,
+    setHasClosedPaymentModal,
+    setPaymentStatus,
   ]);
 
   useEffect(() => {
@@ -1287,6 +1364,79 @@ export const useChessGameMain = () => {
     gameInfo?.state,
     gameState.players.length,
     hasBettingRequirement,
+    refetchAll,
+  ]);
+
+  // ✅ NOUVEAU: Synchronisation automatique du paymentStatus avec le contrat
+  useEffect(() => {
+    if (gameInfo && address) {
+      const isWhitePlayer =
+        gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+      const isBlackPlayer =
+        gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
+
+      // Le joueur blanc a payé si son adresse n'est pas nulle
+      const whitePlayerPaid =
+        gameInfo.whitePlayer !== "0x0000000000000000000000000000000000000000";
+
+      // Le joueur noir a payé si son adresse n'est pas nulle
+      const blackPlayerPaid =
+        gameInfo.blackPlayer !== "0x0000000000000000000000000000000000000000";
+
+      // Le joueur courant a payé s'il est l'un des deux joueurs dans le contrat
+      const currentPlayerPaid = isWhitePlayer || isBlackPlayer;
+
+      // ✅ Mise à jour du status si nécessaire
+      setPaymentStatus((prev) => {
+        if (
+          prev.whitePlayerPaid !== whitePlayerPaid ||
+          prev.blackPlayerPaid !== blackPlayerPaid ||
+          prev.currentPlayerPaid !== currentPlayerPaid
+        ) {
+          console.log("🔄 [useChessMain] Synchronisation du paymentStatus:", {
+            whitePlayerPaid,
+            blackPlayerPaid,
+            currentPlayerPaid,
+            gameState: gameInfo.state,
+          });
+          return {
+            whitePlayerPaid,
+            blackPlayerPaid,
+            currentPlayerPaid,
+          };
+        }
+        return prev;
+      });
+    }
+  }, [gameInfo, address, setPaymentStatus]);
+
+  // ✅ NOUVEAU: Polling pour synchroniser en temps réel quand on attend des paiements
+  useEffect(() => {
+    if (
+      gameId &&
+      gameInfo &&
+      hasBettingRequirement() &&
+      !bothPlayersPaid() &&
+      gameFlow === "game"
+    ) {
+      console.log("🔄 Démarrage du polling pour synchroniser les paiements");
+
+      const interval = setInterval(() => {
+        console.log("📡 Polling des données de paiement...");
+        refetchAll();
+      }, 3000); // Poll toutes les 3 secondes
+
+      return () => {
+        console.log("🛑 Arrêt du polling des paiements");
+        clearInterval(interval);
+      };
+    }
+  }, [
+    gameId,
+    gameInfo?.state,
+    hasBettingRequirement,
+    bothPlayersPaid,
+    gameFlow,
     refetchAll,
   ]);
 

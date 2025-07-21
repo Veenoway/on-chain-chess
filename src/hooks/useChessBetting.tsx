@@ -1181,6 +1181,27 @@ export const useContractEvents = (gameId?: bigint) => {
     },
   });
 
+  // Écouter les événements GameCreated pour détecter quand un créateur paie
+  useWatchContractEvent({
+    address: CHESS_BETTING_CONTRACT_ADDRESS,
+    abi: CHESS_BETTING_ABI,
+    eventName: "GameCreated",
+    onLogs: (logs) => {
+      console.log("🎮 GameCreated event detected:", logs);
+    },
+  });
+
+  // Écouter les événements GameJoined pour détecter quand le second joueur paie
+  useWatchContractEvent({
+    address: CHESS_BETTING_CONTRACT_ADDRESS,
+    abi: CHESS_BETTING_ABI,
+    eventName: "GameJoined",
+    args: gameId ? { gameId } : undefined,
+    onLogs: (logs) => {
+      console.log("👥 GameJoined event detected:", logs);
+    },
+  });
+
   // Écouter les événements WinningsClaimed
   useWatchContractEvent({
     address: CHESS_BETTING_CONTRACT_ADDRESS,
@@ -1200,17 +1221,6 @@ export const useContractEvents = (gameId?: bigint) => {
     args: address ? { player: address } : undefined,
     onLogs: (logs) => {
       console.log("🤝 DrawRefundClaimed event detected:", logs);
-    },
-  });
-
-  // Écouter les événements GameJoined
-  useWatchContractEvent({
-    address: CHESS_BETTING_CONTRACT_ADDRESS,
-    abi: CHESS_BETTING_ABI,
-    eventName: "GameJoined",
-    args: gameId ? { gameId } : undefined,
-    onLogs: (logs) => {
-      console.log("👥 GameJoined event detected:", logs);
     },
   });
 

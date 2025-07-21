@@ -29,6 +29,13 @@ export interface RematchOffer {
   by: "white" | "black" | null;
 }
 
+export interface RematchInvitation {
+  from: string;
+  roomName: string;
+  password: string;
+  betAmount?: string;
+}
+
 export interface GameState {
   fen: string;
   isActive: boolean;

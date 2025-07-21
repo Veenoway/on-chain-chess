@@ -5,6 +5,7 @@ import {
   useGameIdByRoom,
 } from "@/hooks/useChessBetting";
 import { useChessGameStore } from "@/stores/useChessGameStore";
+import { useEffect } from "react";
 import { formatEther } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
 
@@ -22,6 +23,7 @@ export function PaymentModal({
   const {
     isPending,
     isConfirming,
+    isSuccess,
     cancelBettingGame,
     cancelState,
     createBettingGame,
@@ -37,10 +39,68 @@ export function PaymentModal({
     isBettingEnabled,
   } = useChessGameStore();
   const { gameId: gameIdByRoom } = useGameIdByRoom(gameState.roomName);
-  const { gameInfo } = useCompleteGameInfo(gameIdByRoom);
+  const { gameInfo, refetchAll } = useCompleteGameInfo(gameIdByRoom);
   const { switchChain } = useSwitchChain();
   const { chainId, address } = useAccount();
   const isWrongNetwork = chainId !== 10143;
+
+  // ✅ NOUVEAU: Mettre à jour le paymentStatus quand une transaction réussit
+  useEffect(() => {
+    if (isSuccess && address) {
+      console.log("🎉 Transaction réussie - mise à jour du paymentStatus");
+      setPaymentStatus((prev) => ({
+        ...prev,
+        currentPlayerPaid: true,
+      }));
+
+      setTimeout(() => {
+        refetchAll();
+      }, 2000);
+    }
+  }, [isSuccess, address, setPaymentStatus, refetchAll]);
+
+  // ✅ NOUVEAU: Synchroniser le paymentStatus avec les données du contrat
+  useEffect(() => {
+    if (gameInfo && address) {
+      const isWhitePlayer =
+        gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
+      const isBlackPlayer =
+        gameInfo.blackPlayer.toLowerCase() === address.toLowerCase();
+
+      // Le joueur blanc a payé si son adresse n'est pas nulle
+      const whitePlayerPaid =
+        gameInfo.whitePlayer !== "0x0000000000000000000000000000000000000000";
+
+      // Le joueur noir a payé si son adresse n'est pas nulle
+      const blackPlayerPaid =
+        gameInfo.blackPlayer !== "0x0000000000000000000000000000000000000000";
+
+      // Le joueur courant a payé s'il est l'un des deux joueurs dans le contrat
+      const currentPlayerPaid = isWhitePlayer || isBlackPlayer;
+
+      // ✅ Mise à jour du status si nécessaire
+      setPaymentStatus((prev) => {
+        if (
+          prev.whitePlayerPaid !== whitePlayerPaid ||
+          prev.blackPlayerPaid !== blackPlayerPaid ||
+          prev.currentPlayerPaid !== currentPlayerPaid
+        ) {
+          console.log("🔄 Synchronisation du paymentStatus avec le contrat:", {
+            whitePlayerPaid,
+            blackPlayerPaid,
+            currentPlayerPaid,
+            gameState: gameInfo.state,
+          });
+          return {
+            whitePlayerPaid,
+            blackPlayerPaid,
+            currentPlayerPaid,
+          };
+        }
+        return prev;
+      });
+    }
+  }, [gameInfo, address, setPaymentStatus]);
 
   return (
     <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
