@@ -1,10 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// hooks/useChessGameMain.ts - VERSION MISE À JOUR
 import { Chess } from "chess.js";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 
-// Import all our custom hooks
 import { useAudio } from "./useAudio";
 import { useBettingGame } from "./useBettingGame";
 import { useChessboardInteraction } from "./useChessboardInteraction";
@@ -17,7 +15,6 @@ import { useRematchLogic } from "./useRematchLogic";
 import { useRoomManagement } from "./useRoomManagement";
 import { useTimer } from "./useTimer";
 
-// 🎯 AJOUT: Import vos hooks de betting existants
 import {
   useCanCancelGame,
   useChessBetting,
@@ -30,7 +27,6 @@ import { useContractIntegration } from "./useContractInteraction";
 import { useMultisynq } from "./useMultiSynq";
 
 export const useChessMain = () => {
-  // Basic state hooks
   const {
     gameState,
     setGameState,
@@ -82,7 +78,6 @@ export const useChessMain = () => {
 
   const { playMoveSound } = useAudio();
 
-  // Additional state
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [selectedGameTime, setSelectedGameTime] = useState(600);
@@ -204,7 +199,7 @@ export const useChessMain = () => {
     setConnectionStatus,
     setHasClosedPaymentModal,
     selectedGameTime,
-    setSelectedGameTime, // ✅ AJOUTÉ
+    setSelectedGameTime,
     isBettingEnabled,
     betAmount,
     createBettingGame,
@@ -275,7 +270,6 @@ export const useChessMain = () => {
     initializeMultisynq();
   }, []);
 
-  // Setup Multisynq classes
   const setupMultisynqClasses = () => {
     const { Multisynq } = window as any;
     if (!Multisynq) {
@@ -284,9 +278,6 @@ export const useChessMain = () => {
     }
 
     try {
-      // Define the Chess Model
-      // Dans useChessGameMain.ts, remplacez la définition de ChessModel par cette version complète :
-
       class ChessModel extends Multisynq.Model {
         timerInterval: any = null;
 
@@ -307,13 +298,13 @@ export const useChessMain = () => {
             gameResult: { type: null },
             drawOffer: { offered: false, by: null },
             rematchOffer: { offered: false, by: null },
+            rematchCreating: { inProgress: false, by: null },
             gameNumber: 1,
             lastGameWinner: null,
             createdAt: Date.now(),
             rematchAccepted: false,
           };
 
-          // Subscribe to all events
           this.subscribe(this.sessionId, "move", "handleMove");
           this.subscribe(this.sessionId, "join-player", "handlePlayerJoin");
           this.subscribe(this.sessionId, "chat-message", "handleChatMessage");
@@ -336,6 +327,11 @@ export const useChessMain = () => {
           );
           this.subscribe(
             this.sessionId,
+            "rematch-creating",
+            "handleRematchCreating"
+          );
+          this.subscribe(
+            this.sessionId,
             "reset-rematch-accepted",
             "handleResetRematchAccepted"
           );
@@ -343,7 +339,6 @@ export const useChessMain = () => {
           this.publish(this.sessionId, "game-state", this.state);
         }
 
-        // MÉTHODE MANQUANTE: Gestion du temps de jeu
         handleSetGameTime(data: { gameTime: number }) {
           this.state.gameTimeLimit = data.gameTime;
           this.state.whiteTime = data.gameTime;
@@ -351,14 +346,45 @@ export const useChessMain = () => {
           this.publish(this.sessionId, "game-state", this.state);
         }
 
-        // MÉTHODE MANQUANTE: Demande de revanche
+        handleRematchCreating(data: { playerId: string }) {
+          const player = this.state.players.find(
+            (p: any) => p.id === data.playerId
+          );
+          if (!player) return;
+
+          this.state.rematchCreating = {
+            inProgress: true,
+            by: player.color as "white" | "black",
+          };
+
+          this.state.messages.push({
+            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            playerId: data.playerId,
+            playerWallet: player.wallet,
+            message: "Creating rematch...",
+            timestamp: Date.now(),
+          });
+
+          // ✅ SÉCURITÉ: Auto-reset après 30 secondes en cas de problème
+          setTimeout(() => {
+            if (this.state.rematchCreating?.inProgress) {
+              console.log(
+                "⚠️ [ChessModel] Auto-reset rematchCreating après timeout"
+              );
+              this.state.rematchCreating = { inProgress: false, by: null };
+              this.publish(this.sessionId, "game-state", this.state);
+            }
+          }, 30000);
+
+          this.publish(this.sessionId, "game-state", this.state);
+        }
+
         handleRequestRematch(data: { playerId: string }) {
           const player = this.state.players.find(
             (p: any) => p.id === data.playerId
           );
           if (!player) return;
 
-          // Ajouter un message dans le chat
           this.state.messages.push({
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             playerId: data.playerId,
@@ -367,7 +393,6 @@ export const useChessMain = () => {
             timestamp: Date.now(),
           });
 
-          // Marquer qu'une revanche est demandée
           this.state.rematchOffer = {
             offered: true,
             by: player.color as "white" | "black",
@@ -376,14 +401,12 @@ export const useChessMain = () => {
           this.publish(this.sessionId, "game-state", this.state);
         }
 
-        // MÉTHODE MANQUANTE: Réponse à la revanche
         handleRespondRematch(data: { playerId: string; accepted: boolean }) {
           const player = this.state.players.find(
             (p: any) => p.id === data.playerId
           );
           if (!player) return;
 
-          // Ajouter un message dans le chat
           this.state.messages.push({
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             playerId: data.playerId,
@@ -393,10 +416,9 @@ export const useChessMain = () => {
           });
 
           if (data.accepted) {
-            // Revanche acceptée - réinitialiser la partie
             this.state.fen =
               "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-            this.state.isActive = false; // Ne pas démarrer automatiquement
+            this.state.isActive = false;
             this.state.turn = "w";
             this.state.whiteTime = this.state.gameTimeLimit;
             this.state.blackTime = this.state.gameTimeLimit;
@@ -405,21 +427,18 @@ export const useChessMain = () => {
             this.state.gameNumber += 1;
             this.state.lastMoveTime = null;
 
-            // Inverser les couleurs pour la revanche
             this.state.players.forEach((p: any) => {
               p.color = p.color === "white" ? "black" : "white";
             });
 
-            // Marquer qu'une revanche a été acceptée
             this.state.rematchAccepted = true;
           }
 
-          // Réinitialiser l'offre de revanche
           this.state.rematchOffer = { offered: false, by: null };
+          this.state.rematchCreating = { inProgress: false, by: null };
           this.publish(this.sessionId, "game-state", this.state);
         }
 
-        // MÉTHODE MANQUANTE: Reset du flag rematch accepté
         handleResetRematchAccepted() {
           this.state.rematchAccepted = false;
           this.publish(this.sessionId, "game-state", this.state);
@@ -427,13 +446,11 @@ export const useChessMain = () => {
 
         startTimer() {
           if (this.timerInterval) {
-            console.log("⏰ [ChessModel] Timer déjà actif, arrêt du précédent");
             this.stopTimer();
           }
 
           this.timerInterval = setInterval(() => {
             if (!this.state.isActive || this.state.gameResult.type) {
-              console.log("⏰ [ChessModel] Partie inactive, arrêt du timer");
               this.stopTimer();
               return;
             }
@@ -446,11 +463,6 @@ export const useChessMain = () => {
               this.state.whiteTime = Math.max(0, this.state.whiteTime - 1);
               needsUpdate = this.state.whiteTime !== previousTime;
 
-              console.log("⏰ [ChessModel] Timer blanc:", {
-                previous: previousTime,
-                current: this.state.whiteTime,
-              });
-
               if (this.state.whiteTime <= 0) {
                 this.state.isActive = false;
                 this.state.gameResult = {
@@ -461,17 +473,11 @@ export const useChessMain = () => {
                 this.state.lastGameWinner = "black";
                 timeExpired = true;
                 needsUpdate = true;
-                console.log("⏰ [ChessModel] Temps écoulé pour les blancs!");
               }
             } else {
               const previousTime = this.state.blackTime;
               this.state.blackTime = Math.max(0, this.state.blackTime - 1);
               needsUpdate = this.state.blackTime !== previousTime;
-
-              console.log("⏰ [ChessModel] Timer noir:", {
-                previous: previousTime,
-                current: this.state.blackTime,
-              });
 
               if (this.state.blackTime <= 0) {
                 this.state.isActive = false;
@@ -483,7 +489,6 @@ export const useChessMain = () => {
                 this.state.lastGameWinner = "white";
                 timeExpired = true;
                 needsUpdate = true;
-                console.log("⏰ [ChessModel] Temps écoulé pour les noirs!");
               }
             }
 
@@ -506,7 +511,6 @@ export const useChessMain = () => {
 
         stopTimer() {
           if (this.timerInterval) {
-            console.log("⏰ [ChessModel] Arrêt du timer");
             clearInterval(this.timerInterval);
             this.timerInterval = null;
           }
@@ -519,12 +523,6 @@ export const useChessMain = () => {
           playerId: any;
         }) {
           const { from, to, promotion } = data;
-          console.log("🎯 Multisynq handleMove reçu:", {
-            from,
-            to,
-            promotion,
-            playerId: data.playerId,
-          });
 
           const chess = new Chess(this.state.fen);
 
@@ -540,17 +538,8 @@ export const useChessMain = () => {
               this.state.turn = chess.turn();
               this.state.lastMoveTime = Date.now();
 
-              console.log("✅ Coup validé dans Multisynq:", {
-                newFen: this.state.fen,
-                newTurn: this.state.turn,
-                timestamp: this.state.lastMoveTime,
-              });
-
-              // ✅ NOUVEAU: Publication immédiate pour synchronisation rapide
               this.publish(this.sessionId, "game-state", this.state);
-              console.log("📡 État publié immédiatement");
 
-              // NOUVEAU: Jouer le son pour l'adversaire
               if (
                 (window as any).globalPlayOpponentMoveSound &&
                 typeof (window as any).globalPlayOpponentMoveSound ===
@@ -565,7 +554,6 @@ export const useChessMain = () => {
                 }, 100);
               }
 
-              // Vérifier fin de partie
               if (chess.isGameOver()) {
                 this.state.isActive = false;
                 if (chess.isCheckmate()) {
@@ -620,33 +608,20 @@ export const useChessMain = () => {
                 this.publish(this.sessionId, "game-state", this.state);
               }
             }
-          } catch {
-            // Ignorer les erreurs de mouvement
-          }
+          } catch {}
         }
 
-        // MÉTHODE MANQUANTE: Timer complet
         handleUpdateTimer() {
           if (!this.state.isActive || this.state.gameResult.type) {
-            console.log(
-              "⏰ [ChessModel] Timer ignoré - partie inactive ou terminée"
-            );
             return;
           }
 
           let needsUpdate = false;
 
-          // Décrémenter exactement 1 seconde pour le joueur actuel
           if (this.state.turn === "w") {
             const previousTime = this.state.whiteTime;
             this.state.whiteTime = Math.max(0, this.state.whiteTime - 1);
             needsUpdate = this.state.whiteTime !== previousTime;
-
-            console.log("⏰ [ChessModel] Timer blanc:", {
-              previous: previousTime,
-              current: this.state.whiteTime,
-              needsUpdate,
-            });
 
             if (this.state.whiteTime <= 0) {
               this.state.isActive = false;
@@ -657,7 +632,7 @@ export const useChessMain = () => {
               };
               this.state.lastGameWinner = "black";
               needsUpdate = true;
-              console.log("⏰ [ChessModel] Temps écoulé pour les blancs!");
+
               if ((window as any).finishGameOnContract) {
                 setTimeout(
                   () =>
@@ -671,12 +646,6 @@ export const useChessMain = () => {
             this.state.blackTime = Math.max(0, this.state.blackTime - 1);
             needsUpdate = this.state.blackTime !== previousTime;
 
-            console.log("⏰ [ChessModel] Timer noir:", {
-              previous: previousTime,
-              current: this.state.blackTime,
-              needsUpdate,
-            });
-
             if (this.state.blackTime <= 0) {
               this.state.isActive = false;
               this.state.gameResult = {
@@ -686,7 +655,7 @@ export const useChessMain = () => {
               };
               this.state.lastGameWinner = "white";
               needsUpdate = true;
-              console.log("⏰ [ChessModel] Temps écoulé pour les noirs!");
+
               if ((window as any).finishGameOnContract) {
                 setTimeout(
                   () =>
@@ -699,7 +668,7 @@ export const useChessMain = () => {
 
           if (needsUpdate) {
             this.state.lastMoveTime = Date.now();
-            console.log("⏰ [ChessModel] Publication de l'état mis à jour");
+
             this.publish(this.sessionId, "game-state", this.state);
           }
         }
@@ -755,7 +724,6 @@ export const useChessMain = () => {
               timestamp: Date.now(),
             });
           } else {
-            console.warn("Room is full, impossible to add the player");
             return;
           }
 
@@ -824,6 +792,7 @@ export const useChessMain = () => {
             this.state.lastMoveTime = Date.now();
             this.state.drawOffer = { offered: false, by: null };
             this.state.rematchOffer = { offered: false, by: null };
+            this.state.rematchCreating = { inProgress: false, by: null };
 
             this.state.whiteTime = this.state.gameTimeLimit;
             this.state.blackTime = this.state.gameTimeLimit;
@@ -852,6 +821,7 @@ export const useChessMain = () => {
           this.state.blackTime = this.state.gameTimeLimit;
           this.state.gameResult = { type: null };
           this.state.drawOffer = { offered: false, by: null };
+          this.state.rematchCreating = { inProgress: false, by: null };
           this.state.gameNumber += 1;
           this.state.lastMoveTime = null;
           this.publish(this.sessionId, "game-state", this.state);
@@ -1105,6 +1075,10 @@ export const useChessMain = () => {
 
         requestRematch(playerId: string) {
           this.publish(this.sessionId, "request-rematch", { playerId });
+        }
+
+        signalRematchCreating(playerId: string) {
+          this.publish(this.sessionId, "rematch-creating", { playerId });
         }
 
         respondRematch(playerId: string, accepted: boolean) {
@@ -1753,6 +1727,7 @@ export const useChessMain = () => {
     createRematchWithPayment,
     handleNewGame,
     isCreatingRematch,
+    rematchCreating: gameState.rematchCreating,
 
     // Utility
     shouldDisableNavigationButtons,

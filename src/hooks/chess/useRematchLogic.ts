@@ -22,6 +22,10 @@ export const useRematchLogic = (
   const [isCreatingRematch, setIsCreatingRematch] = useState(false);
 
   const canOfferRematch = (): boolean => {
+    if (gameState.rematchCreating?.inProgress) {
+      return false;
+    }
+
     if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
       return (
         gameState.gameResult.type !== null && !gameState.rematchOffer?.offered
@@ -56,6 +60,14 @@ export const useRematchLogic = (
 
     setIsCreatingRematch(true);
 
+    if (multisynqView && currentPlayerId) {
+      try {
+        multisynqView.signalRematchCreating(currentPlayerId);
+      } catch (error) {
+        console.error("❌ [useRematchLogic] Erreur signal création:", error);
+      }
+    }
+
     try {
       const newRoomName = `rematch-${Math.random()
         .toString(36)
@@ -87,18 +99,15 @@ export const useRematchLogic = (
           console.error("❌ [useRematchLogic] Erreur envoi invitation:", error);
         }
       } else {
-        console.error(
-          "❌ [useRematchLogic] Impossible d'envoyer l'invitation:",
-          {
-            multisynqView: !!multisynqView,
-            currentPlayerId,
-            address,
-          }
-        );
+        console.error("[useRematchLogic] Impossible d'envoyer l'invitation:", {
+          multisynqView: !!multisynqView,
+          currentPlayerId,
+          address,
+        });
       }
     } catch (error) {
       console.error(
-        "❌ [useRematchLogic] Erreur lors de la création du rematch:",
+        "[useRematchLogic] Erreur lors de la création du rematch:",
         error
       );
       setBettingGameCreationFailed(true);
@@ -108,17 +117,22 @@ export const useRematchLogic = (
   };
 
   const handleNewGame = () => {
-    if (
-      gameInfo?.betAmount &&
-      gameInfo.betAmount > BigInt(0) &&
-      canOfferRematch()
-    ) {
+    if (!canOfferRematch()) {
+      console.log(
+        "[useRematchLogic] Impossible d'offrir un rematch maintenant"
+      );
+      return;
+    }
+
+    if (gameInfo?.betAmount && gameInfo.betAmount > BigInt(0)) {
       createRematchWithPayment();
     } else if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
       if (multisynqView && currentPlayerId) {
-        multisynqView.requestRematch(currentPlayerId);
+        multisynqView.signalRematchCreating(currentPlayerId);
+        setTimeout(() => {
+          multisynqView.requestRematch(currentPlayerId);
+        }, 100);
       }
-    } else {
     }
   };
 

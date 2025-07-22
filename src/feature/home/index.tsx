@@ -84,6 +84,7 @@ export default function ChessMultisynqApp() {
     isRematchTransition,
     setBettingGameCreationFailed,
     multisynqView,
+    rematchCreating,
 
     isConnected,
     isWrongNetwork,
@@ -1049,11 +1050,14 @@ export default function ChessMultisynqApp() {
                                       onClick={handleNewGame}
                                       disabled={
                                         gameState.rematchOffer?.offered ||
+                                        rematchCreating?.inProgress ||
                                         shouldDisableNavigationButtons()
                                       }
                                       className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
                                     >
-                                      {shouldDisableNavigationButtons()
+                                      {rematchCreating?.inProgress
+                                        ? "Loading..."
+                                        : shouldDisableNavigationButtons()
                                         ? gameInfo && gameInfo.state !== 2
                                           ? "Finalizing..."
                                           : gameInfo?.betAmount &&
@@ -1447,13 +1451,16 @@ export default function ChessMultisynqApp() {
                             onClick={handleNewGame}
                             disabled={
                               gameState.rematchOffer?.offered ||
+                              rematchCreating?.inProgress ||
                               shouldDisableNavigationButtons() ||
                               (rematchInvitation! &&
                                 rematchInvitation.from !== address)
                             }
                             className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
                           >
-                            {shouldDisableNavigationButtons()
+                            {rematchCreating?.inProgress
+                              ? "Creating rematch..."
+                              : shouldDisableNavigationButtons()
                               ? gameInfo && gameInfo.state !== 2
                                 ? "Finalizing..."
                                 : "Claim first"
