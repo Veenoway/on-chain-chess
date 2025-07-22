@@ -516,7 +516,9 @@ export default function ChessMultisynqApp() {
                       !hasClosedPaymentModal &&
                       gameFlow === "game" &&
                       gameState.gameResult.type === null && // ✅ Ne pas afficher si jeu terminé
-                      !gameState.isActive && ( // ✅ Ne pas afficher si jeu déjà actif
+                      // ✅ MODIFIÉ: Pour les rematches, autoriser l'affichage même si jeu actif
+                      (gameState.roomName?.startsWith("rematch-") ||
+                        !gameState.isActive) && (
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
                           <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
                             <div className="text-center">

@@ -1063,7 +1063,7 @@ export const useChessMain = () => {
       gameFlow,
       gameStatePlayersLength: gameState.players.length,
       gameStateIsActive: gameState.isActive,
-      stackTrace: new Error().stack?.split("\n").slice(1, 4),
+      caller: new Error().stack?.split("\n")[2]?.trim(),
     });
   }, [hasClosedPaymentModal]);
 
@@ -1450,6 +1450,12 @@ export const useChessMain = () => {
       currentPlayerId &&
       address
     ) {
+      // ✅ AJOUTÉ: Attendre que gameInfo soit chargé avant de décider
+      if (!gameInfo) {
+        console.log("🔍 [useChessMain] gameInfo pas encore chargé, attente...");
+        return;
+      }
+
       const hasBetting = gameInfo?.betAmount && gameInfo.betAmount > BigInt(0);
       const whitePlayerPaid =
         gameInfo?.whitePlayer !== "0x0000000000000000000000000000000000000000";
@@ -1466,6 +1472,8 @@ export const useChessMain = () => {
         bothPaid,
         isRematchRoom,
         roomName: gameState.roomName,
+        gameInfoExists: !!gameInfo,
+        betAmount: gameInfo?.betAmount?.toString(),
       });
 
       // ✅ MODIFIÉ: Dans les rooms de rematch, TOUJOURS attendre que les deux joueurs payent
