@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useChessGameMain } from "@/hooks/chess/useChessMain";
+import { useChessMain } from "@/hooks/chess/useChessMain";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState } from "react";
 import { Chessboard } from "react-chessboard";
@@ -17,7 +17,7 @@ import { useSwitchChain } from "wagmi";
 import CapturedPieces from "./chessboard";
 
 export default function ChessMultisynqApp() {
-  const chess = useChessGameMain();
+  const chess = useChessMain();
 
   const {
     // États principaux

@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { RematchInvitation } from "@/types/chess";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export const useRematchLogic = (
   gameState: any,
@@ -25,10 +23,7 @@ export const useRematchLogic = (
   setCurrentMoveIndex: (index: number) => void
 ) => {
   const [isCreatingRematch, setIsCreatingRematch] = useState(false);
-  const [rematchInvitation, setRematchInvitation] =
-    useState<RematchInvitation | null>(null);
-
-  const router = useRouter();
+  // ✅ SUPPRIMÉ: rematchInvitation local (conflit avec useGameModals)
 
   const canOfferRematch = (): boolean => {
     if (!gameInfo?.betAmount || gameInfo.betAmount <= BigInt(0)) {
@@ -176,57 +171,18 @@ export const useRematchLogic = (
     } else {
       // Retour à l'accueil si conditions non remplies
       console.log("🏠 Retour à l'accueil");
-      router.push("/");
+      // router.push("/"); // Removed as per edit hint
     }
   };
 
   // Écouter les invitations de rematch
-  useEffect(() => {
-    const handleRematchInvitation = (event: CustomEvent) => {
-      const { from, senderId, roomName, password, betAmount } = event.detail;
-
-      console.log("📨 Invitation de rematch reçue:", {
-        from,
-        senderId,
-        roomName,
-        password,
-        betAmount,
-      });
-
-      // Ne pas traiter sa propre invitation
-      if (senderId === currentPlayerId) {
-        console.log("🚫 Ignorer sa propre invitation");
-        return;
-      }
-
-      // Stocker l'invitation pour affichage
-      setRematchInvitation({
-        from,
-        roomName,
-        password: password || "",
-        betAmount: betAmount || undefined,
-      });
-    };
-
-    window.addEventListener(
-      "rematchInvitation",
-      handleRematchInvitation as unknown as EventListener
-    );
-
-    return () => {
-      window.removeEventListener(
-        "rematchInvitation",
-        handleRematchInvitation as unknown as EventListener
-      );
-    };
-  }, [currentPlayerId]);
+  // Removed useEffect for rematchInvitation events
 
   return {
     canOfferRematch,
     createRematchWithPayment,
     handleNewGame,
     isCreatingRematch,
-    rematchInvitation,
-    setRematchInvitation,
+    // Removed rematchInvitation and setRematchInvitation from return
   };
 };

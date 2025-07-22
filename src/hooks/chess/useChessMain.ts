@@ -29,7 +29,7 @@ import { formatEther } from "viem";
 import { useContractIntegration } from "./useContractInteraction";
 import { useMultisynq } from "./useMultiSynq";
 
-export const useChessGameMain = () => {
+export const useChessMain = () => {
   // Basic state hooks
   const {
     gameState,

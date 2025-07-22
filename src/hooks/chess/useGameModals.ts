@@ -11,7 +11,47 @@ export const useGameModals = (gameResult: any) => {
     from: string;
     roomName: string;
     password: string;
+    betAmount?: string;
   } | null>(null);
+
+  // ✅ NOUVEAU: Écouter les événements rematchInvitation
+  useEffect(() => {
+    const handleRematchInvitation = (event: CustomEvent) => {
+      const { from, roomName, password, betAmount } = event.detail;
+
+      console.log("📨 [useGameModals] Invitation de rematch reçue:", {
+        from,
+        roomName,
+        password,
+        betAmount,
+      });
+
+      // Stocker l'invitation pour affichage
+      setRematchInvitation({
+        from,
+        roomName,
+        password: password || "",
+        betAmount: betAmount || undefined,
+      });
+
+      // Auto-clear après 60 secondes
+      setTimeout(() => {
+        setRematchInvitation(null);
+      }, 60000);
+    };
+
+    window.addEventListener(
+      "rematchInvitation",
+      handleRematchInvitation as unknown as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "rematchInvitation",
+        handleRematchInvitation as unknown as EventListener
+      );
+    };
+  }, []);
 
   // Auto-open game end modal
   useEffect(() => {
