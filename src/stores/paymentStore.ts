@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-// stores/paymentStore.ts
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
@@ -68,7 +67,6 @@ export const usePaymentStore = create<PaymentState>()(
 
     setGameInfo: (gameInfo) => {
       set({ gameInfo });
-      // Auto-update payment status when game info changes
       get().updatePaymentStatus();
     },
 
@@ -78,7 +76,6 @@ export const usePaymentStore = create<PaymentState>()(
       const { gameInfo } = get();
 
       if (!gameInfo || !gameInfo.betAmount || gameInfo.betAmount <= BigInt(0)) {
-        // No betting requirement
         set({
           whitePlayerPaid: true,
           blackPlayerPaid: true,
@@ -87,16 +84,14 @@ export const usePaymentStore = create<PaymentState>()(
         return;
       }
 
-      // Check payment status based on contract state
       const whitePlayerPaid =
         gameInfo.whitePlayer !== "0x0000000000000000000000000000000000000000";
       const blackPlayerPaid =
         gameInfo.blackPlayer !== "0x0000000000000000000000000000000000000000";
-      const bothPaidFromContract = gameInfo.state === 1; // ACTIVE state
+      const bothPaidFromContract = gameInfo.state === 1;
 
-      // Get current user address (you'll need to pass this or get it from wallet)
       // @ts-ignore
-      const address = (window as any).currentUserAddress; // You'll need to set this
+      const address = (window as any).currentUserAddress;
 
       let currentPlayerPaid = false;
       if (address && gameInfo) {

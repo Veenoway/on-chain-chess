@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// stores/useChessGameStore.ts
 import { GameFlow, GameState, PaymentStatus } from "@/types/chess";
 import { create } from "zustand";
 import { devtools, subscribeWithSelector } from "zustand/middleware";
@@ -7,111 +6,90 @@ import { devtools, subscribeWithSelector } from "zustand/middleware";
 const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 interface ChessGameState {
-  // Game State
   gameState: GameState;
 
-  // UI Flow
   gameFlow: GameFlow;
   isReconnecting: boolean;
   lastKnownGameState: GameState | null;
 
-  // Room Management
   roomInput: string;
   isCreatingRoom: boolean;
   selectedGameTime: number;
 
-  // Chat
   newMessage: string;
   connectionStatus: string;
 
-  // Betting
   betAmount: string;
   isBettingEnabled: boolean;
   roomBetAmount: string | null;
   bettingGameCreationFailed: boolean;
   isRematchTransition: boolean;
 
-  // Payment
   paymentStatus: PaymentStatus;
 
-  // Player & Multisynq
   currentPlayerId: string | null;
   multisynqSession: any;
   multisynqView: any;
   multisynqReady: boolean;
 
-  // Chess Board
   fen: string;
   playerColor: "white" | "black";
 
-  // UI Modals
   showGameEndModal: boolean;
   hasClosedModal: boolean;
   hasClosedPaymentModal: boolean;
   isFinalizingGame: boolean;
 
-  // Move History
   moveHistory: string[];
   currentMoveIndex: number;
 }
 
 interface ChessGameActions {
-  // Game State Actions
   setGameState: (
     gameState: GameState | ((prev: GameState) => GameState)
   ) => void;
   resetGameState: () => void;
 
-  // UI Flow Actions
   setGameFlow: (flow: GameFlow) => void;
   setIsReconnecting: (reconnecting: boolean) => void;
   setLastKnownGameState: (state: GameState | null) => void;
 
-  // Room Management Actions
   setRoomInput: (input: string) => void;
   setIsCreatingRoom: (creating: boolean) => void;
   setSelectedGameTime: (time: number) => void;
 
-  // Chat Actions
   setNewMessage: (message: string) => void;
   setConnectionStatus: (status: string) => void;
 
-  // Betting Actions
   setBetAmount: (amount: string) => void;
   setIsBettingEnabled: (enabled: boolean) => void;
   setRoomBetAmount: (amount: string | null) => void;
   setBettingGameCreationFailed: (failed: boolean) => void;
   setIsRematchTransition: (transition: boolean) => void;
 
-  // Payment Actions
   setPaymentStatus: (
     status: PaymentStatus | ((prev: PaymentStatus) => PaymentStatus)
   ) => void;
   updatePaymentStatus: (updates: Partial<PaymentStatus>) => void;
 
-  // Player & Multisynq Actions
   setCurrentPlayerId: (id: string | null) => void;
   setMultisynqSession: (session: any) => void;
   setMultisynqView: (view: any) => void;
   setMultisynqReady: (ready: boolean) => void;
 
-  // Chess Board Actions
   setFen: (fen: string) => void;
   setPlayerColor: (color: "white" | "black") => void;
 
-  // UI Modal Actions
   setShowGameEndModal: (show: boolean) => void;
   setHasClosedModal: (closed: boolean) => void;
   setHasClosedPaymentModal: (closed: boolean) => void;
   setIsFinalizingGame: (finalizing: boolean) => void;
 
-  // Move History Actions
   setMoveHistory: (history: string[] | ((prev: string[]) => string[])) => void;
   setCurrentMoveIndex: (index: number | ((prev: number) => number)) => void;
   addMoveToHistory: (fen: string) => void;
   resetMoveHistory: () => void;
 
-  // Combined Actions
   resetToWelcomeScreen: () => void;
   startNewGame: (
     roomName: string,
@@ -152,7 +130,6 @@ const initialPaymentStatus: PaymentStatus = {
 export const useChessGameStore = create<ChessGameStore>()(
   devtools(
     subscribeWithSelector((set) => ({
-      // Initial State
       gameState: initialGameState,
       gameFlow: "welcome",
       isReconnecting: false,
@@ -181,7 +158,6 @@ export const useChessGameStore = create<ChessGameStore>()(
       moveHistory: [INITIAL_FEN],
       currentMoveIndex: 0,
 
-      // Game State Actions
       setGameState: (gameState) =>
         set((state) => ({
           gameState:
@@ -195,22 +171,18 @@ export const useChessGameStore = create<ChessGameStore>()(
           gameState: { ...initialGameState, createdAt: Date.now() },
         }),
 
-      // UI Flow Actions
       setGameFlow: (flow) => set({ gameFlow: flow }),
       setIsReconnecting: (reconnecting) =>
         set({ isReconnecting: reconnecting }),
       setLastKnownGameState: (state) => set({ lastKnownGameState: state }),
 
-      // Room Management Actions
       setRoomInput: (input) => set({ roomInput: input }),
       setIsCreatingRoom: (creating) => set({ isCreatingRoom: creating }),
       setSelectedGameTime: (time) => set({ selectedGameTime: time }),
 
-      // Chat Actions
       setNewMessage: (message) => set({ newMessage: message }),
       setConnectionStatus: (status) => set({ connectionStatus: status }),
 
-      // Betting Actions
       setBetAmount: (amount) => set({ betAmount: amount }),
       setIsBettingEnabled: (enabled) => set({ isBettingEnabled: enabled }),
       setRoomBetAmount: (amount) => set({ roomBetAmount: amount }),
@@ -219,7 +191,6 @@ export const useChessGameStore = create<ChessGameStore>()(
       setIsRematchTransition: (transition) =>
         set({ isRematchTransition: transition }),
 
-      // Payment Actions
       setPaymentStatus: (status) =>
         set((state) => ({
           paymentStatus:
@@ -231,17 +202,14 @@ export const useChessGameStore = create<ChessGameStore>()(
           paymentStatus: { ...state.paymentStatus, ...updates },
         })),
 
-      // Player & Multisynq Actions
       setCurrentPlayerId: (id) => set({ currentPlayerId: id }),
       setMultisynqSession: (session) => set({ multisynqSession: session }),
       setMultisynqView: (view) => set({ multisynqView: view }),
       setMultisynqReady: (ready) => set({ multisynqReady: ready }),
 
-      // Chess Board Actions
       setFen: (fen) => set({ fen: fen }),
       setPlayerColor: (color) => set({ playerColor: color }),
 
-      // UI Modal Actions
       setShowGameEndModal: (show) => set({ showGameEndModal: show }),
       setHasClosedModal: (closed) => set({ hasClosedModal: closed }),
       setHasClosedPaymentModal: (closed) =>
@@ -249,7 +217,6 @@ export const useChessGameStore = create<ChessGameStore>()(
       setIsFinalizingGame: (finalizing) =>
         set({ isFinalizingGame: finalizing }),
 
-      // Move History Actions
       setMoveHistory: (history) =>
         set((state) => ({
           moveHistory:
@@ -281,7 +248,6 @@ export const useChessGameStore = create<ChessGameStore>()(
           fen: INITIAL_FEN,
         }),
 
-      // Combined Actions
       resetToWelcomeScreen: () =>
         set({
           gameFlow: "welcome",
@@ -329,7 +295,6 @@ export const useChessGameStore = create<ChessGameStore>()(
   )
 );
 
-// Selectors utiles
 export const useGameState = () => useChessGameStore((state) => state.gameState);
 export const useGameFlow = () => useChessGameStore((state) => state.gameFlow);
 export const useCurrentPlayer = () => {

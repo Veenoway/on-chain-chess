@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-// stores/chessStore.ts
 import { create } from "zustand";
 import { persist, subscribeWithSelector } from "zustand/middleware";
 
@@ -249,7 +248,6 @@ export const useChessStore = create<ChessState>()(
             hasClosedModal: false,
           })),
 
-        // Game actions (these will be connected to Multisynq)
         makeMove: (from, to, promotion = "q") => {
           const { multisynqView, currentPlayerId } = get();
           if (multisynqView && currentPlayerId) {
@@ -301,7 +299,6 @@ export const useChessStore = create<ChessState>()(
       {
         name: "chess-game-storage",
         partialize: (state) => ({
-          // Only persist specific fields
           roomName: state.roomName,
           roomPassword: state.roomPassword,
           gameTimeLimit: state.gameTimeLimit,
@@ -309,7 +306,6 @@ export const useChessStore = create<ChessState>()(
           betAmount: state.betAmount,
           moveHistory: state.moveHistory,
           currentMoveIndex: state.currentMoveIndex,
-          // ✅ AJOUTÉ: Persister les informations critiques pour restaurer l'état après refresh
           gameResult: state.gameResult,
           isActive: state.isActive,
           players: state.players,
