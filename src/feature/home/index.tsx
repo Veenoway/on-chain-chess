@@ -1,1886 +1,1543 @@
-// ChessApp avec session dynamique et synchronisation
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { WalletConnection } from "@/components/connect-wallet";
-import { Chess } from "chess.js";
-import { useEffect, useRef, useState } from "react";
-import { Chessboard, type PieceDropHandlerArgs } from "react-chessboard";
-import { useAccount } from "wagmi";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useChessMain } from "@/hooks/chess/useChessMain";
+import { CheckIcon, CopyIcon } from "lucide-react";
+import { useState } from "react";
+import { Chessboard } from "react-chessboard";
+import { formatEther } from "viem";
+import { useSwitchChain } from "wagmi";
+import CapturedPieces from "../../components/captured-pieces";
 
 export default function ChessMultisynqApp() {
-  // États pour l'interface
-  const [fen, setFen] = useState(
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-  );
-  const [sessionInfo, setSessionInfo] = useState({ name: "", password: "" });
-  const [connectionStatus, setConnectionStatus] = useState("Prêt à jouer");
-  const [isGameActive, setIsGameActive] = useState(false);
-  const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
-  const [playerId] = useState(Date.now().toString());
+  const chess = useChessMain();
+  const [isResignPopoverOpen, setIsResignPopoverOpen] = useState(false);
 
-  // États pour le flow UX
-  const [gameFlow, setGameFlow] = useState<"welcome" | "lobby" | "game">(
-    "welcome"
-  );
-  const [roomInput, setRoomInput] = useState("");
-  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
-
-  // États pour les timers individuels
-  const [whiteTime, setWhiteTime] = useState(600); // 10 minutes par défaut
-  const [blackTime, setBlackTime] = useState(600); // 10 minutes par défaut
-  const [gameTimeLimit, setGameTimeLimit] = useState(600); // Temps sélectionné
-  const [showTimeSelector, setShowTimeSelector] = useState(false);
-  const [lastMoveTime, setLastMoveTime] = useState<number | null>(null);
-
-  // États pour le chat
-  const [messages, setMessages] = useState<
-    Array<{
-      id: string;
-      playerId: string;
-      playerWallet: string;
-      message: string;
-      timestamp: number;
-    }>
-  >([]);
-  const [newMessage, setNewMessage] = useState("");
-
-  // Wallet connection
-  const { address, isConnected } = useAccount();
-
-  // États pour les fins de partie
-  const [gameResult, setGameResult] = useState<{
-    type: "abandoned" | "draw" | "checkmate" | "stalemate" | "timeout" | null;
-    winner?: "white" | "black" | "draw";
-    message?: string;
-  }>({ type: null });
-  const [drawOffer, setDrawOffer] = useState<{
-    offered: boolean;
-    by: "white" | "black" | null;
-  }>({ offered: false, by: null });
-
-  const gameRef = useRef(new Chess());
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Valeurs des pièces pour le calcul de l'avantage matériel
-  const pieceValues: { [key: string]: number } = {
-    p: 1, // pion
-    n: 3, // cavalier
-    b: 3, // fou
-    r: 5, // tour
-    q: 9, // dame
-    k: 0, // roi (ne compte pas)
-  };
-
-  // Fonction pour tronquer l'adresse wallet
-  const formatWalletAddress = (address: string) => {
-    return `${address?.slice(0, 6)}...${address?.slice(-4)}`;
-  };
-
-  // Fonction pour formater le temps en MM:SS
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  // Flow UX - Vérifier la connexion wallet et les paramètres URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomName = urlParams.get("room");
-
-    if (roomName && isConnected) {
-      // Si on a un lien de room et qu'on est connecté, aller directement au jeu
-      initializeGameFromURL();
-    } else if (roomName && !isConnected) {
-      // Si on a un lien mais pas connecté, rester sur welcome pour forcer la connexion
-      setGameFlow("welcome");
-    } else if (isConnected) {
-      // Si connecté mais pas de room, aller au lobby
-      setGameFlow("lobby");
-    } else {
-      // Sinon, écran de bienvenue
-      setGameFlow("welcome");
-    }
-  }, [isConnected]);
-
-  // Créer une nouvelle room
-  const createNewRoom = () => {
-    if (!isConnected) return;
-
-    setIsCreatingRoom(true);
-    const roomName = `chess-${Math.random().toString(36).substring(2, 8)}`;
-    const roomPassword = Math.random().toString(36).substring(2, 6);
-
-    // Mettre à jour l'URL
-    const newUrl = `${window.location.pathname}?room=${roomName}&password=${roomPassword}`;
-    window.history.pushState({}, "", newUrl);
-
-    // Initialiser la room
-    setSessionInfo({ name: roomName, password: roomPassword });
-    initializeNewRoom(roomName);
-    setGameFlow("game");
-    setIsCreatingRoom(false);
-  };
-
-  // Rejoindre une room existante
-  const joinRoom = () => {
-    if (!isConnected || !roomInput.trim()) return;
-
-    const roomName = roomInput.trim();
-    const roomPassword = ""; // Pour simplifier, pas de password pour rejoindre
-
-    // Mettre à jour l'URL
-    const newUrl = `${window.location.pathname}?room=${roomName}&password=${roomPassword}`;
-    window.history.pushState({}, "", newUrl);
-
-    // Rejoindre la room
-    setSessionInfo({ name: roomName, password: roomPassword });
-    determinePlayerColor(roomName);
-    setGameFlow("game");
-  };
-
-  // Initialiser le jeu depuis l'URL
-  const initializeGameFromURL = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomName = urlParams.get("room");
-    let roomPassword = urlParams.get("password");
-
-    if (!roomName) return;
-
-    if (!roomPassword) {
-      roomPassword = Math.random().toString(36).substring(2, 6);
-    }
-
-    setSessionInfo({ name: roomName, password: roomPassword });
-    console.log("🎯 Session:", { name: roomName, password: roomPassword });
-
-    // Déterminer la couleur du joueur
-    determinePlayerColor(roomName);
-    setGameFlow("game");
-  };
-
-  // Initialiser une nouvelle room
-  const initializeNewRoom = (roomName: string) => {
-    const roomKey = `chess-room-${roomName}`;
-    const newRoom = {
-      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      player1Id: playerId,
-      player1Color: "white",
-      player1Wallet: address,
-      player2Id: null,
-      player2Color: null,
-      player2Wallet: null,
-      playerCount: 1,
-      turn: "w",
-      isActive: false,
-      lastMoveTime: null,
-      whiteTime: gameTimeLimit,
-      blackTime: gameTimeLimit,
-      gameTimeLimit: gameTimeLimit,
-      gameNumber: 1,
-      lastGameWinner: null,
-      messages: [],
-    };
-    localStorage.setItem(roomKey, JSON.stringify(newRoom));
-    setPlayerColor("white");
-    setConnectionStatus("En attente d'un adversaire...");
-    console.log("🆕 Nouvelle room créée - Joueur 1 (Blanc)");
-  };
-
-  // Sélecteur de temps de partie
-  const selectGameTime = (minutes: number) => {
-    const seconds = minutes * 60;
-    setGameTimeLimit(seconds);
-    setWhiteTime(seconds);
-    setBlackTime(seconds);
-    setShowTimeSelector(false);
-
-    // Sauvegarder dans la room et forcer la synchronisation
-    const roomKey = `chess-room-${sessionInfo.name}`;
-    const existingRoom = localStorage.getItem(roomKey);
-
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-      const updatedRoom = {
-        ...roomData,
-        gameTimeLimit: seconds,
-        whiteTime: seconds,
-        blackTime: seconds,
-        // Maintenir tous les autres champs pour éviter la perte de données
-        player1Id: roomData.player1Id,
-        player2Id: roomData.player2Id,
-        player1Color: roomData.player1Color,
-        player2Color: roomData.player2Color,
-        player1Wallet: roomData.player1Wallet,
-        player2Wallet: roomData.player2Wallet,
-        messages: roomData.messages || [],
-      };
-      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-      console.log("⏰ Temps synchronisé dans la room:", updatedRoom);
-    }
-
-    console.log(`⏰ Temps de partie sélectionné: ${minutes} minutes`);
-  };
-
-  // Déterminer la couleur du joueur basé sur l'ordre d'arrivée et les parties précédentes
-  const determinePlayerColor = (roomName: string) => {
-    const roomKey = `chess-room-${roomName}`;
-    const existingRoom = localStorage.getItem(roomKey);
-
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-      console.log("🏠 Room existante trouvée:", roomData);
-
-      // Synchroniser le temps de jeu depuis la room existante
-      if (roomData.gameTimeLimit) {
-        setGameTimeLimit(roomData.gameTimeLimit);
-        setWhiteTime(roomData.whiteTime || roomData.gameTimeLimit);
-        setBlackTime(roomData.blackTime || roomData.gameTimeLimit);
-        console.log(
-          "⏰ Temps synchronisé depuis la room:",
-          roomData.gameTimeLimit
-        );
-      }
-
-      // Synchroniser les messages depuis la room existante
-      if (roomData.messages) {
-        setMessages(roomData.messages);
-        console.log("💬 Messages synchronisés:", roomData.messages.length);
-      }
-
-      // Vérifier si c'est un joueur existant
-      const isPlayer1 = roomData.player1Id === playerId;
-      const isPlayer2 = roomData.player2Id === playerId;
-
-      if (isPlayer1) {
-        // C'est le joueur 1 - utiliser sa couleur actuelle
-        setPlayerColor(roomData.player1Color || "white");
-        setConnectionStatus(
-          roomData.player2Id
-            ? "Partie prête ! Deux joueurs connectés"
-            : "En attente d'un adversaire..."
-        );
-        console.log(
-          "🎯 Joueur 1 reconnecté avec couleur:",
-          roomData.player1Color || "white"
-        );
-      } else if (isPlayer2) {
-        // C'est le joueur 2 - utiliser sa couleur actuelle
-        setPlayerColor(roomData.player2Color || "black");
-        setConnectionStatus("Partie prête ! Deux joueurs connectés");
-        console.log(
-          "🎯 Joueur 2 reconnecté avec couleur:",
-          roomData.player2Color || "black"
-        );
-      } else if (!roomData.player1Id) {
-        // Nouveau joueur 1
-        const player1Color = roomData.lastGameWinner
-          ? roomData.lastGameWinner === "white"
-            ? "black"
-            : "white"
-          : "white";
-        setPlayerColor(player1Color);
-        setConnectionStatus("En attente d'un adversaire...");
-        const updatedRoom = {
-          ...roomData,
-          player1Id: playerId,
-          player1Color,
-          player1Wallet: address,
-          playerCount: 1,
-        };
-        localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-        console.log("🎯 Nouveau joueur 1 avec couleur:", player1Color);
-      } else if (!roomData.player2Id) {
-        // Nouveau joueur 2 - hériter des paramètres de la room
-        const player2Color =
-          roomData.player1Color === "white" ? "black" : "white";
-        setPlayerColor(player2Color);
-        setConnectionStatus("Partie prête ! Deux joueurs connectés");
-        const updatedRoom = {
-          ...roomData,
-          player2Id: playerId,
-          player2Color,
-          player2Wallet: address,
-          playerCount: 2,
-        };
-        localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-        console.log("🎯 Nouveau joueur 2 avec couleur:", player2Color);
-      } else {
-        // Spectateur ou trop de joueurs
-        setPlayerColor("white"); // Par défaut
-        setConnectionStatus("Room pleine - Mode spectateur");
-        console.log("👁️ Spectateur");
-      }
-    } else {
-      // Créer une nouvelle room - premier joueur = Blanc par défaut
-      setPlayerColor("white");
-      setConnectionStatus("En attente d'un adversaire...");
-      const newRoom = {
-        fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        player1Id: playerId,
-        player1Color: "white",
-        player1Wallet: address,
-        player2Id: null,
-        player2Color: null,
-        player2Wallet: null,
-        playerCount: 1,
-        turn: "w",
-        isActive: false,
-        startTime: null,
-        whiteTime: gameTimeLimit,
-        blackTime: gameTimeLimit,
-        gameTimeLimit: gameTimeLimit,
-        gameNumber: 1,
-        lastGameWinner: null,
-        messages: [],
-      };
-      localStorage.setItem(roomKey, JSON.stringify(newRoom));
-      console.log("🆕 Nouvelle room créée - Joueur 1 (Blanc)");
-    }
-  };
-
-  // Écouter les changements dans localStorage pour la synchronisation
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === `chess-room-${sessionInfo.name}` && e.newValue) {
-        const roomData = JSON.parse(e.newValue);
-        console.log("🔄 Synchronisation reçue:", roomData);
-
-        // Synchroniser l'état du jeu
-        if (roomData.fen !== fen) {
-          console.log("📱 Mise à jour FEN:", roomData.fen);
-          setFen(roomData.fen);
-          gameRef.current.load(roomData.fen);
-        }
-
-        if (roomData.isActive !== isGameActive) {
-          console.log("🎮 Mise à jour isActive:", roomData.isActive);
-          setIsGameActive(roomData.isActive);
-        }
-
-        // Synchroniser les timers
-        if (roomData.whiteTime !== whiteTime) {
-          console.log("⏰ Mise à jour whiteTime:", roomData.whiteTime);
-          setWhiteTime(roomData.whiteTime);
-        }
-
-        if (roomData.blackTime !== blackTime) {
-          console.log("⏰ Mise à jour blackTime:", roomData.blackTime);
-          setBlackTime(roomData.blackTime);
-        }
-
-        if (
-          roomData.gameTimeLimit &&
-          roomData.gameTimeLimit !== gameTimeLimit
-        ) {
-          console.log("⏰ Mise à jour gameTimeLimit:", roomData.gameTimeLimit);
-          setGameTimeLimit(roomData.gameTimeLimit);
-        }
-
-        if (roomData.lastMoveTime !== lastMoveTime) {
-          console.log("⏰ Mise à jour lastMoveTime:", roomData.lastMoveTime);
-          setLastMoveTime(roomData.lastMoveTime);
-        }
-
-        // Synchroniser les fins de partie
-        if (
-          roomData.gameResult &&
-          roomData.gameResult.type !== gameResult.type
-        ) {
-          console.log("🏁 Fin de partie reçue:", roomData.gameResult);
-          setGameResult(roomData.gameResult);
-          setIsGameActive(false);
-        }
-
-        // Synchroniser les propositions de nul
-        if (
-          roomData.drawOffer &&
-          (roomData.drawOffer.offered !== drawOffer.offered ||
-            roomData.drawOffer.by !== drawOffer.by)
-        ) {
-          console.log("🤝 Proposition de nul reçue:", roomData.drawOffer);
-          setDrawOffer(roomData.drawOffer);
-        }
-
-        // Synchroniser les couleurs des joueurs
-        if (
-          roomData.player1Id === playerId &&
-          roomData.player1Color !== playerColor
-        ) {
-          console.log(
-            "🎭 Mise à jour couleur joueur 1:",
-            roomData.player1Color
-          );
-          setPlayerColor(roomData.player1Color);
-        } else if (
-          roomData.player2Id === playerId &&
-          roomData.player2Color !== playerColor
-        ) {
-          console.log(
-            "🎭 Mise à jour couleur joueur 2:",
-            roomData.player2Color
-          );
-          setPlayerColor(roomData.player2Color);
-        }
-
-        // Synchroniser les messages du chat
-        if (roomData.messages) {
-          // Vérifier si les messages sont différents (par longueur et dernière timestamp)
-          const currentLastMessage = messages[messages.length - 1];
-          const roomLastMessage =
-            roomData.messages[roomData.messages.length - 1];
-
-          const messagesDifferent =
-            roomData.messages.length !== messages.length ||
-            (roomLastMessage &&
-              currentLastMessage &&
-              roomLastMessage.timestamp !== currentLastMessage.timestamp) ||
-            (!currentLastMessage && roomLastMessage) ||
-            (currentLastMessage && !roomLastMessage);
-
-          if (messagesDifferent) {
-            console.log("💬 Synchronisation des messages:", roomData.messages);
-            setMessages(roomData.messages);
-          }
-        }
-
-        // Mettre à jour le statut selon les joueurs connectés
-        const player1Connected = !!roomData.player1Id;
-        const player2Connected = !!roomData.player2Id;
-
-        if (player1Connected && player2Connected) {
-          setConnectionStatus("Partie en cours - 2 joueurs connectés");
-        } else if (player1Connected || player2Connected) {
-          setConnectionStatus("En attente d'un adversaire...");
-        }
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-
-    // Polling supplémentaire pour s'assurer de la synchronisation
-    const pollInterval = setInterval(() => {
-      const roomKey = `chess-room-${sessionInfo.name}`;
-      const roomData = localStorage.getItem(roomKey);
-      if (roomData) {
-        const parsed = JSON.parse(roomData);
-
-        // Synchroniser FEN
-        if (parsed.fen !== fen) {
-          console.log("🔄 Polling: FEN différent détecté");
-          setFen(parsed.fen);
-          gameRef.current.load(parsed.fen);
-        }
-
-        // Synchroniser timers
-        if (parsed.whiteTime !== whiteTime) {
-          setWhiteTime(parsed.whiteTime);
-        }
-
-        if (parsed.blackTime !== blackTime) {
-          setBlackTime(parsed.blackTime);
-        }
-
-        if (parsed.gameTimeLimit && parsed.gameTimeLimit !== gameTimeLimit) {
-          setGameTimeLimit(parsed.gameTimeLimit);
-        }
-
-        // Synchroniser état du jeu
-        if (parsed.isActive !== isGameActive) {
-          console.log("🔄 Polling: État jeu différent détecté");
-          setIsGameActive(parsed.isActive);
-        }
-
-        // Synchroniser les couleurs des joueurs
-        if (
-          parsed.player1Id === playerId &&
-          parsed.player1Color !== playerColor
-        ) {
-          console.log("🔄 Polling: Couleur joueur 1 différente");
-          setPlayerColor(parsed.player1Color);
-        } else if (
-          parsed.player2Id === playerId &&
-          parsed.player2Color !== playerColor
-        ) {
-          console.log("🔄 Polling: Couleur joueur 2 différente");
-          setPlayerColor(parsed.player2Color);
-        }
-
-        // Synchroniser les messages
-        if (parsed.messages) {
-          const currentLastMessage = messages[messages.length - 1];
-          const parsedLastMessage = parsed.messages[parsed.messages.length - 1];
-
-          const messagesDifferent =
-            parsed.messages.length !== messages.length ||
-            (parsedLastMessage &&
-              currentLastMessage &&
-              parsedLastMessage.timestamp !== currentLastMessage.timestamp) ||
-            (!currentLastMessage && parsedLastMessage) ||
-            (currentLastMessage && !parsedLastMessage);
-
-          if (messagesDifferent) {
-            console.log("🔄 Polling: Messages différents détectés");
-            setMessages(parsed.messages);
-          }
-        }
-      }
-    }, 1000); // Vérifier toutes les secondes
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      clearInterval(pollInterval);
-    };
-  }, [
-    sessionInfo.name,
-    fen,
-    isGameActive,
-    whiteTime,
-    blackTime,
-    gameTimeLimit,
-    lastMoveTime,
-    gameResult,
-    drawOffer,
+  const {
+    gameState,
+    gameFlow,
+    currentPlayerId,
     playerColor,
-    playerId,
-    messages.length,
-  ]);
+    fen,
 
-  // Timer principal pour décompter le temps
-  useEffect(() => {
-    if (isGameActive && lastMoveTime) {
-      timerRef.current = setInterval(() => {
-        const currentTurn = gameRef.current.turn();
+    menuActive,
+    setMenuActive,
+    roomInput,
+    setRoomInput,
+    selectedGameTime,
+    setSelectedGameTime,
+    betAmount,
+    setBetAmount,
+    isBettingEnabled,
+    setIsBettingEnabled,
+    isCreatingRoom,
+    newMessage,
+    setNewMessage,
 
-        if (currentTurn === "w") {
-          const newWhiteTime = Math.max(0, whiteTime - 1);
-          setWhiteTime(newWhiteTime);
+    handleCreateRoom,
+    handleJoinRoom,
+    handleAutoJoinRoom,
+    handleSendMessageWrapper,
+    handleOfferDraw,
+    handleRespondDraw,
+    handleResign,
+    handleNewGame,
+    handleBackHome,
 
-          // Vérifier si le temps est écoulé
-          if (newWhiteTime <= 0) {
-            const result = {
-              type: "timeout" as const,
-              winner: "black" as const,
-              message:
-                "Les Blancs ont dépassé le temps limite ! Les Noirs gagnent !",
-            };
-            setGameResult(result);
-            setIsGameActive(false);
-            syncGameEndState(result);
-            return;
-          }
+    getCurrentPlayerTime,
+    getOpponentTime,
 
-          // Synchroniser le nouveau temps
-          syncTimers(newWhiteTime, blackTime, lastMoveTime);
-        } else {
-          const newBlackTime = Math.max(0, blackTime - 1);
-          setBlackTime(newBlackTime);
+    goToPreviousMoveWithFen,
+    goToNextMoveWithFen,
+    goToFirstMoveWithFen,
+    goToLastMoveWithFen,
+    currentMoveIndex,
+    moveHistory,
 
-          // Vérifier si le temps est écoulé
-          if (newBlackTime <= 0) {
-            const result = {
-              type: "timeout" as const,
-              winner: "white" as const,
-              message:
-                "Les Noirs ont dépassé le temps limite ! Les Blancs gagnent !",
-            };
-            setGameResult(result);
-            setIsGameActive(false);
-            syncGameEndState(result);
-            return;
-          }
+    chessboardOptions,
 
-          // Synchroniser le nouveau temps
-          syncTimers(whiteTime, newBlackTime, lastMoveTime);
-        }
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    paymentStatus,
+    bothPlayersPaid,
+    canCurrentPlayerClaim,
+    getAvailableAmount,
+    isFinalizingGame,
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isGameActive, lastMoveTime, whiteTime, blackTime]);
+    showGameEndModal,
+    setShowGameEndModal,
+    hasClosedPaymentModal,
+    rematchInvitation,
+    setRematchInvitation,
+    shouldDisableNavigationButtons,
+    canOfferRematch,
+    isRematchTransition,
+    setBettingGameCreationFailed,
+    multisynqView,
+    rematchCreating,
 
-  // Synchroniser les timers avec localStorage
-  const syncTimers = (
-    newWhiteTime: number,
-    newBlackTime: number,
-    moveTime: number
-  ) => {
-    const roomKey = `chess-room-${sessionInfo.name}`;
-    const existingRoom = localStorage.getItem(roomKey);
+    isConnected,
+    isWrongNetwork,
+    address,
+    multisynqReady,
+    gameInfo,
+    gameId,
+    isPending,
+    isConfirming,
+    balanceFormatted,
+    claimState,
+    resetClaimState,
+    cancelState,
+    canCancel,
+    createBettingGame,
+    joinBettingGameByRoom,
+    claimWinnings,
+    claimDrawRefund,
+    cancelBettingGame,
+    setRoomBetAmount,
+    handleCloseGameEndModal,
+    setPaymentStatus,
 
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-      const updatedRoom = {
-        ...roomData,
-        whiteTime: newWhiteTime,
-        blackTime: newBlackTime,
-        lastMoveTime: moveTime,
-      };
-      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-    }
+    isReconnecting,
+  } = chess;
+
+  const [copied, setCopied] = useState(false);
+  const { switchChain } = useSwitchChain();
+
+  const handleSendMessage = () => {
+    handleSendMessageWrapper(newMessage);
   };
 
-  // Synchroniser les changements avec localStorage
-  const syncGameState = (
-    newFen: string,
-    gameActive: boolean,
-    moveTime: number | null = null
-  ) => {
-    const roomKey = `chess-room-${sessionInfo.name}`;
-    const existingRoom = localStorage.getItem(roomKey);
-
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-      const updatedRoom = {
-        ...roomData,
-        fen: newFen,
-        isActive: gameActive,
-        lastMoveTime: moveTime || roomData.lastMoveTime,
-        turn: gameRef.current.turn(),
-        // Maintenir les données des joueurs et tous les paramètres existants
-        player1Id: roomData.player1Id,
-        player2Id: roomData.player2Id,
-        player1Color: roomData.player1Color,
-        player2Color: roomData.player2Color,
-        player1Wallet: roomData.player1Wallet,
-        player2Wallet: roomData.player2Wallet,
-        playerCount: roomData.player1Id && roomData.player2Id ? 2 : 1,
-        whiteTime: roomData.whiteTime,
-        blackTime: roomData.blackTime,
-        gameTimeLimit: roomData.gameTimeLimit,
-        messages: roomData.messages || [],
-      };
-      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-      console.log("💾 État synchronisé:", updatedRoom);
-    }
-  };
-
-  // Commencer une partie
-  const startGame = () => {
-    const now = Date.now();
-    setLastMoveTime(now);
-    setIsGameActive(true);
-    setConnectionStatus("Partie en cours");
-    syncGameState(fen, true, now);
-    console.log("🚀 Partie démarrée avec timers");
-  };
-
-  // Gérer les mouvements
-  const onPieceDrop = (args: PieceDropHandlerArgs): boolean => {
-    const { sourceSquare, targetSquare } = args;
-    if (!targetSquare) return false;
-
-    console.log("🧩 Tentative de mouvement:", sourceSquare, "->", targetSquare);
-    console.log(
-      "🎭 Joueur actuel:",
-      playerColor,
-      "| Tour du jeu:",
-      gameRef.current.turn()
-    );
-
-    // Vérifier si c'est le tour du joueur
-    const currentTurn = gameRef.current.turn();
-    const isPlayerTurn =
-      (currentTurn === "w" && playerColor === "white") ||
-      (currentTurn === "b" && playerColor === "black");
-
-    console.log("✅ Validation du tour:", {
-      currentTurn,
-      playerColor,
-      isPlayerTurn,
-      condition1: currentTurn === "w" && playerColor === "white",
-      condition2: currentTurn === "b" && playerColor === "black",
-    });
-
-    if (!isPlayerTurn) {
-      console.warn("❌ Ce n'est pas votre tour !");
-      console.warn(
-        "❌ Détails: currentTurn =",
-        currentTurn,
-        "playerColor =",
-        playerColor
-      );
-      return false;
-    }
-
-    try {
-      const move = gameRef.current.move({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: "q",
-      });
-
-      if (move) {
-        const newFen = gameRef.current.fen();
-        const now = Date.now();
-        setFen(newFen);
-        setLastMoveTime(now); // Important: réinitialiser le timer pour le prochain joueur
-        console.log("✅ Mouvement valide:", move);
-        console.log("📋 Nouveau FEN:", newFen);
-
-        // Démarrer la partie au premier mouvement
-        if (!isGameActive) {
-          startGame();
-        } else {
-          syncGameState(newFen, isGameActive, now);
-        }
-
-        return true;
-      } else {
-        console.warn("❌ Mouvement invalide");
-        return false;
-      }
-    } catch (error) {
-      console.warn("❌ Erreur de mouvement:", error);
-      return false;
-    }
-  };
-
-  // Fonctions pour les fins de partie
-  const abandonGame = () => {
-    const winner =
-      playerColor === "white" ? ("black" as const) : ("white" as const);
-    const result = {
-      type: "abandoned" as const,
-      winner,
-      message: `${
-        playerColor === "white" ? "Les Blancs" : "Les Noirs"
-      } abandonnent ! ${winner === "white" ? "Blancs" : "Noirs"} gagnent !`,
-    };
-
-    setGameResult(result);
-    setIsGameActive(false);
-    syncGameEndState(result);
-    console.log("🏳️ Abandon:", result);
-  };
-
-  const offerDraw = () => {
-    const offer = { offered: true, by: playerColor };
-    setDrawOffer(offer);
-    syncDrawOffer(offer);
-    console.log("🤝 Proposition de nul par:", playerColor);
-  };
-
-  const acceptDraw = () => {
-    const result = {
-      type: "draw" as const,
-      winner: "draw" as const,
-      message: "Match nul accepté !",
-    };
-
-    setGameResult(result);
-    setDrawOffer({ offered: false, by: null });
-    setIsGameActive(false);
-    syncGameEndState(result);
-    console.log("✅ Nul accepté");
-  };
-
-  const declineDraw = () => {
-    const offer = { offered: false, by: null };
-    setDrawOffer(offer);
-    syncDrawOffer(offer);
-    console.log("❌ Nul refusé");
-  };
-
-  // Synchroniser l'état de fin de partie
-  const syncGameEndState = (result: typeof gameResult) => {
-    const roomKey = `chess-room-${sessionInfo.name}`;
-    const existingRoom = localStorage.getItem(roomKey);
-
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-      const updatedRoom = {
-        ...roomData,
-        gameResult: result,
-        isActive: false,
-        lastGameWinner: result.winner,
-      };
-      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-    }
-  };
-
-  // Synchroniser les propositions de nul
-  const syncDrawOffer = (offer: typeof drawOffer) => {
-    const roomKey = `chess-room-${sessionInfo.name}`;
-    const existingRoom = localStorage.getItem(roomKey);
-
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-      const updatedRoom = {
-        ...roomData,
-        drawOffer: offer,
-      };
-      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-    }
-  };
-
-  // Réinitialiser la partie avec inversion des couleurs
-  const resetGame = () => {
-    gameRef.current.reset();
-    const initialFen =
-      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    setFen(initialFen);
-    setIsGameActive(false);
-    setLastMoveTime(null);
-    setWhiteTime(gameTimeLimit); // Reset aux temps sélectionnés
-    setBlackTime(gameTimeLimit); // Reset aux temps sélectionnés
-    setGameResult({ type: null });
-    setDrawOffer({ offered: false, by: null });
-    setConnectionStatus("Prêt à jouer");
-
-    // Inverser les couleurs des joueurs après chaque partie
-    const roomKey = `chess-room-${sessionInfo.name}`;
-    const existingRoom = localStorage.getItem(roomKey);
-
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-
-      // Inverser les couleurs
-      const newPlayer1Color =
-        roomData.player1Color === "white" ? "black" : "white";
-      const newPlayer2Color =
-        roomData.player2Color === "white" ? "black" : "white";
-
-      // Déterminer ma nouvelle couleur
-      const myNewColor =
-        roomData.player1Id === playerId ? newPlayer1Color : newPlayer2Color;
-      setPlayerColor(myNewColor);
-
-      const updatedRoom = {
-        ...roomData,
-        fen: initialFen,
-        isActive: false,
-        lastMoveTime: null,
-        whiteTime: gameTimeLimit,
-        blackTime: gameTimeLimit,
-        gameResult: null,
-        drawOffer: { offered: false, by: null },
-        turn: "w",
-        player1Color: newPlayer1Color,
-        player2Color: newPlayer2Color,
-        gameNumber: (roomData.gameNumber || 1) + 1,
-      };
-
-      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-      console.log("🔄 Partie réinitialisée avec couleurs inversées");
-      console.log("🎯 Votre nouvelle couleur:", myNewColor);
-    } else {
-      syncGameState(initialFen, false, null);
-    }
-  };
-
-  // Calculer l'avantage matériel
-  const calculateMaterialAdvantage = () => {
-    const board = gameRef.current.board();
-    const whitePieces: string[] = [];
-    const blackPieces: string[] = [];
-
-    // Compter les pièces sur l'échiquier
-    board.forEach((row) => {
-      row.forEach((square) => {
-        if (square) {
-          if (square.color === "w") {
-            whitePieces.push(square.type.toUpperCase());
-          } else {
-            blackPieces.push(square.type.toLowerCase());
-          }
-        }
-      });
-    });
-
-    // Calculer l'avantage
-    const whiteCaptured: string[] = [];
-    const blackCaptured: string[] = [];
-
-    // Compter chaque type de pièce
-    const pieceCount = {
-      white: { Q: 0, R: 0, B: 0, N: 0, P: 0 },
-      black: { q: 0, r: 0, b: 0, n: 0, p: 0 },
-    };
-
-    // Compter les pièces actuellement sur l'échiquier
-    whitePieces.forEach((piece) => {
-      if (piece !== "K")
-        pieceCount.white[piece as keyof typeof pieceCount.white]++;
-    });
-    blackPieces.forEach((piece) => {
-      if (piece !== "k")
-        pieceCount.black[piece as keyof typeof pieceCount.black]++;
-    });
-
-    // Pièces de départ par type
-    const startingCount = {
-      white: { Q: 1, R: 2, B: 2, N: 2, P: 8 },
-      black: { q: 1, r: 2, b: 2, n: 2, p: 8 },
-    };
-
-    // Calculer les pièces capturées
-    Object.entries(startingCount.white).forEach(([pieceType, startCount]) => {
-      const currentCount =
-        pieceCount.white[pieceType as keyof typeof pieceCount.white];
-      const captured = startCount - currentCount;
-      for (let i = 0; i < captured; i++) {
-        blackCaptured.push(pieceType); // Pièces blanches capturées = avantage noir
-      }
-    });
-
-    Object.entries(startingCount.black).forEach(([pieceType, startCount]) => {
-      const currentCount =
-        pieceCount.black[pieceType as keyof typeof pieceCount.black];
-      const captured = startCount - currentCount;
-      for (let i = 0; i < captured; i++) {
-        whiteCaptured.push(pieceType); // Pièces noires capturées = avantage blanc
-      }
-    });
-
-    const whiteCapturedValue = whiteCaptured.reduce(
-      (sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0),
-      0
-    );
-    const blackCapturedValue = blackCaptured.reduce(
-      (sum, piece) => sum + (pieceValues[piece.toLowerCase()] || 0),
-      0
-    );
-
-    return {
-      whiteAdvantage: whiteCapturedValue - blackCapturedValue,
-      blackAdvantage: blackCapturedValue - whiteCapturedValue,
-      whiteCaptured,
-      blackCaptured,
-      whiteCapturedValue,
-      blackCapturedValue,
-    };
-  };
-
-  const sessionLink =
-    typeof window !== "undefined"
-      ? `${window.location.origin}${window.location.pathname}?room=${sessionInfo.name}&password=${sessionInfo.password}`
-      : "";
-
-  const copyInviteLink = () => {
-    navigator.clipboard.writeText(sessionLink);
-    console.log("📋 Lien copié:", sessionLink);
-    setConnectionStatus("Lien copié !");
-    setTimeout(
-      () =>
-        setConnectionStatus(isGameActive ? "Partie en cours" : "Prêt à jouer"),
-      2000
-    );
-  };
-
-  // Fonction pour envoyer un message
-  const sendMessage = () => {
-    if (!newMessage.trim() || !isConnected || !address) return;
-
-    const message = {
-      id: Date.now().toString(),
-      playerId,
-      playerWallet: address,
-      message: newMessage.trim(),
-      timestamp: Date.now(),
-    };
-
-    const roomKey = `chess-room-${sessionInfo.name}`;
-    const existingRoom = localStorage.getItem(roomKey);
-
-    if (existingRoom) {
-      const roomData = JSON.parse(existingRoom);
-      const updatedMessages = [...(roomData.messages || []), message];
-      const updatedRoom = {
-        ...roomData,
-        messages: updatedMessages,
-        // Maintenir explicitement tous les champs critiques
-        player1Id: roomData.player1Id,
-        player2Id: roomData.player2Id,
-        player1Color: roomData.player1Color,
-        player2Color: roomData.player2Color,
-        player1Wallet: roomData.player1Wallet,
-        player2Wallet: roomData.player2Wallet,
-        gameTimeLimit: roomData.gameTimeLimit,
-        whiteTime: roomData.whiteTime,
-        blackTime: roomData.blackTime,
-      };
-      localStorage.setItem(roomKey, JSON.stringify(updatedRoom));
-      console.log("💬 Message envoyé et room synchronisée:", message.message);
-      setNewMessage("");
-    }
-  };
-
-  // Configuration de react-chessboard selon la documentation officielle
-  const chessboardOptions = {
-    position: fen,
-    onPieceDrop: onPieceDrop,
-    boardOrientation: playerColor,
-    arePiecesDraggable: true,
-    boardWidth: 480,
-    animationDuration: 200,
-    showBoardNotation: true,
-  };
-
-  // Calculer l'avantage matériel actuel
-  const materialAdvantage = calculateMaterialAdvantage();
-
-  // Écran de bienvenue - Connexion wallet obligatoire
   if (gameFlow === "welcome") {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-        <div className="max-w-md w-full mx-4">
-          <div className="bg-gray-800 rounded-xl p-8 text-center shadow-2xl">
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold mb-2">♔ Chess Game</h1>
-              <p className="text-gray-400">
-                Multiplayer chess with real-time sync
-              </p>
-            </div>
-
-            {/* Connexion wallet requise */}
-            <div className="mb-8">
-              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-
-              <h2 className="text-xl font-semibold mb-2">
-                Connect Your Wallet
-              </h2>
-              <p className="text-gray-400 text-sm mb-6">
-                Connect your wallet to create or join chess games and chat with
-                other players.
-              </p>
-
-              <WalletConnection />
-
-              {!isConnected && (
-                <div className="mt-4 p-3 bg-blue-900/30 rounded-lg border border-blue-700">
-                  <p className="text-blue-300 text-xs">
-                    🔒 Wallet connection is required to ensure secure gameplay
-                    and player identification.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Features */}
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="bg-gray-700/50 rounded-lg p-3">
-                <div className="text-green-400 mb-1">⚡</div>
-                <div className="font-semibold">Real-time Sync</div>
-                <div className="text-gray-400">Instant move updates</div>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-3">
-                <div className="text-blue-400 mb-1">💬</div>
-                <div className="font-semibold">Chat System</div>
-                <div className="text-gray-400">Talk with opponents</div>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-3">
-                <div className="text-purple-400 mb-1">⏰</div>
-                <div className="font-semibold">Timed Games</div>
-                <div className="text-gray-400">3, 5, 10, 15 minutes</div>
-              </div>
-              <div className="bg-gray-700/50 rounded-lg p-3">
-                <div className="text-orange-400 mb-1">🔗</div>
-                <div className="font-semibold">Share Links</div>
-                <div className="text-gray-400">Invite friends easily</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Écran lobby - Créer ou rejoindre une room
-  if (gameFlow === "lobby") {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white">
-        {/* Header avec wallet connecté */}
-        <div className="bg-gray-800 border-b border-gray-700 p-4">
-          <div className="max-w-4xl mx-auto flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold">♔ Chess Game</h1>
-              <div className="text-sm text-gray-400">Welcome to the lobby</div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm">{formatWalletAddress(address!)}</span>
-              </div>
-              <button
-                onClick={() => setGameFlow("welcome")}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                Disconnect
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Main lobby content */}
-        <div className="max-w-4xl mx-auto p-8">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Créer une nouvelle partie */}
-            <div className="bg-gray-800 rounded-xl p-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-8 h-8"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-bold mb-2">Create New Game</h2>
-                <p className="text-gray-400 text-sm">
-                  Start a new chess game and invite opponents
-                </p>
-              </div>
-
-              {/* Sélection du temps */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-3">
-                  Game Duration (per player)
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setGameTimeLimit(180)}
-                    className={`p-3 rounded-lg border transition-colors ${
-                      gameTimeLimit === 180
-                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
-                        : "border-gray-600 hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="font-semibold">3 min</div>
-                    <div className="text-xs text-gray-400">Rapid</div>
-                  </button>
-                  <button
-                    onClick={() => setGameTimeLimit(300)}
-                    className={`p-3 rounded-lg border transition-colors ${
-                      gameTimeLimit === 300
-                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
-                        : "border-gray-600 hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="font-semibold">5 min</div>
-                    <div className="text-xs text-gray-400">Blitz</div>
-                  </button>
-                  <button
-                    onClick={() => setGameTimeLimit(600)}
-                    className={`p-3 rounded-lg border transition-colors ${
-                      gameTimeLimit === 600
-                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
-                        : "border-gray-600 hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="font-semibold">10 min</div>
-                    <div className="text-xs text-gray-400">Standard</div>
-                  </button>
-                  <button
-                    onClick={() => setGameTimeLimit(900)}
-                    className={`p-3 rounded-lg border transition-colors ${
-                      gameTimeLimit === 900
-                        ? "border-blue-500 bg-blue-600/20 text-blue-300"
-                        : "border-gray-600 hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="font-semibold">15 min</div>
-                    <div className="text-xs text-gray-400">Long</div>
-                  </button>
-                </div>
-              </div>
-
-              <button
-                onClick={createNewRoom}
-                disabled={isCreatingRoom}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-lg font-semibold transition-colors"
-              >
-                {isCreatingRoom ? "Creating..." : "Create Game"}
-              </button>
-            </div>
-
-            <div className="bg-gray-800 rounded-xl p-6">
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-8 h-8"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-bold mb-2">Join Existing Game</h2>
-                <p className="text-gray-400 text-sm">
-                  Enter a room code to join an ongoing game
-                </p>
-              </div>
-
-              <div className="mb-6">
-                <label
-                  htmlFor="roomInput"
-                  className="block text-sm font-medium mb-2"
-                >
-                  Room Code
-                </label>
-                <input
-                  id="roomInput"
-                  type="text"
-                  value={roomInput}
-                  onChange={(e) => setRoomInput(e.target.value)}
-                  placeholder="Enter room code (e.g., chess-abc123)"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition-colors"
-                />
-                <p className="text-xs text-gray-500 mt-2">
-                  💡 Get the room code from a friend&apos;s invitation link
-                </p>
-              </div>
-
-              <button
-                onClick={joinRoom}
-                disabled={!roomInput.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-lg font-semibold transition-colors"
-              >
-                🔗 Join Game
-              </button>
-            </div>
-          </div>
-
-          {/* Instructions */}
-          <div className="mt-8 bg-gray-800/50 rounded-xl p-6">
-            <h3 className="font-bold mb-4 text-center">🎯 How to Play</h3>
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
-              <div className="text-center">
-                <div className="text-2xl mb-2">1️⃣</div>
-                <div className="font-semibold mb-1">Create or Join</div>
-                <div className="text-gray-400">
-                  Start a new game or join with a room code
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl mb-2">2️⃣</div>
-                <div className="font-semibold mb-1">Share & Play</div>
-                <div className="text-gray-400">
-                  Invite friends with the link and start playing
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl mb-2">3️⃣</div>
-                <div className="font-semibold mb-1">Chat & Enjoy</div>
-                <div className="text-gray-400">
-                  Use the chat system and have fun!
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Interface de jeu - Seulement si gameFlow === "game"
-  return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Sélecteur de temps modal */}
-      {showTimeSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-xl font-bold mb-4 text-center">
-              ⏰ Sélectionner le temps de partie
-            </h3>
-            <p className="text-center mb-6 text-gray-400">
-              Choisissez la durée pour chaque joueur :
+      <div className="min-h-screen bg-gradient-to-br  from-[#101010] via-[#1d1D1d] to-[#0c0c0c] bg-center bg-cover flex items-center justify-center p-4">
+        <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/5">
+          <div className="text-center">
+            <h2 className="text-4xl font-medium text-white mb-4">
+              Welcome to SynqMate
+            </h2>
+            <p className="text-white/80 text-lg font-light mb-8 max-w-[500px] mx-auto">
+              SynqMate is a platform for playing chess with friends and betting
+              on the outcome.
             </p>
-            <div className="space-y-3">
-              <button
-                onClick={() => selectGameTime(3)}
-                className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded transition-colors"
-              >
-                🏃‍♂️ Partie rapide - 3 minutes
-              </button>
-              <button
-                onClick={() => selectGameTime(5)}
-                className="w-full bg-green-600 hover:bg-green-700 py-3 rounded transition-colors"
-              >
-                ⚡ Partie blitz - 5 minutes
-              </button>
-              <button
-                onClick={() => selectGameTime(10)}
-                className="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded transition-colors"
-              >
-                🎯 Partie standard - 10 minutes
-              </button>
-              <button
-                onClick={() => selectGameTime(15)}
-                className="w-full bg-orange-600 hover:bg-orange-700 py-3 rounded transition-colors"
-              >
-                🐌 Partie longue - 15 minutes
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-
-      {/* Header avec informations de connexion */}
-      <div className="bg-gray-800 border-b border-gray-700 p-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setGameFlow("lobby")}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              ← Back to Lobby
-            </button>
-            <h1 className="text-2xl font-bold">♔ Chess Game</h1>
-            <div className="text-sm text-gray-400">
-              Room: <span className="text-blue-400">{sessionInfo.name}</span>
+          <div className="text-center mb-10">
+            <div className="flex items-center justify-center w-full">
+              <WalletConnection className="w-full" />
             </div>
           </div>
 
-          {/* Wallet Connection */}
-          <div className="flex items-center gap-4">
-            <WalletConnection />
-          </div>
-        </div>
-      </div>
+          {!isConnected ? (
+            <p className="text-white text-lg mx-auto text-center">
+              Connect your wallet to start playing
+            </p>
+          ) : (
+            <>
+              <div className="mx-auto w-full flex items-center justify-center">
+                <button
+                  onClick={() => setMenuActive("create")}
+                  className={`group rounded-t-lg  ${
+                    menuActive === "create"
+                      ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
+                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E]"
+                  } text-white text-lg font-medium py-4 w-[190px] transition-all duration-200 px-4`}
+                >
+                  Create Game
+                </button>
 
-      {/* Main Game Layout */}
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Left Panel - Game Info */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Player Info - Top (Adversaire) */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-                  {playerColor === "white" ? "♚" : "♔"}
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold">Adversaire</div>
-                  <div className="text-xs text-gray-400">En attente...</div>
-                </div>
-                {/* Timer adversaire */}
-                <div className="text-right">
-                  <div
-                    className={`text-2xl font-mono ${
-                      (gameRef.current.turn() === "b" &&
-                        playerColor === "white") ||
-                      (gameRef.current.turn() === "w" &&
-                        playerColor === "black")
-                        ? "text-red-400"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    {playerColor === "white"
-                      ? formatTime(blackTime)
-                      : formatTime(whiteTime)}
+                <button
+                  onClick={() => setMenuActive("join")}
+                  className={`group rounded-t-lg  ${
+                    menuActive === "join"
+                      ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
+                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E]"
+                  } text-white text-lg font-medium py-4 w-[190px] transition-all duration-200 px-4`}
+                >
+                  Join Game
+                </button>
+              </div>
+              {menuActive === "create" ? (
+                <div className="bg-[#252525] rounded-2xl p-6">
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-xl font-medium text-white mb-3">
+                        Game Settings
+                      </label>
+                      <Select
+                        value={selectedGameTime.toString()}
+                        onValueChange={(value) =>
+                          setSelectedGameTime(Number(value))
+                        }
+                      >
+                        <SelectTrigger className="w-full text-lg bg-[#2b2b2b] border-white/5 focus:outline-none h-[50px] text-white focus:ring-0 focus:ring-offset-0  focus:ring-0 focus:ring-offset-0 ">
+                          <SelectValue
+                            placeholder="Select game duration"
+                            className="text-lg"
+                          />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#252525] border-white/10 text-lg text-white">
+                          <SelectItem className="text-lg" value="180">
+                            3 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="300">
+                            5 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="600">
+                            10 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="900">
+                            15 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="1800">
+                            30 minutes
+                          </SelectItem>
+                          <SelectItem className="text-lg" value="3600">
+                            1 hour
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-medium text-white">
+                        Enable Betting
+                      </h3>
+                      <label className="flex items-center cursor-pointer">
+                        <div
+                          className={`w-14 h-6 rounded-full transition-colors ${
+                            isBettingEnabled ? "bg-[#836EF9]" : "bg-[#2b2b2b]"
+                          }`}
+                        >
+                          <div
+                            className={`w-[21px] h-[21px] bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
+                              isBettingEnabled
+                                ? "translate-x-7 ml-1"
+                                : "translate-x-0 ml-0.5"
+                            }`}
+                          ></div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={isBettingEnabled}
+                          onChange={(e) =>
+                            setIsBettingEnabled(e.target.checked)
+                          }
+                          className="sr-only"
+                        />
+                      </label>
+                    </div>
+
+                    {isBettingEnabled && (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          pattern="^[0-9]*[.,]?[0-9]*$"
+                          value={betAmount}
+                          onChange={(e) => setBetAmount(e.target.value)}
+                          placeholder="Enter bet amount"
+                          className="w-full px-4 py-3 focus:outline-none bg-[#2b2b2b] border border-white/5 rounded-lg text-white text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                        />
+                        <div className="text-base text-white font-bold">
+                          <span className="font-light text-white/80">
+                            Balance:
+                          </span>{" "}
+                          {balanceFormatted?.split(".")?.[0] +
+                            "." +
+                            balanceFormatted?.split(".")?.[1]?.slice(0, 2)}{" "}
+                          MON
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={
+                        isCreatingRoom || !multisynqReady || isWrongNetwork
+                      }
+                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
+                    >
+                      {isWrongNetwork
+                        ? "Switch to Monad & Create"
+                        : isCreatingRoom
+                        ? "Creating..."
+                        : !multisynqReady
+                        ? "Loading Multisynq..."
+                        : "Create Game"}
+                    </button>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {playerColor === "white" ? "Black" : "White"}
+                </div>
+              ) : (
+                <div className=" text-center">
+                  <div className="bg-[#252525] rounded-2xl p-8 pt-6">
+                    <label className="block text-xl font-medium text-left text-white  mb-3">
+                      {" "}
+                      Room Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Enter room code (e.g. room:password)"
+                      value={roomInput}
+                      onChange={(e) => setRoomInput(e.target.value)}
+                      className="w-full p-4 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleJoinRoom}
+                      disabled={
+                        !roomInput.trim() ||
+                        !multisynqReady ||
+                        isPending ||
+                        isWrongNetwork
+                      }
+                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
+                    >
+                      {isWrongNetwork
+                        ? "Switch to Monad & Join"
+                        : isPending
+                        ? "Processing..."
+                        : "Join Game"}
+                    </button>
                   </div>
-                </div>
-              </div>
-
-              {/* Pieces captured by opponent */}
-              <div className="flex gap-1 min-h-[24px]">
-                {playerColor === "white"
-                  ? materialAdvantage.blackCaptured.map((piece, index) => (
-                      <span key={index} className="text-lg">
-                        {piece === "Q"
-                          ? "♕"
-                          : piece === "R"
-                          ? "♖"
-                          : piece === "B"
-                          ? "♗"
-                          : piece === "N"
-                          ? "♘"
-                          : "♙"}
-                      </span>
-                    ))
-                  : materialAdvantage.whiteCaptured.map((piece, index) => (
-                      <span key={index} className="text-lg">
-                        {piece === "q"
-                          ? "♛"
-                          : piece === "r"
-                          ? "♜"
-                          : piece === "b"
-                          ? "♝"
-                          : piece === "n"
-                          ? "♞"
-                          : "♟"}
-                      </span>
-                    ))}
-                {((playerColor === "white" &&
-                  materialAdvantage.blackAdvantage > 0) ||
-                  (playerColor === "black" &&
-                    materialAdvantage.whiteAdvantage > 0)) && (
-                  <span className="text-green-400 font-bold text-sm ml-2">
-                    +
-                    {playerColor === "white"
-                      ? materialAdvantage.blackAdvantage
-                      : materialAdvantage.whiteAdvantage}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Game Status */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="font-bold mb-3">Game Status</h3>
-              <div className="space-y-2 text-sm">
-                <div>
-                  Status:{" "}
-                  <span className="text-blue-400">{connectionStatus}</span>
-                </div>
-                <div>
-                  Game Time:{" "}
-                  <span className="text-yellow-400">
-                    {formatTime(gameTimeLimit)} per player
-                  </span>
-                </div>
-                <div>
-                  Your Color:{" "}
-                  <span className="text-green-400">
-                    {playerColor === "white" ? "White" : "Black"}
-                  </span>
-                </div>
-                <div>
-                  Turn:{" "}
-                  <span className="text-orange-400">
-                    {gameRef.current.turn() === "w" ? "White" : "Black"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Game Controls */}
-              <div className="flex gap-2 mt-4">
-                <button
-                  className="px-3 py-1 bg-purple-600 rounded hover:bg-purple-700 transition-colors text-xs"
-                  onClick={() => setShowTimeSelector(true)}
-                  disabled={isGameActive}
-                >
-                  ⏰ Time
-                </button>
-                <button
-                  className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 transition-colors text-xs"
-                  onClick={startGame}
-                  disabled={isGameActive}
-                >
-                  🚀 Start
-                </button>
-                <button
-                  className="px-3 py-1 bg-red-600 rounded hover:bg-red-700 transition-colors text-xs"
-                  onClick={resetGame}
-                >
-                  🔄 Reset
-                </button>
-              </div>
-
-              {/* End Game Actions */}
-              {isGameActive && !gameResult.type && (
-                <div className="flex gap-2 mt-2">
-                  <button
-                    className="px-2 py-1 bg-orange-600 rounded hover:bg-orange-700 text-xs transition-colors"
-                    onClick={abandonGame}
-                  >
-                    🏳️ Resign
-                  </button>
-                  <button
-                    className="px-2 py-1 bg-purple-600 rounded hover:bg-purple-700 text-xs transition-colors"
-                    onClick={offerDraw}
-                    disabled={drawOffer.offered}
-                  >
-                    🤝 Draw
-                  </button>
                 </div>
               )}
-            </div>
+            </>
+          )}
 
-            {/* Share Game */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="font-bold mb-3">Share Game</h3>
-              <button
-                className="w-full px-3 py-2 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-sm"
-                onClick={copyInviteLink}
-              >
-                📎 Copy Invite Link
-              </button>
+          {isConnected && isWrongNetwork && (
+            <div className="mt-8 bg-red-500/20 border border-red-400 rounded-xl p-6">
+              <div className="text-center">
+                <h3 className="text-red-300 font-medium text-xl mb-3">
+                  Wrong Network Detected
+                </h3>
+                <p className="text-red-200 text-lg mb-4">
+                  Please switch to <strong>Monad Testnet</strong> to use betting
+                  features
+                </p>
+                <button
+                  onClick={async () => {
+                    try {
+                      await switchChain({ chainId: 10143 });
+                    } catch {}
+                  }}
+                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-lg transition-colors"
+                >
+                  Switch to Monad Testnet
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const isDraw = gameState.gameResult.winner === "draw";
+
+  return (
+    <div className="min-h-screen font-light bg-gradient-to-br  from-[#101010] via-[#1f1f1f] to-[#0c0c0c] p-4">
+      <div className="max-w-5xl mx-auto mt-10">
+        {/* Header */}
+
+        <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
+          <div className="lg:col-span-4">
+            <div className="relative">
+              <div className="lg:col-span-3">
+                <div className="rounded-xl">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center justify-between">
+                      {gameState.players.find(
+                        (entry) => entry.wallet !== address
+                      ) ? (
+                        <div
+                          key={
+                            gameState.players.find(
+                              (entry) => entry.wallet !== address
+                            )?.id
+                          }
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-xl text-white flex items-center gap-2">
+                                {gameState.players
+                                  .find((entry) => entry.wallet !== address)
+                                  ?.wallet.slice(0, 6)}
+                                ...
+                                {gameState.players
+                                  .find((entry) => entry.wallet !== address)
+                                  ?.wallet.slice(-4)}
+                                {gameState.players.find(
+                                  (entry) => entry.wallet !== address
+                                )?.connected ? (
+                                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                                ) : (
+                                  <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-300">
+                                <CapturedPieces
+                                  fen={fen}
+                                  playerColor={playerColor}
+                                  isOpponent={true}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-white flex items-center gap-1">
+                              <span className="animate-[bounce_1s_infinite] text-xl">
+                                .
+                              </span>
+                              <span className="animate-[bounce_1s_infinite_0.2s] text-xl">
+                                .
+                              </span>
+                              <span className="animate-[bounce_1s_infinite_0.4s] text-xl">
+                                .
+                              </span>
+                              <span className="animate-[bounce_1s_infinite_0.6s] text-xl ml-2">
+                                Waiting for opponent
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div
+                      className={`backdrop-blur-md rounded-lg px-3 py-1 border ${
+                        getOpponentTime() <= 30
+                          ? "bg-red-500/20 border-red-500"
+                          : "bg-[#252525] border-white/5"
+                      }`}
+                    >
+                      <span
+                        className={`text-xl font-medium ${
+                          getOpponentTime() <= 30
+                            ? "text-red-500"
+                            : "text-white"
+                        }`}
+                      >
+                        {Math.floor(getOpponentTime() / 60)}:
+                        {(getOpponentTime() % 60).toString().padStart(2, "0")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="relative aspect-square max-w-full w-full mx-auto">
+                    <Chessboard options={chessboardOptions as any} />
+                    {((isBettingEnabled &&
+                      parseFloat(betAmount) > 0 &&
+                      gameState.roomName &&
+                      !bothPlayersPaid()) ||
+                      (gameInfo?.betAmount &&
+                        gameInfo.betAmount > BigInt(0) &&
+                        !bothPlayersPaid()) ||
+                      (gameState.rematchAccepted &&
+                        isBettingEnabled &&
+                        parseFloat(betAmount) > 0 &&
+                        !bothPlayersPaid()) ||
+                      (isRematchTransition &&
+                        isBettingEnabled &&
+                        parseFloat(betAmount) > 0) ||
+                      (gameState.roomName &&
+                        gameState.roomName.startsWith("rematch-") &&
+                        gameInfo?.betAmount &&
+                        gameInfo.betAmount > BigInt(0) &&
+                        !bothPlayersPaid())) &&
+                      !hasClosedPaymentModal &&
+                      gameFlow === "game" &&
+                      gameState.gameResult.type === null &&
+                      (gameState.roomName?.startsWith("rematch-") ||
+                        !gameState.isActive) && (
+                        <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
+                          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
+                            <div className="text-center">
+                              <h3 className="text-2xl font-medium text-white mb-6">
+                                Payment Status
+                              </h3>
+
+                              <div className="">
+                                <div className="flex justify-between text-white text-base mb-2">
+                                  <span className="text-gray-300">
+                                    Bet amount:
+                                  </span>
+                                  <span className="font-medium text-white text-base">
+                                    {gameInfo?.betAmount
+                                      ? formatEther(gameInfo.betAmount)
+                                      : betAmount}{" "}
+                                    MON
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-base text-white mb-6">
+                                  <span className="text-gray-300">
+                                    Potential winnings:
+                                  </span>
+                                  <span className="font-semibold text-green-400">
+                                    {gameInfo?.betAmount
+                                      ? formatEther(
+                                          gameInfo.betAmount * BigInt(2)
+                                        )
+                                      : (
+                                          parseFloat(betAmount) * 2
+                                        ).toString()}{" "}
+                                    MON
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg mb-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded-lg">
+                                    <div className="flex flex-col items-start">
+                                      <span className="text-white text-base font-normal mb-0.5">
+                                        White Player (Creator):
+                                      </span>
+                                      <span className="text-gray-400 text-sm">
+                                        {gameInfo?.whitePlayer
+                                          ? `${gameInfo.whitePlayer.slice(
+                                              0,
+                                              6
+                                            )}...${gameInfo.whitePlayer.slice(
+                                              -4
+                                            )}`
+                                          : "Waiting..."}
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs font-normal ${
+                                        paymentStatus.whitePlayerPaid
+                                          ? "bg-[#836EF9] text-white border border-white/10"
+                                          : "bg-[#2c2c2c] text-white border border-white/10"
+                                      }`}
+                                    >
+                                      {paymentStatus.whitePlayerPaid ? null : (
+                                        <div className="inline-block mr-2 animate-spin rounded-full h-3 w-3 border-2 border-white/20 border-t-white/80" />
+                                      )}
+                                      {paymentStatus.whitePlayerPaid
+                                        ? "READY"
+                                        : "PENDING"}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center justify-between p-3 bg-[#252525]  rounded-lg">
+                                    <div className="flex flex-col items-start">
+                                      <span className="text-white text-base font-normal mb-0.5">
+                                        Black Player (Joiner):
+                                      </span>
+                                      <span className="text-gray-400 text-sm">
+                                        {gameInfo?.blackPlayer &&
+                                        gameInfo.blackPlayer !==
+                                          "0x0000000000000000000000000000000000000000"
+                                          ? `${gameInfo.blackPlayer.slice(
+                                              0,
+                                              6
+                                            )}...${gameInfo.blackPlayer.slice(
+                                              -4
+                                            )}`
+                                          : "Waiting for player..."}
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs font-normal ${
+                                        paymentStatus.blackPlayerPaid
+                                          ? "bg-[#836EF9] text-white border border-white/10"
+                                          : "bg-[#2c2c2c] text-white border border-white/10"
+                                      }`}
+                                    >
+                                      {paymentStatus.blackPlayerPaid ? null : (
+                                        <div className="inline-block mr-2 animate-spin rounded-full h-3 w-3 border-2 border-white/20 border-t-white/80" />
+                                      )}
+                                      {paymentStatus.blackPlayerPaid
+                                        ? "READY"
+                                        : "PENDING"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {!paymentStatus.currentPlayerPaid ? (
+                                <div className="space-y-2">
+                                  <button
+                                    onClick={async () => {
+                                      if (isWrongNetwork) {
+                                        try {
+                                          await switchChain({ chainId: 10143 });
+
+                                          return;
+                                        } catch {
+                                          return;
+                                        }
+                                      }
+
+                                      if (
+                                        (!gameInfo ||
+                                          gameInfo.betAmount === BigInt(0)) &&
+                                        isBettingEnabled &&
+                                        parseFloat(betAmount) > 0
+                                      ) {
+                                        try {
+                                          await createBettingGame(
+                                            betAmount,
+                                            gameState.roomName
+                                          );
+                                          setBettingGameCreationFailed(false);
+                                          setRoomBetAmount(betAmount);
+
+                                          if (
+                                            multisynqView &&
+                                            currentPlayerId &&
+                                            address
+                                          ) {
+                                            setTimeout(() => {
+                                              multisynqView.joinPlayer(
+                                                address,
+                                                currentPlayerId
+                                              );
+                                            }, 2000);
+                                          }
+                                        } catch {
+                                          setBettingGameCreationFailed(true);
+                                        }
+                                      } else if (
+                                        gameInfo?.betAmount &&
+                                        gameInfo.betAmount > BigInt(0)
+                                      ) {
+                                        if (gameInfo.state === 1) {
+                                          setPaymentStatus((prev) => ({
+                                            ...prev,
+                                            currentPlayerPaid: true,
+                                          }));
+                                          return;
+                                        }
+
+                                        try {
+                                          await joinBettingGameByRoom(
+                                            gameState.roomName,
+                                            gameInfo.betAmount
+                                          );
+                                        } catch {}
+                                      }
+                                    }}
+                                    disabled={
+                                      isPending ||
+                                      isConfirming ||
+                                      !gameState.roomName
+                                    }
+                                    className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                  >
+                                    {isPending || isConfirming ? (
+                                      <>
+                                        {isPending
+                                          ? "Signing..."
+                                          : "Confirming..."}
+                                      </>
+                                    ) : isWrongNetwork ? (
+                                      "Switch to Monad & Pay"
+                                    ) : (
+                                      "Bet & Play"
+                                    )}
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  {canCancel ? (
+                                    <>
+                                      {cancelState.isLoading ? (
+                                        <button
+                                          disabled
+                                          className="w-full mt-5 px-6 py-4 bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                        >
+                                          {cancelState.txHash
+                                            ? "Confirming..."
+                                            : "Cancelling..."}
+                                        </button>
+                                      ) : cancelState.isError ? (
+                                        <button
+                                          onClick={() =>
+                                            cancelBettingGame(gameId as bigint)
+                                          }
+                                          className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                        >
+                                          Retry Cancel
+                                          {cancelState.error && (
+                                            <span className="ml-2 text-sm">
+                                              ({cancelState.error})
+                                            </span>
+                                          )}
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() =>
+                                            cancelBettingGame(gameId as bigint)
+                                          }
+                                          className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] text-white rounded-lg font-medium text-lg transition-colors"
+                                        >
+                                          Cancel & Get Refund
+                                        </button>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={handleBackHome}
+                                      className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                    >
+                                      Back to Home
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                    {((gameState.gameResult.type && !showGameEndModal) ||
+                      (gameState.isActive &&
+                        currentMoveIndex < moveHistory.length - 1)) && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <div className="bg-[#252525] backdrop-blur-sm px-3 py-1 flex items-center rounded-lg border border-white/10 shadow-xl">
+                          <div className="bg-[#836EF9] h-2.5 w-2.5 rounded-full animate-pulse" />
+                          <span className="text-white text-sm font-light ml-2">
+                            Analysis mode
+                            {moveHistory.length > 1 &&
+                              currentMoveIndex < moveHistory.length - 1 && (
+                                <span className="ml-2 text-[#836EF9] font-medium">
+                                  ({currentMoveIndex}/{moveHistory.length - 1})
+                                </span>
+                              )}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {gameState.isActive &&
+                      currentMoveIndex < moveHistory.length - 1 && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <button
+                            onClick={goToLastMoveWithFen}
+                            className="bg-[#836EF9]/90 backdrop-blur-sm px-3 py-1 rounded-lg border border-[#836EF9] text-white text-sm font-medium hover:bg-[#836EF9] transition-colors"
+                          >
+                            Back to game
+                          </button>
+                        </div>
+                      )}
+
+                    {showGameEndModal && (
+                      <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/80 backdrop-blur-xs">
+                        <div className="bg-[#1E1E1E] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+                          <div className="text-center">
+                            {isDraw && (
+                              <p className="text-gray-400">
+                                {gameState.gameResult.message || ""}
+                              </p>
+                            )}
+
+                            <div
+                              className={`rounded-lg  flex flex-col justify-center `}
+                            >
+                              <p className="text-white font-bold text-4xl mb-7">
+                                {gameState.gameResult.winner ===
+                                gameState.players.find(
+                                  (p) => p.id !== currentPlayerId
+                                )?.color
+                                  ? "You Lost"
+                                  : "You Won"}
+                              </p>
+                            </div>
+
+                            {gameInfo?.betAmount &&
+                              gameInfo.betAmount > BigInt(0) && (
+                                <div className="bg-[#1a1a1a] rounded-lg p-4 mb-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-white font-medium text-base">
+                                      Prize Pool:
+                                    </h4>
+                                    <span className="text-green-400 font-bold text-base">
+                                      {formatEther(
+                                        gameInfo.betAmount * BigInt(2)
+                                      )}{" "}
+                                      MON
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-3.5 h-3.5 bg-white rounded-full"></div>
+                                        <span className="text-white text-sm font-normal">
+                                          White
+                                        </span>
+                                      </div>
+                                      <span
+                                        className={`px-2 py-1 rounded-md text-xs flex items-center justify-center gap-2 font-normal ${
+                                          gameInfo.whiteClaimed
+                                            ? "bg-[#836EF9] text-white"
+                                            : gameInfo.result === 3 ||
+                                              gameInfo.result === 1 // DRAW ou WHITE_WINS
+                                            ? "bg-yellow-500/20 text-yellow-400"
+                                            : "bg-gray-500/20 text-gray-400"
+                                        }`}
+                                      >
+                                        {isFinalizingGame && (
+                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-white/90" />
+                                        )}
+                                        {gameInfo.whiteClaimed
+                                          ? "Claimed"
+                                          : gameInfo.result === 3 // DRAW
+                                          ? "Can claim"
+                                          : gameInfo.result === 1 // WHITE_WINS
+                                          ? "Can claim"
+                                          : isFinalizingGame
+                                          ? "Loading..."
+                                          : "Lost"}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-3.5 h-3.5 bg-black border border-white rounded-full"></div>
+                                        <span className="text-white text-sm font-normal">
+                                          Black
+                                        </span>
+                                      </div>
+                                      <span
+                                        className={`px-2 py-1 rounded-md text-xs flex items-center justify-center gap-2 font-normal ${
+                                          gameInfo.blackClaimed
+                                            ? "bg-[#836EF9] text-white"
+                                            : gameInfo.result === 3 ||
+                                              gameInfo.result === 2 // DRAW ou BLACK_WINS
+                                            ? "bg-yellow-500/20 text-yellow-400"
+                                            : "bg-gray-500/20 text-gray-400"
+                                        }`}
+                                      >
+                                        {isFinalizingGame && (
+                                          <div className="animate-spin rounded-full h-2 w-2 border-b-2 border-white/90" />
+                                        )}
+
+                                        {gameInfo.blackClaimed
+                                          ? "Claimed"
+                                          : gameInfo.result === 3 // DRAW
+                                          ? "Can claim"
+                                          : gameInfo.result === 2 // BLACK_WINS
+                                          ? "Can claim"
+                                          : isFinalizingGame
+                                          ? "Loading..."
+                                          : "Lost"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                            <div className="space-y-4">
+                              <div className="text-center space-y-3">
+                                <div className="space-y-3">
+                                  {gameState.gameResult.winner !== "draw" && (
+                                    <button
+                                      onClick={async () => {
+                                        if (gameId && canCurrentPlayerClaim()) {
+                                          resetClaimState();
+
+                                          let resultParam: 1 | 2 | 3 = 2;
+
+                                          if (gameInfo?.result === 1) {
+                                            resultParam = 1; // WHITE_WINS
+                                          } else if (gameInfo?.result === 2) {
+                                            resultParam = 2; // BLACK_WINS
+                                          } else if (gameInfo?.result === 3) {
+                                            resultParam = 3; // DRAW
+                                          }
+
+                                          await claimWinnings(
+                                            gameId,
+                                            resultParam,
+                                            () => {},
+                                            (error) => {
+                                              console.error(
+                                                "Claim failed:",
+                                                error
+                                              );
+                                            }
+                                          );
+                                        }
+                                      }}
+                                      disabled={
+                                        !canCurrentPlayerClaim() ||
+                                        claimState.isLoading ||
+                                        isPending ||
+                                        isConfirming ||
+                                        (gameInfo &&
+                                          gameInfo.state === 2 &&
+                                          claimState.isSuccess)
+                                      }
+                                      className={`w-full px-6 py-4 ${
+                                        claimState.isSuccess
+                                          ? "bg-[#252525] border border-[#836EF9] text-[#836EF9]"
+                                          : claimState.isError
+                                          ? "bg-[#252525] border border-[#eb3f3f] text-[#eb3f3f]"
+                                          : gameInfo && gameInfo.state !== 2
+                                          ? "bg-[#252525] border border-white/5 text-white"
+                                          : "bg-[#836EF9] hover:bg-[#836EF9]/80"
+                                      } disabled:bg-[#252525] text-white rounded-lg border border-white/5 font-normal text-base transition-colors`}
+                                    >
+                                      {!canCurrentPlayerClaim() ? (
+                                        "Waiting for opponent..."
+                                      ) : gameInfo && gameInfo.state !== 2 ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                          Waiting for game finalization...
+                                        </div>
+                                      ) : isPending ||
+                                        isConfirming ||
+                                        claimState.isLoading ? (
+                                        "Confirming transaction..."
+                                      ) : claimState.isError ? (
+                                        "Try again"
+                                      ) : claimState.isSuccess ? (
+                                        "Successfully claimed"
+                                      ) : (
+                                        `Claim  ${
+                                          gameInfo?.betAmount
+                                            ? formatEther(
+                                                gameInfo.betAmount * BigInt(2)
+                                              )
+                                            : "0"
+                                        } MON`
+                                      )}
+                                    </button>
+                                  )}
+
+                                  {gameState.gameResult.winner === "draw" && (
+                                    <button
+                                      onClick={async () => {
+                                        if (gameId && canCurrentPlayerClaim()) {
+                                          try {
+                                            await claimDrawRefund(gameId);
+                                          } catch (error) {
+                                            console.error(
+                                              "Claim failed:",
+                                              error
+                                            );
+                                          }
+                                        }
+                                      }}
+                                      disabled={
+                                        !canCurrentPlayerClaim() ||
+                                        getAvailableAmount() <= "0" ||
+                                        isPending ||
+                                        isConfirming ||
+                                        (gameInfo &&
+                                          gameInfo.state === 2 &&
+                                          claimState.isSuccess)
+                                      }
+                                      className={`w-full px-6 py-4 ${
+                                        gameInfo && gameInfo.state !== 2
+                                          ? "bg-[#252525] border border-white/5 text-white"
+                                          : "bg-[#836EF9] hover:bg-[#937EF9]"
+                                      } disabled:bg-[#252525] text-white rounded-lg font-normal text-base transition-colors`}
+                                    >
+                                      {!canCurrentPlayerClaim() ? (
+                                        "No refund available"
+                                      ) : getAvailableAmount() <= "0" ? (
+                                        "Already claimed"
+                                      ) : gameInfo && gameInfo.state !== 2 ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                          <div className="w-4 h-4 border border-white/20 border-t-white rounded-full animate-spin" />
+                                          Waiting for game finalization...
+                                        </div>
+                                      ) : isPending || isConfirming ? (
+                                        "Confirming..."
+                                      ) : (
+                                        `Claim Refund`
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+
+                                {rematchInvitation &&
+                                rematchInvitation.from !== address ? (
+                                  <div className="space-y-3 mb-3">
+                                    <p className="text-center text-sm text-white/80 font-thin max-w-[80%] mx-auto">
+                                      Your opponent offers you a rematch for{" "}
+                                      <span className="text-white font-medium">
+                                        {rematchInvitation?.betAmount
+                                          ? `${rematchInvitation?.betAmount} MON`
+                                          : `${betAmount} MON`}
+                                      </span>
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <button
+                                        onClick={async () => {
+                                          console.log(
+                                            "✅ [multisynq.tsx] Acceptation du rematch - rejoindre la room:",
+                                            rematchInvitation
+                                          );
+
+                                          setRematchInvitation(null);
+                                          setShowGameEndModal(false);
+
+                                          try {
+                                            if (!rematchInvitation) {
+                                              console.error(
+                                                "❌ [multisynq.tsx] Invitation de rematch manquante"
+                                              );
+                                              return;
+                                            }
+
+                                            if (
+                                              rematchInvitation.betAmount ||
+                                              rematchInvitation.gameTime
+                                            ) {
+                                              (
+                                                window as any
+                                              ).rematchAcceptDetails = {
+                                                betAmount:
+                                                  rematchInvitation.betAmount,
+                                                gameTime:
+                                                  rematchInvitation.gameTime
+                                                    ? parseInt(
+                                                        rematchInvitation.gameTime
+                                                      )
+                                                    : undefined,
+                                              };
+                                            }
+
+                                            await handleAutoJoinRoom(
+                                              rematchInvitation.roomName,
+                                              rematchInvitation.password
+                                            );
+
+                                            const newUrl = `${window.location.pathname}?room=${rematchInvitation.roomName}&password=${rematchInvitation.password}`;
+                                            window.history.pushState(
+                                              {},
+                                              "",
+                                              newUrl
+                                            );
+                                          } catch (error) {
+                                            console.error(
+                                              "❌ [multisynq.tsx] Erreur lors du join de rematch:",
+                                              error
+                                            );
+                                          }
+                                        }}
+                                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-normal text-base transition-colors"
+                                      >
+                                        Accept
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setRematchInvitation(null);
+                                        }}
+                                        className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-normal text-base transition-colors"
+                                      >
+                                        Decline
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between gap-3">
+                                    <button
+                                      onClick={handleNewGame}
+                                      disabled={
+                                        gameState.rematchOffer?.offered ||
+                                        rematchCreating?.inProgress ||
+                                        shouldDisableNavigationButtons()
+                                      }
+                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
+                                    >
+                                      {rematchCreating?.inProgress
+                                        ? "Loading..."
+                                        : shouldDisableNavigationButtons()
+                                        ? gameInfo && gameInfo.state !== 2
+                                          ? "Finalizing..."
+                                          : gameInfo?.betAmount &&
+                                            gameInfo.betAmount > BigInt(0) &&
+                                            canOfferRematch()
+                                          ? "Rematch"
+                                          : "New game"
+                                        : gameState.rematchOffer?.offered
+                                        ? "Waiting for opponent"
+                                        : gameInfo?.betAmount &&
+                                          gameInfo.betAmount > BigInt(0) &&
+                                          canOfferRematch()
+                                        ? "Rematch"
+                                        : "New game"}
+                                    </button>
+
+                                    <button
+                                      onClick={handleCloseGameEndModal}
+                                      disabled={shouldDisableNavigationButtons()}
+                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
+                                    >
+                                      {shouldDisableNavigationButtons()
+                                        ? gameInfo && gameInfo.state !== 2
+                                          ? "Finalizing..."
+                                          : "Analysis"
+                                        : "Analysis"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-end mt-3">
+                    {gameState.players.length > 0
+                      ? gameState.players.map((player) =>
+                          player.id === currentPlayerId ? (
+                            <div key={player.id} className="rounded">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-xl text-white flex items-center gap-2">
+                                    {player.wallet.slice(0, 6)}...
+                                    {player.wallet.slice(-4)} (You)
+                                    {player.connected && !isReconnecting ? (
+                                      <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                                    ) : (
+                                      <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-gray-300">
+                                    <CapturedPieces
+                                      fen={fen}
+                                      playerColor={playerColor}
+                                      isOpponent={false}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null
+                        )
+                      : null}
+
+                    <div
+                      className={`backdrop-blur-md rounded-lg px-3 py-1 border ${
+                        getCurrentPlayerTime() <= 30
+                          ? "bg-red-500/20 border-red-500"
+                          : "bg-[#252525] border-white/5"
+                      }`}
+                    >
+                      <span
+                        className={`text-xl font-medium ${
+                          getCurrentPlayerTime() <= 30
+                            ? "text-red-500"
+                            : "text-white"
+                        }`}
+                      >
+                        {Math.floor(getCurrentPlayerTime() / 60)}:
+                        {(getCurrentPlayerTime() % 60)
+                          .toString()
+                          .padStart(2, "0")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* Center - Chessboard */}
           <div className="lg:col-span-2">
-            <div className="bg-gray-800 rounded-lg p-4">
-              {/* Top captured pieces */}
-              <div className="flex justify-start items-center mb-4 h-8">
-                {playerColor === "white" ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">♚</span>
-                    <div className="flex gap-1">
-                      {materialAdvantage.blackCaptured.map((piece, index) => (
-                        <span key={index} className="text-xl">
-                          {piece === "Q"
-                            ? "♕"
-                            : piece === "R"
-                            ? "♖"
-                            : piece === "B"
-                            ? "♗"
-                            : piece === "N"
-                            ? "♘"
-                            : "♙"}
-                        </span>
-                      ))}
-                    </div>
-                    {materialAdvantage.blackAdvantage > 0 && (
-                      <span className="text-green-400 font-bold text-sm">
-                        +{materialAdvantage.blackAdvantage}
-                      </span>
-                    )}
+            <div className="rounded-lg  full flex flex-col h-[800px]  ">
+              <div className="bg-[#1E1E1E] p-3 border border-white/5 rounded-lg mb-3">
+                <div className="flex items-center gap-2 mt-1 mb-1 justify-between">
+                  <div>
+                    <p className="text-white font-medium text-base ml-2">
+                      Invite friend
+                    </p>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">♔</span>
-                    <div className="flex gap-1">
-                      {materialAdvantage.whiteCaptured.map((piece, index) => (
-                        <span key={index} className="text-xl">
-                          {piece === "q"
-                            ? "♛"
-                            : piece === "r"
-                            ? "♜"
-                            : piece === "b"
-                            ? "♝"
-                            : piece === "n"
-                            ? "♞"
-                            : "♟"}
-                        </span>
-                      ))}
-                    </div>
-                    {materialAdvantage.whiteAdvantage > 0 && (
-                      <span className="text-green-400 font-bold text-sm">
-                        +{materialAdvantage.whiteAdvantage}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
 
-              {/* Chessboard */}
-              <div className="flex justify-center">
-                <div style={{ width: "480px", height: "480px" }}>
-                  <Chessboard options={chessboardOptions} />
-                </div>
-              </div>
-
-              {/* Bottom captured pieces */}
-              <div className="flex justify-start items-center mt-4 h-8">
-                {playerColor === "white" ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">♔</span>
-                    <div className="flex gap-1">
-                      {materialAdvantage.whiteCaptured.map((piece, index) => (
-                        <span key={index} className="text-xl">
-                          {piece === "q"
-                            ? "♛"
-                            : piece === "r"
-                            ? "♜"
-                            : piece === "b"
-                            ? "♝"
-                            : piece === "n"
-                            ? "♞"
-                            : "♟"}
-                        </span>
-                      ))}
-                    </div>
-                    {materialAdvantage.whiteAdvantage > 0 && (
-                      <span className="text-green-400 font-bold text-sm">
-                        +{materialAdvantage.whiteAdvantage}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">♚</span>
-                    <div className="flex gap-1">
-                      {materialAdvantage.blackCaptured.map((piece, index) => (
-                        <span key={index} className="text-xl">
-                          {piece === "Q"
-                            ? "♕"
-                            : piece === "R"
-                            ? "♖"
-                            : piece === "B"
-                            ? "♗"
-                            : piece === "N"
-                            ? "♘"
-                            : "♙"}
-                        </span>
-                      ))}
-                    </div>
-                    {materialAdvantage.blackAdvantage > 0 && (
-                      <span className="text-green-400 font-bold text-sm">
-                        +{materialAdvantage.blackAdvantage}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Panel - Chat & Player Info */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Current Player Info */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  {playerColor === "white" ? "♔" : "♚"}
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold">You</div>
-                  <div className="text-xs text-gray-400">
-                    {isConnected
-                      ? formatWalletAddress(address!)
-                      : "Not connected"}
-                  </div>
-                </div>
-                {/* Mon timer */}
-                <div className="text-right">
-                  <div
-                    className={`text-2xl font-mono ${
-                      (gameRef.current.turn() === "w" &&
-                        playerColor === "white") ||
-                      (gameRef.current.turn() === "b" &&
-                        playerColor === "black")
-                        ? "text-red-400"
-                        : "text-gray-400"
-                    }`}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard
+                        .writeText(
+                          `${window.location.origin}${
+                            window.location.pathname
+                          }?room=${gameState.roomName}${
+                            gameState.roomPassword
+                              ? `&password=${gameState.roomPassword}`
+                              : ""
+                          }`
+                        )
+                        .then(() => {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        });
+                    }}
+                    className="px-2.5 py-1.5 text-xs flex font-normal items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/90 text-white rounded-lg transition-colors duration-300 ease-in-out"
                   >
-                    {playerColor === "white"
-                      ? formatTime(whiteTime)
-                      : formatTime(blackTime)}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {playerColor === "white" ? "White" : "Black"}
-                  </div>
+                    Copy Link
+                    {copied ? (
+                      <CheckIcon className="w-3 h-3" />
+                    ) : (
+                      <CopyIcon className="w-3 h-3" />
+                    )}
+                  </button>
                 </div>
-              </div>
-
-              {/* Your captured pieces */}
-              <div className="flex gap-1 min-h-[24px]">
-                {playerColor === "white"
-                  ? materialAdvantage.whiteCaptured.map((piece, index) => (
-                      <span key={index} className="text-lg">
-                        {piece === "q"
-                          ? "♛"
-                          : piece === "r"
-                          ? "♜"
-                          : piece === "b"
-                          ? "♝"
-                          : piece === "n"
-                          ? "♞"
-                          : "♟"}
+                {gameInfo?.betAmount && gameInfo.betAmount > BigInt(0) && (
+                  <div className="px-2 pt-2 border-t border-white/10 mt-3">
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-white text-base font-medium">
+                        Prize Pool
                       </span>
-                    ))
-                  : materialAdvantage.blackCaptured.map((piece, index) => (
-                      <span key={index} className="text-lg">
-                        {piece === "Q"
-                          ? "♕"
-                          : piece === "R"
-                          ? "♖"
-                          : piece === "B"
-                          ? "♗"
-                          : piece === "N"
-                          ? "♘"
-                          : "♙"}
-                      </span>
-                    ))}
-                {((playerColor === "white" &&
-                  materialAdvantage.whiteAdvantage > 0) ||
-                  (playerColor === "black" &&
-                    materialAdvantage.blackAdvantage > 0)) && (
-                  <span className="text-green-400 font-bold text-sm ml-2">
-                    +
-                    {playerColor === "white"
-                      ? materialAdvantage.whiteAdvantage
-                      : materialAdvantage.blackAdvantage}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Chat */}
-            <div className="bg-gray-800 rounded-lg p-4 h-80 flex flex-col">
-              <h3 className="font-bold mb-3">Chat</h3>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto space-y-2 mb-4">
-                {messages.map((msg) => (
-                  <div key={msg.id} className="text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-blue-400">
-                        {msg.playerId === playerId
-                          ? "You"
-                          : formatWalletAddress(msg.playerWallet)}
-                        :
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      <span className="text-green-400 text-base font-medium">
+                        {getAvailableAmount() > "0"
+                          ? getAvailableAmount()
+                          : "0"}{" "}
+                        MON
                       </span>
                     </div>
-                    <div className="text-gray-200 ml-2">{msg.message}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-t-lg px-3 pt-2 bg-[#1E1E1E] border border-b-2 border-white/5">
+                <h3 className="text-base font-medium text-white mb-2">
+                  Nads Chat
+                </h3>
+              </div>
+              <div
+                className="overflow-y-auto space-y-2 h-full flex-1 bg-[#1a1a1a] border border-b-0 border-t-0 border-white/5 relative px-3 py-2"
+                ref={(el) => {
+                  if (el) {
+                    el.scrollTop = el.scrollHeight;
+                  }
+                }}
+              >
+                {gameState.messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`rounded-lg py-2  ${
+                      msg.playerWallet === address
+                        ? "bg-[#836EF9]/40"
+                        : "bg-neutral-800"
+                    } border p-3 border-white/5`}
+                  >
+                    <div
+                      className={`text-sm mb-[5px]   ${
+                        msg.playerWallet === address
+                          ? "text-white font-medium"
+                          : "text-white/50"
+                      }`}
+                    >
+                      {msg.playerWallet === address
+                        ? "You"
+                        : msg.playerWallet.slice(0, 6) +
+                          "..." +
+                          msg.playerWallet.slice(-4)}
+                    </div>
+                    <div className="text-white/90 font-light text-sm">
+                      {msg.message}
+                    </div>
                   </div>
                 ))}
-                {messages.length === 0 && (
-                  <div className="text-gray-500 text-center text-sm">
-                    No messages yet...
-                  </div>
-                )}
               </div>
-
-              {/* Message Input */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 bg-[#1a1a1a] border border-t-0 border-white/5 rounded-b-lg px-3 py-2">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                  placeholder={
-                    isConnected ? "Type a message..." : "Connect wallet to chat"
+                  onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                  placeholder="Gmonad"
+                  disabled={
+                    gameInfo?.betAmount !== undefined &&
+                    gameInfo.betAmount > BigInt(0) &&
+                    !(
+                      (playerColor === "white" &&
+                        gameInfo.whitePlayer.toLowerCase() ===
+                          address?.toLowerCase()) ||
+                      (playerColor === "black" &&
+                        gameInfo.blackPlayer.toLowerCase() ===
+                          address?.toLowerCase())
+                    )
                   }
-                  disabled={!isConnected}
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                  className="flex-1 px-3 h-[40px] bg-[#252525] min-w-[200px] border font-light border-white/5 text-white text-sm placeholder-white/70 focus:outline-none rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
-                  onClick={sendMessage}
-                  disabled={!isConnected || !newMessage.trim()}
-                  className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleSendMessage}
+                  disabled={
+                    !newMessage.trim() ||
+                    (gameInfo?.betAmount !== undefined &&
+                      gameInfo.betAmount > BigInt(0) &&
+                      !(
+                        (playerColor === "white" &&
+                          gameInfo.whitePlayer.toLowerCase() ===
+                            address?.toLowerCase()) ||
+                        (playerColor === "black" &&
+                          gameInfo.blackPlayer.toLowerCase() ===
+                            address?.toLowerCase())
+                      ))
+                  }
+                  className="px-4 h-[40px] bg-[#836EF9] border border-white/5 text-white rounded-lg text-sm font-light transition-colors"
                 >
                   Send
                 </button>
+              </div>
+
+              <div className="space-y-3 mt-3">
+                <div className="p-3 bg-[#1E1E1E] border border-white/5 rounded-lg">
+                  {gameState.isActive ? (
+                    <div className="space-y-3">
+                      {gameState.drawOffer.offered &&
+                      gameState.drawOffer.by !== playerColor ? (
+                        <div>
+                          <p className="text-white/80 font-light text-sm text-center mb-3">
+                            Your opponent offers you a draw
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleRespondDraw(true)}
+                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleRespondDraw(false)}
+                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={handleOfferDraw}
+                            disabled={
+                              gameState.drawOffer.offered ||
+                              (gameInfo?.betAmount !== undefined &&
+                                gameInfo.betAmount > BigInt(0) &&
+                                !(
+                                  (playerColor === "white" &&
+                                    gameInfo.whitePlayer.toLowerCase() ===
+                                      address?.toLowerCase()) ||
+                                  (playerColor === "black" &&
+                                    gameInfo.blackPlayer.toLowerCase() ===
+                                      address?.toLowerCase())
+                                ))
+                            }
+                            className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                          >
+                            {gameState.drawOffer.offered
+                              ? "Offer sent"
+                              : "Offer draw"}
+                          </button>
+
+                          <Popover
+                            open={isResignPopoverOpen}
+                            onOpenChange={setIsResignPopoverOpen}
+                          >
+                            <PopoverTrigger asChild>
+                              <button
+                                disabled={
+                                  gameInfo?.betAmount !== undefined &&
+                                  gameInfo.betAmount > BigInt(0) &&
+                                  !(
+                                    (playerColor === "white" &&
+                                      gameInfo.whitePlayer.toLowerCase() ===
+                                        address?.toLowerCase()) ||
+                                    (playerColor === "black" &&
+                                      gameInfo.blackPlayer.toLowerCase() ===
+                                        address?.toLowerCase())
+                                  )
+                                }
+                                className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Resign
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              side="top"
+                              align="end"
+                              className="w-48 bg-[#1E1E1E] border border-white/10 shadow-ring shadow-lg text-white"
+                            >
+                              <div className="space-y-3">
+                                <p className="text-white/90 text-sm font-light text-center">
+                                  Are you sure you want to resign?
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => {
+                                      handleResign();
+                                      setIsResignPopoverOpen(false);
+                                    }}
+                                    className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setIsResignPopoverOpen(false);
+                                    }}
+                                    className="px-3 py-2 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-white rounded-lg text-sm transition-colors"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      )}
+
+                      <div className="pt-3 border-t border-white/10">
+                        <p className="text-gray-400 text-xs mb-2 text-center">
+                          Navigation: Move {currentMoveIndex}/
+                          {moveHistory.length - 1}
+                        </p>
+                        <div className="grid grid-cols-4 gap-1">
+                          <button
+                            onClick={goToFirstMoveWithFen}
+                            disabled={currentMoveIndex === 0}
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ⏮
+                          </button>
+                          <button
+                            onClick={goToPreviousMoveWithFen}
+                            disabled={currentMoveIndex === 0}
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ◀
+                          </button>
+                          <button
+                            onClick={goToNextMoveWithFen}
+                            disabled={
+                              currentMoveIndex === moveHistory.length - 1
+                            }
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ▶
+                          </button>
+                          <button
+                            onClick={goToLastMoveWithFen}
+                            disabled={
+                              currentMoveIndex === moveHistory.length - 1
+                            }
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ⏭
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : gameState.gameResult.type ? (
+                    <div className="space-y-3">
+                      {gameState.gameResult.type && !showGameEndModal ? (
+                        <button
+                          onClick={() => {
+                            setShowGameEndModal(true);
+                          }}
+                          className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                        >
+                          Game Results
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          <button
+                            onClick={handleNewGame}
+                            disabled={
+                              gameState.rematchOffer?.offered ||
+                              rematchCreating?.inProgress ||
+                              shouldDisableNavigationButtons() ||
+                              (rematchInvitation! &&
+                                rematchInvitation.from !== address)
+                            }
+                            className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                          >
+                            {rematchCreating?.inProgress
+                              ? "Creating rematch..."
+                              : shouldDisableNavigationButtons()
+                              ? gameInfo && gameInfo.state !== 2
+                                ? "Finalizing..."
+                                : "Claim first"
+                              : gameState.rematchOffer?.offered
+                              ? "Waiting "
+                              : gameInfo?.betAmount &&
+                                gameInfo.betAmount > BigInt(0) &&
+                                canOfferRematch()
+                              ? "Rematch"
+                              : "New game"}
+                          </button>
+                        </div>
+                      )}
+
+                      <div
+                        className="pt-3 border-t border-white/10 "
+                        onClick={() => {
+                          if (!shouldDisableNavigationButtons()) {
+                            setShowGameEndModal(false);
+                          }
+                        }}
+                      >
+                        <p className="text-gray-400 text-xs mb-2 text-center">
+                          Navigation: Move {currentMoveIndex}/
+                          {moveHistory.length - 1}
+                        </p>
+                        <div className="grid grid-cols-4 gap-1">
+                          <button
+                            onClick={goToFirstMoveWithFen}
+                            disabled={currentMoveIndex === 0}
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ⏮
+                          </button>
+                          <button
+                            onClick={goToPreviousMoveWithFen}
+                            disabled={currentMoveIndex === 0}
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ◀
+                          </button>
+                          <button
+                            onClick={goToNextMoveWithFen}
+                            disabled={
+                              currentMoveIndex === moveHistory.length - 1
+                            }
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ▶
+                          </button>
+                          <button
+                            onClick={goToLastMoveWithFen}
+                            disabled={
+                              currentMoveIndex === moveHistory.length - 1
+                            }
+                            className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
+                          >
+                            ⏭
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-2">
+                      <p className="text-[#a494fb]">
+                        {gameState.players.length >= 2
+                          ? "Starting game..."
+                          : "Waiting for second player"}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Draw Offer Modal */}
-      {drawOffer.offered && drawOffer.by && drawOffer.by !== playerColor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-xl font-bold mb-4 text-center">
-              🤝 Draw Offer
-            </h3>
-            <p className="text-center mb-4">
-              {drawOffer.by === "white" ? "White" : "Black"} offers a draw.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={acceptDraw}
-                className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded transition-colors"
-              >
-                ✅ Accept
-              </button>
-              <button
-                onClick={declineDraw}
-                className="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded transition-colors"
-              >
-                ❌ Decline
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Game End Modal */}
-      {(gameResult.type || gameRef.current.isGameOver()) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4 text-center">
-            <h2 className="text-2xl font-bold mb-4">🏁 Game Over!</h2>
-
-            {gameResult.type === "abandoned" && (
-              <div>
-                <p className="text-lg mb-2">{gameResult.message}</p>
-                <p className="text-sm text-gray-400">
-                  Game ended by resignation
-                </p>
-              </div>
-            )}
-
-            {gameResult.type === "timeout" && (
-              <div>
-                <p className="text-lg mb-2">{gameResult.message}</p>
-                <p className="text-sm text-gray-400">Game ended by timeout</p>
-              </div>
-            )}
-
-            {gameResult.type === "draw" && (
-              <div>
-                <p className="text-lg mb-2">🤝 {gameResult.message}</p>
-                <p className="text-sm text-gray-400">
-                  Game ended by mutual agreement
-                </p>
-              </div>
-            )}
-
-            {!gameResult.type && gameRef.current.isGameOver() && (
-              <div>
-                {gameRef.current.isCheckmate() && (
-                  <div>
-                    <p className="text-lg mb-2">
-                      ♔ Checkmate!{" "}
-                      {gameRef.current.turn() === "w" ? "Black" : "White"} wins!
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      Game ended by checkmate
-                    </p>
-                  </div>
-                )}
-                {gameRef.current.isDraw() && (
-                  <div>
-                    <p className="text-lg mb-2">🤝 Draw!</p>
-                    <p className="text-sm text-gray-400">
-                      Game ended by chess rules
-                    </p>
-                  </div>
-                )}
-                {gameRef.current.isStalemate() && (
-                  <div>
-                    <p className="text-lg mb-2">🔒 Stalemate!</p>
-                    <p className="text-sm text-gray-400">
-                      Game ended by stalemate
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <button
-              onClick={resetGame}
-              className="mt-6 w-full bg-blue-600 hover:bg-blue-700 py-2 rounded transition-colors"
-            >
-              🔄 New Game (colors swapped)
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

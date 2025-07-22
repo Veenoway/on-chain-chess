@@ -508,14 +508,11 @@ export const useChessBetting = () => {
     [address, writeContract]
   );
 
-  // Fonction pour finaliser une partie via le relayer API
   const finishGameViaRelayer = async (
     gameId: bigint,
     result: 1 | 2 | 3
   ): Promise<boolean> => {
     try {
-      console.log("🤖 Tentative de finalisation via relayer...");
-
       const response = await fetch("/api/finish-game-relayer", {
         method: "POST",
         headers: {
@@ -530,33 +527,22 @@ export const useChessBetting = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        console.log(
-          "✅ Partie finalisée par le relayer:",
-          data.transactionHash
-        );
         return true;
       } else {
-        console.log("❌ Erreur relayer:", data.error);
-
         if (
           data.error?.includes("not the contract owner") ||
           data.error?.includes("Unauthorized") ||
           data.error?.includes("0x118cdaa7")
         ) {
-          console.log(
-            "🔄 Le relayer direct a échoué, fallback vers méthode manuelle"
-          );
         }
 
         return false;
       }
-    } catch (error) {
-      console.error("❌ Erreur de communication avec le relayer:", error);
+    } catch {
       return false;
     }
   };
 
-  // Réclamer les gains
   const claimWinnings = useCallback(
     async (
       gameId: bigint,
@@ -572,7 +558,6 @@ export const useChessBetting = () => {
         return;
       }
 
-      // Réinitialiser l'état
       setClaimState({
         isLoading: true,
         isSuccess: false,
@@ -598,11 +583,6 @@ export const useChessBetting = () => {
           return;
         }
 
-        // 1. Vérifier d'abord les informations du jeu
-        console.log("Vérification des informations de la partie...", {
-          id: "claim-process",
-        });
-
         const gameInfo = (await readContract(publicClient, {
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -610,12 +590,8 @@ export const useChessBetting = () => {
           args: [gameId],
         })) as GameInfo;
 
-        console.log("💰 Game info", gameInfo);
-
-        // 2. Vérifications préliminaires
         if (!gameInfo) {
           const errorMsg = "Partie introuvable";
-          console.log(errorMsg, { id: "claim-process" });
           setClaimState((prev) => ({
             ...prev,
             isLoading: false,
@@ -626,7 +602,6 @@ export const useChessBetting = () => {
           return;
         }
 
-        // 3. Vérifier si le joueur connecté est dans la partie
         const isWhitePlayer =
           gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
         const isBlackPlayer =
@@ -634,7 +609,6 @@ export const useChessBetting = () => {
 
         if (!isWhitePlayer && !isBlackPlayer) {
           const errorMsg = "Vous n'êtes pas un joueur de cette partie";
-          console.log(errorMsg, { id: "claim-process" });
           setClaimState((prev) => ({
             ...prev,
             isLoading: false,
@@ -645,26 +619,11 @@ export const useChessBetting = () => {
           return;
         }
 
-        // 4. Finaliser la partie si nécessaire
         if (gameInfo.state !== GameState.FINISHED) {
-          console.log("Étape 1/2: Finalisation automatique de la partie...", {
-            id: "claim-process",
-          });
-
           const relayerSuccess = await finishGameViaRelayer(gameId, result);
 
           if (relayerSuccess) {
-            console.log("✅ Partie finalisée automatiquement !", {
-              id: "claim-process",
-            });
           } else {
-            console.log(
-              "⚠️ Finalisation automatique échouée. Confirmez la transaction pour payer les frais...",
-              {
-                id: "claim-process",
-              }
-            );
-
             try {
               await writeContract({
                 address: CHESS_BETTING_CONTRACT_ADDRESS,
@@ -681,10 +640,6 @@ export const useChessBetting = () => {
 
               if (hash) {
                 finishGameTxHash = hash;
-                console.log("Attente de confirmation de la finalisation...", {
-                  id: "claim-process",
-                });
-
                 const finishReceipt =
                   await publicClient.waitForTransactionReceipt({
                     hash: hash,
@@ -693,10 +648,6 @@ export const useChessBetting = () => {
                 if (finishReceipt.status !== "success") {
                   throw new Error("Échec de la finalisation de la partie");
                 }
-
-                console.log("Partie finalisée avec succès !", {
-                  id: "claim-process",
-                });
               }
             } catch (finishError: unknown) {
               console.error("Error finishing game:", finishError);
@@ -720,10 +671,6 @@ export const useChessBetting = () => {
                 }
               }
 
-              console.log(errorMessage, {
-                id: "claim-process",
-                duration: 6000,
-              });
               setClaimState({
                 isLoading: false,
                 isSuccess: false,
@@ -737,11 +684,6 @@ export const useChessBetting = () => {
           }
         }
 
-        // 5. Vérifier l'éligibilité pour le claim
-        console.log("Vérification de l'éligibilité pour la réclamation...", {
-          id: "claim-process",
-        });
-
         const canClaim = (await readContract(publicClient, {
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -751,7 +693,6 @@ export const useChessBetting = () => {
 
         if (!canClaim) {
           const errorMsg = "Impossible de réclamer les gains pour le moment";
-          console.log(errorMsg, { id: "claim-process" });
           setClaimState((prev) => ({
             ...prev,
             isLoading: false,
@@ -762,30 +703,18 @@ export const useChessBetting = () => {
           return;
         }
 
-        const winnings = (await readContract(publicClient, {
+        (await readContract(publicClient, {
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
           functionName: "calculateWinnings",
           args: [gameId],
         })) as bigint;
 
-        // 6. Procéder au claim
-        console.log(
-          `Étape 2/2: Réclamation de ${formatEther(
-            winnings
-          )} MON - Confirmez la transaction...`,
-          { id: "claim-process" }
-        );
-
         await writeContract({
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
           functionName: "claimWinnings",
           args: [gameId],
-        });
-
-        console.log("Transaction envoyée, confirmation en cours...", {
-          id: "claim-process",
         });
       } catch (error: unknown) {
         console.error("Error claiming winnings:", error);
@@ -815,8 +744,6 @@ export const useChessBetting = () => {
             errorMessage = error.message;
           }
         }
-
-        console.log(errorMessage, { id: "claim-process", duration: 6000 });
 
         setClaimState({
           isLoading: false,
@@ -954,10 +881,6 @@ export const useChessBetting = () => {
           return;
         }
 
-        console.log("Checking game information...", {
-          id: "cancel-process",
-        });
-
         const gameInfo = (await readContract(publicClient, {
           address: CHESS_BETTING_CONTRACT_ADDRESS,
           abi: CHESS_BETTING_ABI,
@@ -967,7 +890,6 @@ export const useChessBetting = () => {
 
         if (!gameInfo) {
           const errorMsg = "Game not found";
-          console.log(errorMsg, { id: "cancel-process" });
           setCancelState({
             isLoading: false,
             isSuccess: false,
@@ -984,7 +906,6 @@ export const useChessBetting = () => {
 
         if (!isCreator) {
           const errorMsg = "Only the creator can cancel the game";
-          console.log(errorMsg, { id: "cancel-process" });
           setCancelState({
             isLoading: false,
             isSuccess: false,
@@ -1011,7 +932,6 @@ export const useChessBetting = () => {
               break;
           }
 
-          console.log(errorMsg, { id: "cancel-process" });
           setCancelState({
             isLoading: false,
             isSuccess: false,
@@ -1029,7 +949,6 @@ export const useChessBetting = () => {
         if (hasBlackPlayer) {
           const errorMsg =
             "Cannot cancel: an opponent has already joined the game";
-          console.log(errorMsg, { id: "cancel-process" });
           setCancelState({
             isLoading: false,
             isSuccess: false,
@@ -1043,7 +962,6 @@ export const useChessBetting = () => {
 
         if (gameInfo.betAmount <= BigInt(0)) {
           const errorMsg = "No amount to refund";
-          console.log(errorMsg, { id: "cancel-process" });
           setCancelState({
             isLoading: false,
             isSuccess: false,
@@ -1054,11 +972,6 @@ export const useChessBetting = () => {
           onError?.(errorMsg);
           return;
         }
-
-        const refundAmount = formatEther(gameInfo.betAmount);
-        console.log(`Cancelling game... Refunding ${refundAmount} MON`, {
-          id: "cancel-process",
-        });
 
         const result = await writeContract({
           address: CHESS_BETTING_CONTRACT_ADDRESS,
@@ -1074,18 +987,8 @@ export const useChessBetting = () => {
           txHash,
         }));
 
-        console.log("Transaction sent, waiting for confirmation...", {
-          id: "cancel-process",
-          txHash,
-        });
-
         await waitForTransactionReceipt(publicClient, {
           hash: txHash,
-        });
-
-        console.log("Transaction confirmed successfully", {
-          id: "cancel-process",
-          txHash,
         });
 
         setCancelState({
@@ -1135,8 +1038,6 @@ export const useChessBetting = () => {
           }
         }
 
-        console.log(errorMessage, { id: "cancel-process", duration: 6000 });
-
         onError?.(errorMessage);
       }
     },
@@ -1166,67 +1067,51 @@ export const useChessBetting = () => {
   };
 };
 
-// Hook pour écouter les événements du contrat
 export const useContractEvents = (gameId?: bigint) => {
   const { address } = useAccount();
 
-  // Écouter les événements GameFinished
   useWatchContractEvent({
     address: CHESS_BETTING_CONTRACT_ADDRESS,
     abi: CHESS_BETTING_ABI,
     eventName: "GameFinished",
     args: gameId ? { gameId } : undefined,
-    onLogs: (logs) => {
-      console.log("🎯 GameFinished event detected:", logs);
-    },
   });
 
-  // Écouter les événements WinningsClaimed
   useWatchContractEvent({
     address: CHESS_BETTING_CONTRACT_ADDRESS,
     abi: CHESS_BETTING_ABI,
-    eventName: "WinningsClaimed",
-    args: address ? { player: address } : undefined,
-    onLogs: (logs) => {
-      console.log("💰 WinningsClaimed event detected:", logs);
-    },
+    eventName: "GameCreated",
   });
 
-  // Écouter les événements DrawRefundClaimed
-  useWatchContractEvent({
-    address: CHESS_BETTING_CONTRACT_ADDRESS,
-    abi: CHESS_BETTING_ABI,
-    eventName: "DrawRefundClaimed",
-    args: address ? { player: address } : undefined,
-    onLogs: (logs) => {
-      console.log("🤝 DrawRefundClaimed event detected:", logs);
-    },
-  });
-
-  // Écouter les événements GameJoined
   useWatchContractEvent({
     address: CHESS_BETTING_CONTRACT_ADDRESS,
     abi: CHESS_BETTING_ABI,
     eventName: "GameJoined",
     args: gameId ? { gameId } : undefined,
-    onLogs: (logs) => {
-      console.log("👥 GameJoined event detected:", logs);
-    },
   });
 
-  // NOUVEAU: Écouter les événements GameCancelled
+  useWatchContractEvent({
+    address: CHESS_BETTING_CONTRACT_ADDRESS,
+    abi: CHESS_BETTING_ABI,
+    eventName: "WinningsClaimed",
+    args: address ? { player: address } : undefined,
+  });
+
+  useWatchContractEvent({
+    address: CHESS_BETTING_CONTRACT_ADDRESS,
+    abi: CHESS_BETTING_ABI,
+    eventName: "DrawRefundClaimed",
+    args: address ? { player: address } : undefined,
+  });
+
   useWatchContractEvent({
     address: CHESS_BETTING_CONTRACT_ADDRESS,
     abi: CHESS_BETTING_ABI,
     eventName: "GameCancelled",
     args: address ? { player: address } : undefined,
-    onLogs: (logs) => {
-      console.log("❌ GameCancelled event detected:", logs);
-    },
   });
 };
 
-// Hook pour lire les informations d'une partie
 export const useGameInfo = (gameId?: bigint) => {
   const {
     data: gameInfo,
@@ -1247,7 +1132,6 @@ export const useGameInfo = (gameId?: bigint) => {
   return { gameInfo, isLoading, refetch };
 };
 
-// Hook pour obtenir l'ID de partie par nom de room
 export const useGameIdByRoom = (roomName?: string) => {
   const {
     data: gameId,
@@ -1268,7 +1152,6 @@ export const useGameIdByRoom = (roomName?: string) => {
   return { gameId, isLoading, refetch };
 };
 
-// Hook pour les statistiques d'un joueur
 export const usePlayerStats = (playerAddress?: Address) => {
   const {
     data: rawStats,
@@ -1300,7 +1183,6 @@ export const usePlayerStats = (playerAddress?: Address) => {
   return { playerStats, isLoading, refetch };
 };
 
-// Hook pour les statistiques head-to-head
 export const useHeadToHeadStats = (player1?: Address, player2?: Address) => {
   const {
     data: rawStats,
@@ -1329,7 +1211,6 @@ export const useHeadToHeadStats = (player1?: Address, player2?: Address) => {
   return { headToHeadStats, isLoading, refetch };
 };
 
-// Hook pour vérifier si on peut réclamer des gains
 export const useCanClaimWinnings = (
   gameId?: bigint,
   playerAddress?: Address
@@ -1376,7 +1257,6 @@ export const useCanClaimDrawRefund = (
   return { canClaim, isLoading, refetch };
 };
 
-// Hook pour calculer les gains potentiels
 export const useCalculateWinnings = (gameId?: bigint) => {
   const {
     data: winnings,
@@ -1402,7 +1282,6 @@ export const useCalculateWinnings = (gameId?: bigint) => {
   };
 };
 
-// Hook pour calculer le remboursement en cas de match nul
 export const useCalculateDrawRefund = (gameId?: bigint) => {
   const {
     data: refundAmount,
@@ -1428,7 +1307,6 @@ export const useCalculateDrawRefund = (gameId?: bigint) => {
   };
 };
 
-// Hook pour les parties d'un joueur
 export const usePlayerGames = (playerAddress?: Address) => {
   const {
     data: gameIds,
@@ -1449,7 +1327,6 @@ export const usePlayerGames = (playerAddress?: Address) => {
   return { gameIds, isLoading, refetch };
 };
 
-// NOUVEAU: Hook pour vérifier si une partie peut être annulée
 export const useCanCancelGame = (gameId?: bigint) => {
   const { address } = useAccount();
   const { gameInfo } = useGameInfo(gameId);
@@ -1457,17 +1334,13 @@ export const useCanCancelGame = (gameId?: bigint) => {
   const canCancel = useMemo(() => {
     if (!gameInfo || !address || !gameId) return false;
 
-    // Seulement le créateur (white player) peut annuler
     const isCreator =
       gameInfo.whitePlayer.toLowerCase() === address.toLowerCase();
 
-    // Le jeu doit être en état WAITING
     const isWaitingState = gameInfo.state === GameState.WAITING;
 
-    // Il doit y avoir un pari
     const hasBetting = gameInfo.betAmount > BigInt(0);
 
-    // Il ne doit pas y avoir de deuxième joueur
     const noBlackPlayer =
       gameInfo.blackPlayer === "0x0000000000000000000000000000000000000000";
 
@@ -1523,7 +1396,6 @@ export const useCanCancelGame = (gameId?: bigint) => {
   };
 };
 
-// Hook combiné pour une partie complète avec toutes les infos
 export const useCompleteGameInfo = (gameId?: bigint) => {
   const { address } = useAccount();
   const {
@@ -1546,11 +1418,9 @@ export const useCompleteGameInfo = (gameId?: bigint) => {
     refetch: refetchRefund,
   } = useCalculateDrawRefund(gameId);
 
-  // Écouter les événements du contrat pour ce gameId
   useContractEvents(gameId);
 
   const refetchAll = useCallback(() => {
-    console.log("🔄 Refetching all game data...");
     refetchGame();
     refetchCanClaimWin();
     refetchCanClaimDraw();
@@ -1620,7 +1490,6 @@ export const useCompleteGameInfo = (gameId?: bigint) => {
   };
 };
 
-// Utilitaires
 export const formatMON = (amount: bigint | string | number): string => {
   if (typeof amount === "bigint") {
     return formatEther(amount);
@@ -1635,7 +1504,6 @@ export const parseMON = (amount: string): bigint => {
   return parseEther(amount);
 };
 
-// Fonctions utilitaires pour les résultats de partie
 export const finishGameWithResult = {
   whiteWins: (
     gameId: bigint,

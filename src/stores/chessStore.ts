@@ -309,6 +309,21 @@ export const useChessStore = create<ChessState>()(
           betAmount: state.betAmount,
           moveHistory: state.moveHistory,
           currentMoveIndex: state.currentMoveIndex,
+          // ✅ AJOUTÉ: Persister les informations critiques pour restaurer l'état après refresh
+          gameResult: state.gameResult,
+          isActive: state.isActive,
+          players: state.players,
+          showGameEndModal: state.showGameEndModal,
+          hasClosedModal: state.hasClosedModal,
+          turn: state.turn,
+          fen: state.fen,
+          whiteTime: state.whiteTime,
+          blackTime: state.blackTime,
+          gameNumber: state.gameNumber,
+          lastMoveTime: state.lastMoveTime,
+          // Persister également les offres en cours
+          drawOffer: state.drawOffer,
+          rematchOffer: state.rematchOffer,
         }),
       }
     )

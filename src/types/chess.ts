@@ -29,6 +29,18 @@ export interface RematchOffer {
   by: "white" | "black" | null;
 }
 
+export interface RematchCreating {
+  inProgress: boolean;
+  by: "white" | "black" | null;
+}
+
+export interface RematchInvitation {
+  from: string;
+  roomName: string;
+  password: string;
+  betAmount?: string;
+}
+
 export interface GameState {
   fen: string;
   isActive: boolean;
@@ -45,6 +57,7 @@ export interface GameState {
   gameResult: GameResult;
   drawOffer: DrawOffer;
   rematchOffer?: RematchOffer;
+  rematchCreating?: RematchCreating; // ✅ NOUVEAU: État de création de rematch
   gameNumber: number;
   lastGameWinner: "white" | "black" | "draw" | null;
   createdAt: number;
