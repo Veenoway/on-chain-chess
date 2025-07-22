@@ -121,12 +121,12 @@ export default function ChessMultisynqApp() {
   if (gameFlow === "welcome") {
     return (
       <div className="min-h-screen bg-gradient-to-br  from-[#101010] via-[#1d1D1d] to-[#0c0c0c] bg-center bg-cover flex items-center justify-center p-4">
-        <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-[50px] border border-white/5">
+        <div className="max-w-[700px] w-full bg-[#1E1E1E] backdrop-blur-md rounded-2xl p-7 md:p-[50px] border border-white/5">
           <div className="text-center">
-            <h2 className="text-4xl font-medium text-white mb-4">
+            <h2 className="text-2xl sm:text-4xl font-medium text-white mb-4">
               Welcome to SynqMate
             </h2>
-            <p className="text-white/80 text-lg font-light mb-8 max-w-[500px] mx-auto">
+            <p className="text-white/80 text-sm md:text-lg font-light mb-8 max-w-[500px] mx-auto">
               SynqMate is a platform for playing chess with friends and betting
               on the outcome.
             </p>
@@ -138,7 +138,7 @@ export default function ChessMultisynqApp() {
           </div>
 
           {!isConnected ? (
-            <p className="text-white text-lg mx-auto text-center">
+            <p className="text-white text-sm md:text-lg mx-auto text-center">
               Connect your wallet to start playing
             </p>
           ) : (
@@ -146,31 +146,31 @@ export default function ChessMultisynqApp() {
               <div className="mx-auto w-full flex items-center justify-center">
                 <button
                   onClick={() => setMenuActive("create")}
-                  className={`group rounded-t-lg  ${
+                  className={`group rounded-lg md:rounded-t-lg  ${
                     menuActive === "create"
                       ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
                       : "border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E]"
-                  } text-white text-lg font-medium py-4 w-[190px] transition-all duration-200 px-4`}
+                  } text-white text-sm md:text-lg font-medium md:py-4 py-2 w-[190px] transition-all duration-200 px-4`}
                 >
-                  Create Game
+                  Create
                 </button>
 
                 <button
                   onClick={() => setMenuActive("join")}
-                  className={`group rounded-t-lg  ${
+                  className={`group rounded-lg md:rounded-t-lg  ${
                     menuActive === "join"
                       ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525]"
                       : "border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E]"
-                  } text-white text-lg font-medium py-4 w-[190px] transition-all duration-200 px-4`}
+                  } text-white text-sm md:text-lg font-medium md:py-4 py-2 w-[190px] transition-all duration-200 px-4`}
                 >
                   Join Game
                 </button>
               </div>
               {menuActive === "create" ? (
-                <div className="bg-[#252525] rounded-2xl p-6">
-                  <div className="space-y-6">
+                <div className="md:bg-[#252525] rounded-2xl md:p-6">
+                  <div className="space-y-3 md:space-y-6">
                     <div>
-                      <label className="block text-xl font-medium text-white mb-3">
+                      <label className="block text-base md:text-xl font-medium text-white mb-3 md:mt-0 mt-6">
                         Game Settings
                       </label>
                       <Select
@@ -179,29 +179,47 @@ export default function ChessMultisynqApp() {
                           setSelectedGameTime(Number(value))
                         }
                       >
-                        <SelectTrigger className="w-full text-lg bg-[#2b2b2b] border-white/5 focus:outline-none h-[50px] text-white focus:ring-0 focus:ring-offset-0  focus:ring-0 focus:ring-offset-0 ">
+                        <SelectTrigger className="w-full text-sm md:text-lg bg-[#2b2b2b] border-white/5 focus:outline-none h-[50px] text-white focus:ring-0 focus:ring-offset-0  focus:ring-0 focus:ring-offset-0 ">
                           <SelectValue
                             placeholder="Select game duration"
-                            className="text-lg"
+                            className="text-sm md:text-lg"
                           />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#252525] border-white/10 text-lg text-white">
-                          <SelectItem className="text-lg" value="180">
+                        <SelectContent className="bg-[#252525] border-white/10 text-sm md:text-lg text-white">
+                          <SelectItem
+                            className="text-sm md:text-lg"
+                            value="180"
+                          >
                             3 minutes
                           </SelectItem>
-                          <SelectItem className="text-lg" value="300">
+                          <SelectItem
+                            className="text-sm md:text-lg"
+                            value="300"
+                          >
                             5 minutes
                           </SelectItem>
-                          <SelectItem className="text-lg" value="600">
+                          <SelectItem
+                            className="text-sm md:text-lg"
+                            value="600"
+                          >
                             10 minutes
                           </SelectItem>
-                          <SelectItem className="text-lg" value="900">
+                          <SelectItem
+                            className="text-sm md:text-lg"
+                            value="900"
+                          >
                             15 minutes
                           </SelectItem>
-                          <SelectItem className="text-lg" value="1800">
+                          <SelectItem
+                            className="text-sm md:text-lg"
+                            value="1800"
+                          >
                             30 minutes
                           </SelectItem>
-                          <SelectItem className="text-lg" value="3600">
+                          <SelectItem
+                            className="text-sm md:text-lg"
+                            value="3600"
+                          >
                             1 hour
                           </SelectItem>
                         </SelectContent>
@@ -209,19 +227,19 @@ export default function ChessMultisynqApp() {
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xl font-medium text-white">
+                      <h3 className="text-sm md:text-xl font-medium text-white">
                         Enable Betting
                       </h3>
                       <label className="flex items-center cursor-pointer">
                         <div
-                          className={`w-14 h-6 rounded-full transition-colors ${
+                          className={`w-10 h-5 md:w-14 md:h-6 rounded-full transition-colors ${
                             isBettingEnabled ? "bg-[#836EF9]" : "bg-[#2b2b2b]"
                           }`}
                         >
                           <div
-                            className={`w-[21px] h-[21px] bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
+                            className={`w-[16px] h-[16px] md:w-[21px] md:h-[21px] bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
                               isBettingEnabled
-                                ? "translate-x-7 ml-1"
+                                ? "translate-x-5 md:translate-x-7 ml-1"
                                 : "translate-x-0 ml-0.5"
                             }`}
                           ></div>
@@ -238,7 +256,7 @@ export default function ChessMultisynqApp() {
                     </div>
 
                     {isBettingEnabled && (
-                      <div className="space-y-2">
+                      <div className="space-y-2 text-sm md:text-base">
                         <input
                           type="text"
                           inputMode="decimal"
@@ -246,9 +264,9 @@ export default function ChessMultisynqApp() {
                           value={betAmount}
                           onChange={(e) => setBetAmount(e.target.value)}
                           placeholder="Enter bet amount"
-                          className="w-full px-4 py-3 focus:outline-none bg-[#2b2b2b] border border-white/5 rounded-lg text-white text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                          className="w-full px-4 py-3 focus:outline-none bg-[#2b2b2b] border border-white/5 rounded-lg text-white text-sm md:text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
                         />
-                        <div className="text-base text-white font-bold">
+                        <div className="text-sm md:text-base text-white font-bold">
                           <span className="font-light text-white/80">
                             Balance:
                           </span>{" "}
@@ -271,7 +289,7 @@ export default function ChessMultisynqApp() {
                         }
                       }}
                       disabled={isCreatingRoom || !multisynqReady}
-                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
+                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-sm md:text-lg transition-all"
                     >
                       {isWrongNetwork
                         ? "Switch to Monad & Create"
@@ -285,8 +303,8 @@ export default function ChessMultisynqApp() {
                 </div>
               ) : (
                 <div className=" text-center">
-                  <div className="bg-[#252525] rounded-2xl p-8 pt-6">
-                    <label className="block text-xl font-medium text-left text-white  mb-3">
+                  <div className="md:bg-[#252525] rounded-2xl p-0 md:p-8 pt-6">
+                    <label className="block text-lg md:text-xl font-medium text-left text-white  mb-3">
                       {" "}
                       Room Code
                     </label>
@@ -295,7 +313,7 @@ export default function ChessMultisynqApp() {
                       placeholder="Enter room code (e.g. room:password)"
                       value={roomInput}
                       onChange={(e) => setRoomInput(e.target.value)}
-                      className="w-full p-4 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                      className="w-full p-4 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
                     />
                     <button
                       onClick={handleJoinRoom}
@@ -305,7 +323,7 @@ export default function ChessMultisynqApp() {
                         isPending ||
                         isWrongNetwork
                       }
-                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
+                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-sm md:text-lg transition-all"
                     >
                       {isWrongNetwork
                         ? "Switch to Monad & Join"
@@ -378,17 +396,17 @@ export default function ChessMultisynqApp() {
                       ) : (
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-medium text-white flex items-center gap-1">
-                              <span className="animate-[bounce_1s_infinite] text-xl">
+                            <div className="font-medium text-white flex items-center gap-1 text-sm md:text-base">
+                              <span className="animate-[bounce_1s_infinite] text-lg md:text-xl">
                                 .
                               </span>
-                              <span className="animate-[bounce_1s_infinite_0.2s] text-xl">
+                              <span className="animate-[bounce_1s_infinite_0.2s] text-lg md:text-xl">
                                 .
                               </span>
-                              <span className="animate-[bounce_1s_infinite_0.4s] text-xl">
+                              <span className="animate-[bounce_1s_infinite_0.4s] text-lg md:text-xl">
                                 .
                               </span>
-                              <span className="animate-[bounce_1s_infinite_0.6s] text-xl ml-2">
+                              <span className="animate-[bounce_1s_infinite_0.6s] text-lg md:text-xl ml-2">
                                 Waiting for opponent
                               </span>
                             </div>
@@ -443,14 +461,14 @@ export default function ChessMultisynqApp() {
                       (gameState.roomName?.startsWith("rematch-") ||
                         !gameState.isActive) && (
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
-                          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl relative">
+                          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-6 md:p-8 max-w-md w-full mx-4 shadow-2xl relative">
                             <div className="text-center">
-                              <h3 className="text-2xl font-medium text-white mb-6">
+                              <h3 className="text-xl md:text-2xl font-medium text-white md:mb-6 mb-5">
                                 Payment Status
                               </h3>
 
                               <div className="">
-                                <div className="flex justify-between text-white text-base mb-2">
+                                <div className="flex justify-between text-white text-sm md:text-base mb-2">
                                   <span className="text-gray-300">
                                     Bet amount:
                                   </span>
@@ -461,7 +479,7 @@ export default function ChessMultisynqApp() {
                                     MON
                                   </span>
                                 </div>
-                                <div className="flex justify-between text-base text-white mb-6">
+                                <div className="flex justify-between text-sm md:text-base text-white md:mb-6 mb-3">
                                   <span className="text-gray-300">
                                     Potential winnings:
                                   </span>
@@ -482,10 +500,10 @@ export default function ChessMultisynqApp() {
                                 <div className="space-y-3">
                                   <div className="flex items-center justify-between p-3 bg-[#252525]  rounded-lg">
                                     <div className="flex flex-col items-start">
-                                      <span className="text-white text-base font-normal mb-0.5">
-                                        White Player (Creator):
+                                      <span className="text-white text-sm md:text-base font-normal mb-0.5">
+                                        White Player:
                                       </span>
-                                      <span className="text-gray-400 text-sm">
+                                      <span className="text-gray-400 text-xs md:text-sm">
                                         {gameInfo?.whitePlayer
                                           ? `${gameInfo.whitePlayer.slice(
                                               0,
@@ -497,7 +515,7 @@ export default function ChessMultisynqApp() {
                                       </span>
                                     </div>
                                     <span
-                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs font-normal ${
+                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs md:text-sm font-normal ${
                                         paymentStatus.whitePlayerPaid
                                           ? "bg-[#836EF9] text-white border border-white/10"
                                           : "bg-[#2c2c2c] text-white border border-white/10"
@@ -514,10 +532,10 @@ export default function ChessMultisynqApp() {
 
                                   <div className="flex items-center justify-between p-3 bg-[#252525]  rounded-lg">
                                     <div className="flex flex-col items-start">
-                                      <span className="text-white text-base font-normal mb-0.5">
-                                        Black Player (Joiner):
+                                      <span className="text-white text-sm md:text-base text-left font-normal mb-0.5">
+                                        Black Player:
                                       </span>
-                                      <span className="text-gray-400 text-sm">
+                                      <span className="text-gray-400 text-xs md:text-sm">
                                         {gameInfo?.blackPlayer &&
                                         gameInfo.blackPlayer !==
                                           "0x0000000000000000000000000000000000000000"
@@ -531,7 +549,7 @@ export default function ChessMultisynqApp() {
                                       </span>
                                     </div>
                                     <span
-                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs font-normal ${
+                                      className={`px-2 py-1 rounded-lg flex items-center justify-center text-xs md:text-sm font-normal ${
                                         paymentStatus.blackPlayerPaid
                                           ? "bg-[#836EF9] text-white border border-white/10"
                                           : "bg-[#2c2c2c] text-white border border-white/10"
@@ -616,7 +634,7 @@ export default function ChessMultisynqApp() {
                                       isConfirming ||
                                       !gameState.roomName
                                     }
-                                    className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                    className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-sm md:text-lg transition-colors flex items-center justify-center"
                                   >
                                     {isPending || isConfirming ? (
                                       <>
@@ -638,7 +656,7 @@ export default function ChessMultisynqApp() {
                                       {cancelState.isLoading ? (
                                         <button
                                           disabled
-                                          className="w-full mt-5 px-6 py-4 bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                          className="w-full mt-5 px-6 py-4 bg-[#404040] text-white rounded-lg font-medium text-sm md:text-lg transition-colors flex items-center justify-center"
                                         >
                                           {cancelState.txHash
                                             ? "Confirming..."
@@ -649,7 +667,7 @@ export default function ChessMultisynqApp() {
                                           onClick={() =>
                                             cancelBettingGame(gameId as bigint)
                                           }
-                                          className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                          className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-sm md:text-lg transition-colors flex items-center justify-center"
                                         >
                                           Retry Cancel
                                           {cancelState.error && (
@@ -663,7 +681,7 @@ export default function ChessMultisynqApp() {
                                           onClick={() =>
                                             cancelBettingGame(gameId as bigint)
                                           }
-                                          className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] text-white rounded-lg font-medium text-lg transition-colors"
+                                          className="w-full px-6 py-4 bg-[#836EF9] hover:bg-[#937EF9] text-white rounded-lg font-medium text-sm md:text-lg transition-colors"
                                         >
                                           Cancel & Get Refund
                                         </button>
@@ -672,7 +690,7 @@ export default function ChessMultisynqApp() {
                                   ) : (
                                     <button
                                       onClick={handleBackHome}
-                                      className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
+                                      className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-sm md:text-lg transition-colors flex items-center justify-center"
                                     >
                                       Back to Home
                                     </button>
@@ -690,11 +708,11 @@ export default function ChessMultisynqApp() {
                       <div className="absolute top-2 left-2 z-10">
                         <div className="bg-[#252525] backdrop-blur-sm px-3 py-1 flex items-center rounded-lg border border-white/10 shadow-xl">
                           <div className="bg-[#836EF9] h-2.5 w-2.5 rounded-full animate-pulse" />
-                          <span className="text-white text-sm font-light ml-2">
+                          <span className="text-white text-xs md:text-sm font-light ml-2">
                             Analysis mode
                             {moveHistory.length > 1 &&
                               currentMoveIndex < moveHistory.length - 1 && (
-                                <span className="ml-2 text-[#836EF9] font-medium">
+                                <span className="ml-2 text-[#836EF9] text-xs md:text-sm font-light">
                                   ({currentMoveIndex}/{moveHistory.length - 1})
                                 </span>
                               )}
@@ -708,7 +726,7 @@ export default function ChessMultisynqApp() {
                         <div className="absolute top-2 right-2 z-10">
                           <button
                             onClick={goToLastMoveWithFen}
-                            className="bg-[#836EF9]/90 backdrop-blur-sm px-3 py-1 rounded-lg border border-[#836EF9] text-white text-sm font-medium hover:bg-[#836EF9] transition-colors"
+                            className="bg-[#836EF9]/90 backdrop-blur-sm px-3 py-1 rounded-lg border border-[#836EF9] text-white text-xs md:text-sm font-medium hover:bg-[#836EF9] transition-colors"
                           >
                             Back to game
                           </button>
@@ -742,10 +760,10 @@ export default function ChessMultisynqApp() {
                               gameInfo.betAmount > BigInt(0) && (
                                 <div className="bg-[#1a1a1a] rounded-lg p-4 mb-4">
                                   <div className="flex items-center justify-between mb-3">
-                                    <h4 className="text-white font-medium text-base">
+                                    <h4 className="text-white font-medium text-sm md:text-base">
                                       Prize Pool:
                                     </h4>
-                                    <span className="text-green-400 font-bold text-base">
+                                    <span className="text-green-400 font-bold text-sm md:text-base">
                                       {formatEther(
                                         gameInfo.betAmount * BigInt(2)
                                       )}{" "}
@@ -757,12 +775,12 @@ export default function ChessMultisynqApp() {
                                     <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
                                       <div className="flex items-center gap-2">
                                         <div className="w-3.5 h-3.5 bg-white rounded-full"></div>
-                                        <span className="text-white text-sm font-normal">
+                                        <span className="text-white text-xs md:text-sm font-normal">
                                           White
                                         </span>
                                       </div>
                                       <span
-                                        className={`px-2 py-1 rounded-md text-xs flex items-center justify-center gap-2 font-normal ${
+                                        className={`px-2 py-1 rounded-md text-xs md:text-sm flex items-center justify-center gap-2 font-normal ${
                                           gameInfo.whiteClaimed
                                             ? "bg-[#836EF9] text-white"
                                             : gameInfo.result === 3 ||
@@ -789,12 +807,12 @@ export default function ChessMultisynqApp() {
                                     <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
                                       <div className="flex items-center gap-2">
                                         <div className="w-3.5 h-3.5 bg-black border border-white rounded-full"></div>
-                                        <span className="text-white text-sm font-normal">
+                                        <span className="text-white text-xs md:text-sm font-normal">
                                           Black
                                         </span>
                                       </div>
                                       <span
-                                        className={`px-2 py-1 rounded-md text-xs flex items-center justify-center gap-2 font-normal ${
+                                        className={`px-2 py-1 rounded-md text-xs md:text-sm flex items-center justify-center gap-2 font-normal ${
                                           gameInfo.blackClaimed
                                             ? "bg-[#836EF9] text-white"
                                             : gameInfo.result === 3 ||
@@ -871,7 +889,7 @@ export default function ChessMultisynqApp() {
                                           : gameInfo && gameInfo.state !== 2
                                           ? "bg-[#252525] border border-white/5 text-white"
                                           : "bg-[#836EF9] hover:bg-[#836EF9]/80"
-                                      } disabled:bg-[#252525] text-white rounded-lg border border-white/5 font-normal text-base transition-colors`}
+                                      } disabled:bg-[#252525] text-white rounded-lg border border-white/5 font-normal text-sm md:text-base transition-colors`}
                                     >
                                       {!canCurrentPlayerClaim() ? (
                                         "Waiting for opponent..."
@@ -926,7 +944,7 @@ export default function ChessMultisynqApp() {
                                         gameInfo && gameInfo.state !== 2
                                           ? "bg-[#252525] border border-white/5 text-white"
                                           : "bg-[#836EF9] hover:bg-[#937EF9]"
-                                      } disabled:bg-[#252525] text-white rounded-lg font-normal text-base transition-colors`}
+                                      } disabled:bg-[#252525] text-white rounded-lg font-normal text-sm md:text-base transition-colors`}
                                     >
                                       {!canCurrentPlayerClaim() ? (
                                         "No refund available"
@@ -949,7 +967,7 @@ export default function ChessMultisynqApp() {
                                 {rematchInvitation &&
                                 rematchInvitation.from !== address ? (
                                   <div className="space-y-3 mb-3">
-                                    <p className="text-center text-sm text-white/80 font-thin max-w-[80%] mx-auto">
+                                    <p className="text-center text-xs md:text-sm text-white/80 font-thin max-w-[80%] mx-auto">
                                       Your opponent offers you a rematch for{" "}
                                       <span className="text-white font-medium">
                                         {rematchInvitation?.betAmount
@@ -961,7 +979,7 @@ export default function ChessMultisynqApp() {
                                       <button
                                         onClick={async () => {
                                           console.log(
-                                            "✅ [multisynq.tsx] Acceptation du rematch - rejoindre la room:",
+                                            "[multisynq.tsx] Acceptation du rematch - rejoindre la room:",
                                             rematchInvitation
                                           );
 
@@ -971,7 +989,7 @@ export default function ChessMultisynqApp() {
                                           try {
                                             if (!rematchInvitation) {
                                               console.error(
-                                                "❌ [multisynq.tsx] Invitation de rematch manquante"
+                                                "[multisynq.tsx] Invitation de rematch manquante"
                                               );
                                               return;
                                             }
@@ -1007,12 +1025,12 @@ export default function ChessMultisynqApp() {
                                             );
                                           } catch (error) {
                                             console.error(
-                                              "❌ [multisynq.tsx] Erreur lors du join de rematch:",
+                                              "[multisynq.tsx] Erreur lors du join de rematch:",
                                               error
                                             );
                                           }
                                         }}
-                                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-normal text-base transition-colors"
+                                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-normal text-sm md:text-base transition-colors"
                                       >
                                         Accept
                                       </button>
@@ -1020,7 +1038,7 @@ export default function ChessMultisynqApp() {
                                         onClick={() => {
                                           setRematchInvitation(null);
                                         }}
-                                        className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-normal text-base transition-colors"
+                                        className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-normal text-sm md:text-base transition-colors"
                                       >
                                         Decline
                                       </button>
@@ -1035,7 +1053,7 @@ export default function ChessMultisynqApp() {
                                         rematchCreating?.inProgress ||
                                         shouldDisableNavigationButtons()
                                       }
-                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
+                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-sm md:text-base transition-colors"
                                     >
                                       {rematchCreating?.inProgress
                                         ? "Loading..."
@@ -1059,7 +1077,7 @@ export default function ChessMultisynqApp() {
                                     <button
                                       onClick={handleCloseGameEndModal}
                                       disabled={shouldDisableNavigationButtons()}
-                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
+                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-sm md:text-base transition-colors"
                                     >
                                       {shouldDisableNavigationButtons()
                                         ? gameInfo && gameInfo.state !== 2
@@ -1084,7 +1102,7 @@ export default function ChessMultisynqApp() {
                             <div key={player.id} className="rounded">
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <div className="font-medium text-xl text-white flex items-center gap-2">
+                                  <div className="font-medium text-lg md:text-xl text-white flex items-center gap-2">
                                     {player.wallet.slice(0, 6)}...
                                     {player.wallet.slice(-4)} (You)
                                     {player.connected && !isReconnecting ? (
@@ -1093,7 +1111,7 @@ export default function ChessMultisynqApp() {
                                       <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></span>
                                     )}
                                   </div>
-                                  <div className="text-sm text-gray-300">
+                                  <div className="text-xs md:text-sm text-gray-300">
                                     <CapturedPieces
                                       fen={fen}
                                       playerColor={playerColor}
@@ -1115,7 +1133,7 @@ export default function ChessMultisynqApp() {
                       }`}
                     >
                       <span
-                        className={`text-xl font-medium ${
+                        className={`text-lg md:text-xl font-medium ${
                           getCurrentPlayerTime() <= 30
                             ? "text-red-500"
                             : "text-white"
@@ -1137,7 +1155,7 @@ export default function ChessMultisynqApp() {
               <div className="bg-[#1E1E1E] p-3 border border-white/5 rounded-lg mb-3">
                 <div className="flex items-center gap-2 mt-1 mb-1 justify-between">
                   <div>
-                    <p className="text-white font-medium text-base ml-2">
+                    <p className="text-white font-medium text-sm md:text-base ml-2">
                       Invite friend
                     </p>
                   </div>
@@ -1159,7 +1177,7 @@ export default function ChessMultisynqApp() {
                           setTimeout(() => setCopied(false), 2000);
                         });
                     }}
-                    className="px-2.5 py-1.5 text-xs flex font-normal items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/90 text-white rounded-lg transition-colors duration-300 ease-in-out"
+                    className="px-2.5 py-1.5 text-xs md:text-sm flex font-normal items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/90 text-white rounded-lg transition-colors duration-300 ease-in-out"
                   >
                     Copy Link
                     {copied ? (
@@ -1172,10 +1190,10 @@ export default function ChessMultisynqApp() {
                 {gameInfo?.betAmount && gameInfo.betAmount > BigInt(0) && (
                   <div className="px-2 pt-2 border-t border-white/10 mt-3">
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-white text-base font-medium">
+                      <span className="text-white text-sm md:text-base font-medium">
                         Prize Pool
                       </span>
-                      <span className="text-green-400 text-base font-medium">
+                      <span className="text-green-400 text-sm md:text-base font-medium">
                         {getAvailableAmount() > "0"
                           ? getAvailableAmount()
                           : "0"}{" "}
@@ -1187,7 +1205,7 @@ export default function ChessMultisynqApp() {
               </div>
 
               <div className="rounded-t-lg px-3 pt-2 bg-[#1E1E1E] border border-b-2 border-white/5">
-                <h3 className="text-base font-medium text-white mb-2">
+                <h3 className="text-sm md:text-base font-medium text-white mb-2">
                   Nads Chat
                 </h3>
               </div>
@@ -1209,7 +1227,7 @@ export default function ChessMultisynqApp() {
                     } border p-3 border-white/5`}
                   >
                     <div
-                      className={`text-sm mb-[5px]   ${
+                      className={`text-xs md:text-sm mb-[5px]   ${
                         msg.playerWallet === address
                           ? "text-white font-medium"
                           : "text-white/50"
@@ -1221,7 +1239,7 @@ export default function ChessMultisynqApp() {
                           "..." +
                           msg.playerWallet.slice(-4)}
                     </div>
-                    <div className="text-white/90 font-light text-sm">
+                    <div className="text-white/90 font-light text-xs md:text-sm">
                       {msg.message}
                     </div>
                   </div>
@@ -1246,7 +1264,7 @@ export default function ChessMultisynqApp() {
                           address?.toLowerCase())
                     )
                   }
-                  className="flex-1 px-3 h-[40px] bg-[#252525] min-w-[200px] border font-light border-white/5 text-white text-sm placeholder-white/70 focus:outline-none rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 h-[40px] bg-[#252525] min-w-[200px] border font-light border-white/5 text-white text-xs md:text-sm placeholder-white/70 focus:outline-none rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <button
                   onClick={handleSendMessage}
@@ -1263,7 +1281,7 @@ export default function ChessMultisynqApp() {
                             address?.toLowerCase())
                       ))
                   }
-                  className="px-4 h-[40px] bg-[#836EF9] border border-white/5 text-white rounded-lg text-sm font-light transition-colors"
+                  className="px-4 h-[40px] bg-[#836EF9] border border-white/5 text-white rounded-lg text-xs md:text-sm font-light transition-colors"
                 >
                   Send
                 </button>
@@ -1276,19 +1294,19 @@ export default function ChessMultisynqApp() {
                       {gameState.drawOffer.offered &&
                       gameState.drawOffer.by !== playerColor ? (
                         <div>
-                          <p className="text-white/80 font-light text-sm text-center mb-3">
+                          <p className="text-white/80 font-light text-xs md:text-sm text-center mb-3">
                             Your opponent offers you a draw
                           </p>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               onClick={() => handleRespondDraw(true)}
-                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs md:text-sm transition-colors"
                             >
                               Accept
                             </button>
                             <button
                               onClick={() => handleRespondDraw(false)}
-                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs md:text-sm transition-colors"
                             >
                               Decline
                             </button>
@@ -1311,7 +1329,7 @@ export default function ChessMultisynqApp() {
                                       address?.toLowerCase())
                                 ))
                             }
-                            className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                            className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs md:text-sm transition-colors"
                           >
                             {gameState.drawOffer.offered
                               ? "Offer sent"
@@ -1336,7 +1354,7 @@ export default function ChessMultisynqApp() {
                                         address?.toLowerCase())
                                   )
                                 }
-                                className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded-lg text-xs md:text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Resign
                               </button>
@@ -1347,7 +1365,7 @@ export default function ChessMultisynqApp() {
                               className="w-48 bg-[#1E1E1E] border border-white/10 shadow-ring shadow-lg text-white"
                             >
                               <div className="space-y-3">
-                                <p className="text-white/90 text-sm font-light text-center">
+                                <p className="text-white/90 text-xs md:text-sm font-light text-center">
                                   Are you sure you want to resign?
                                 </p>
                                 <div className="grid grid-cols-2 gap-2">
@@ -1356,7 +1374,7 @@ export default function ChessMultisynqApp() {
                                       handleResign();
                                       setIsResignPopoverOpen(false);
                                     }}
-                                    className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+                                    className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs md:text-sm transition-colors"
                                   >
                                     Yes
                                   </button>
@@ -1364,7 +1382,7 @@ export default function ChessMultisynqApp() {
                                     onClick={() => {
                                       setIsResignPopoverOpen(false);
                                     }}
-                                    className="px-3 py-2 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-white rounded-lg text-sm transition-colors"
+                                    className="px-3 py-2 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-white rounded-lg text-xs md:text-sm transition-colors"
                                   >
                                     No
                                   </button>
@@ -1376,7 +1394,7 @@ export default function ChessMultisynqApp() {
                       )}
 
                       <div className="pt-3 border-t border-white/10">
-                        <p className="text-gray-400 text-xs mb-2 text-center">
+                        <p className="text-gray-400 text-xs md:text-sm mb-2 text-center">
                           Navigation: Move {currentMoveIndex}/
                           {moveHistory.length - 1}
                         </p>
@@ -1423,7 +1441,7 @@ export default function ChessMultisynqApp() {
                           onClick={() => {
                             setShowGameEndModal(true);
                           }}
-                          className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                          className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg text-xs md:text-sm transition-colors"
                         >
                           Game Results
                         </button>
