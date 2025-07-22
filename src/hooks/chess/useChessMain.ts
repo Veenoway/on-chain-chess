@@ -1380,6 +1380,9 @@ export const useChessMain = () => {
       setMoveHistory([initialFen]);
       setCurrentMoveIndex(0);
 
+      // ✅ AJOUTÉ: Réinitialiser aussi l'affichage de l'échiquier
+      setFen(initialFen);
+
       console.log(
         "✅ [useChessMain] État du jeu complètement réinitialisé pour le rematch"
       );
@@ -1669,6 +1672,27 @@ export const useChessMain = () => {
       }
     }
   }, [gameInfo?.betAmount, gameId, betAmount, setBetAmount]);
+
+  // ✅ NOUVEAU: Réinitialiser l'échiquier quand on entre dans une room de rematch
+  useEffect(() => {
+    if (gameState.roomName && gameState.roomName.startsWith("rematch-")) {
+      console.log(
+        "🔄 [useChessMain] Détection room de rematch - réinitialisation échiquier"
+      );
+      const initialFen =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+      // Réinitialiser l'affichage de l'échiquier
+      setFen(initialFen);
+      setMoveHistory([initialFen]);
+      setCurrentMoveIndex(0);
+
+      console.log(
+        "✅ [useChessMain] Échiquier réinitialisé pour room:",
+        gameState.roomName
+      );
+    }
+  }, [gameState.roomName, setFen, setMoveHistory, setCurrentMoveIndex]);
 
   useEffect(() => {
     (window as any).globalSetGameState = setGameState;
