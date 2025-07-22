@@ -261,10 +261,16 @@ export default function ChessMultisynqApp() {
                     )}
 
                     <button
-                      onClick={handleCreateRoom}
-                      disabled={
-                        isCreatingRoom || !multisynqReady || isWrongNetwork
-                      }
+                      onClick={() => {
+                        if (isConnected && isWrongNetwork) {
+                          try {
+                            switchChain({ chainId: 10143 });
+                          } catch {}
+                        } else {
+                          handleCreateRoom();
+                        }
+                      }}
+                      disabled={isCreatingRoom || !multisynqReady}
                       className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-lg transition-all"
                     >
                       {isWrongNetwork
@@ -311,30 +317,6 @@ export default function ChessMultisynqApp() {
                 </div>
               )}
             </>
-          )}
-
-          {isConnected && isWrongNetwork && (
-            <div className="mt-8 bg-red-500/20 border border-red-400 rounded-xl p-6">
-              <div className="text-center">
-                <h3 className="text-red-300 font-medium text-xl mb-3">
-                  Wrong Network Detected
-                </h3>
-                <p className="text-red-200 text-lg mb-4">
-                  Please switch to <strong>Monad Testnet</strong> to use betting
-                  features
-                </p>
-                <button
-                  onClick={async () => {
-                    try {
-                      await switchChain({ chainId: 10143 });
-                    } catch {}
-                  }}
-                  className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-lg transition-colors"
-                >
-                  Switch to Monad Testnet
-                </button>
-              </div>
-            </div>
           )}
         </div>
       </div>
