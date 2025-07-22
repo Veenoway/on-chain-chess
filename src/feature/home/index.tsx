@@ -1092,32 +1092,34 @@ export default function ChessMultisynqApp() {
                   </div>
 
                   <div className="flex justify-between items-end mt-3">
-                    {gameState.players.map((player) =>
-                      player.id === currentPlayerId ? (
-                        <div key={player.id} className="rounded">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium text-xl text-white flex items-center gap-2">
-                                {player.wallet.slice(0, 6)}...
-                                {player.wallet.slice(-4)} (You)
-                                {player.connected && !isReconnecting ? (
-                                  <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-                                ) : (
-                                  <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></span>
-                                )}
-                              </div>
-                              <div className="text-sm text-gray-300">
-                                <CapturedPieces
-                                  fen={fen}
-                                  playerColor={playerColor}
-                                  isOpponent={false}
-                                />
+                    {gameState.players.length > 0
+                      ? gameState.players.map((player) =>
+                          player.id === currentPlayerId ? (
+                            <div key={player.id} className="rounded">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-xl text-white flex items-center gap-2">
+                                    {player.wallet.slice(0, 6)}...
+                                    {player.wallet.slice(-4)} (You)
+                                    {player.connected && !isReconnecting ? (
+                                      <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                                    ) : (
+                                      <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-gray-300">
+                                    <CapturedPieces
+                                      fen={fen}
+                                      playerColor={playerColor}
+                                      isOpponent={false}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </div>
-                      ) : null
-                    )}
+                          ) : null
+                        )
+                      : null}
 
                     <div
                       className={`backdrop-blur-md rounded-lg px-3 py-1 border ${
