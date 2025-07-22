@@ -287,6 +287,8 @@ export const useChessMain = () => {
       // Dans useChessGameMain.ts, remplacez la définition de ChessModel par cette version complète :
 
       class ChessModel extends Multisynq.Model {
+        timerInterval: any = null;
+
         init() {
           this.state = {
             fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -420,6 +422,93 @@ export const useChessMain = () => {
         handleResetRematchAccepted() {
           this.state.rematchAccepted = false;
           this.publish(this.sessionId, "game-state", this.state);
+        }
+
+        startTimer() {
+          if (this.timerInterval) {
+            console.log("⏰ [ChessModel] Timer déjà actif, arrêt du précédent");
+            this.stopTimer();
+          }
+
+          this.timerInterval = setInterval(() => {
+            if (!this.state.isActive || this.state.gameResult.type) {
+              console.log("⏰ [ChessModel] Partie inactive, arrêt du timer");
+              this.stopTimer();
+              return;
+            }
+
+            let needsUpdate = false;
+            let timeExpired = false;
+
+            if (this.state.turn === "w") {
+              const previousTime = this.state.whiteTime;
+              this.state.whiteTime = Math.max(0, this.state.whiteTime - 1);
+              needsUpdate = this.state.whiteTime !== previousTime;
+
+              console.log("⏰ [ChessModel] Timer blanc:", {
+                previous: previousTime,
+                current: this.state.whiteTime,
+              });
+
+              if (this.state.whiteTime <= 0) {
+                this.state.isActive = false;
+                this.state.gameResult = {
+                  type: "timeout",
+                  winner: "black",
+                  message: "Time's up! Black wins",
+                };
+                this.state.lastGameWinner = "black";
+                timeExpired = true;
+                needsUpdate = true;
+                console.log("⏰ [ChessModel] Temps écoulé pour les blancs!");
+              }
+            } else {
+              const previousTime = this.state.blackTime;
+              this.state.blackTime = Math.max(0, this.state.blackTime - 1);
+              needsUpdate = this.state.blackTime !== previousTime;
+
+              console.log("⏰ [ChessModel] Timer noir:", {
+                previous: previousTime,
+                current: this.state.blackTime,
+              });
+
+              if (this.state.blackTime <= 0) {
+                this.state.isActive = false;
+                this.state.gameResult = {
+                  type: "timeout",
+                  winner: "white",
+                  message: "Time's up! White wins",
+                };
+                this.state.lastGameWinner = "white";
+                timeExpired = true;
+                needsUpdate = true;
+                console.log("⏰ [ChessModel] Temps écoulé pour les noirs!");
+              }
+            }
+
+            if (needsUpdate) {
+              this.state.lastMoveTime = Date.now();
+              this.publish(this.sessionId, "game-state", this.state);
+
+              if (timeExpired && (window as any).finishGameOnContract) {
+                setTimeout(() => {
+                  (window as any).finishGameOnContract(this.state.gameResult);
+                }, 1000);
+              }
+            }
+
+            if (!this.state.isActive || this.state.gameResult.type) {
+              this.stopTimer();
+            }
+          }, 1000);
+        }
+
+        stopTimer() {
+          if (this.timerInterval) {
+            console.log("⏰ [ChessModel] Arrêt du timer");
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+          }
         }
 
         handleMove(data: {
@@ -791,6 +880,7 @@ export const useChessMain = () => {
             }
 
             this.publish(this.sessionId, "game-state", this.state);
+            this.startTimer();
           }
         }
 
@@ -806,6 +896,7 @@ export const useChessMain = () => {
           this.state.gameNumber += 1;
           this.state.lastMoveTime = null;
           this.publish(this.sessionId, "game-state", this.state);
+          this.stopTimer();
         }
 
         handleOfferDraw(data: { playerId: string }) {
@@ -916,6 +1007,7 @@ export const useChessMain = () => {
             "📡 [ChessModel] Publication de l'état après réponse à l'offre de match nul"
           );
           this.publish(this.sessionId, "game-state", this.state);
+          this.stopTimer();
         }
 
         handleResign(data: { playerId: string }) {
@@ -953,6 +1045,7 @@ export const useChessMain = () => {
           }
 
           this.publish(this.sessionId, "game-state", this.state);
+          this.stopTimer();
         }
       }
 
@@ -970,6 +1063,8 @@ export const useChessMain = () => {
             newFen: newState.fen,
             newTurn: newState.turn,
             timestamp: newState.lastMoveTime,
+            whiteTime: newState.whiteTime,
+            blackTime: newState.blackTime,
           });
 
           if (typeof (window as any).globalSetGameState === "function") {
@@ -1042,6 +1137,9 @@ export const useChessMain = () => {
               return {
                 ...prevState,
                 ...newState,
+                // ✅ AJOUTÉ: Utiliser les temps ajustés
+                whiteTime: newState.whiteTime,
+                blackTime: newState.blackTime,
                 // S'assurer que les propriétés importantes sont bien mises à jour
                 players: newState.players || [],
                 messages: newState.messages || [],
