@@ -741,16 +741,13 @@ export default function ChessMultisynqApp() {
                         currentMoveIndex < moveHistory.length - 1)) && (
                       <div className="absolute top-2 left-2 z-10">
                         <div className="bg-[#252525] backdrop-blur-sm px-3 py-1 flex items-center rounded-lg border border-white/10 shadow-xl">
-                          <div className="bg-yellow-300 h-2.5 w-2.5 rounded-full animate-pulse" />
-                          <span className="text-white text-sm font-medium ml-2">
-                            {gameState.gameResult.type
-                              ? "Analysis mode"
-                              : "Analysis mode"}
+                          <div className="bg-[#836EF9] h-2.5 w-2.5 rounded-full animate-pulse" />
+                          <span className="text-white text-sm font-light ml-2">
+                            Analysis mode
                             {moveHistory.length > 1 &&
                               currentMoveIndex < moveHistory.length - 1 && (
-                                <span className="ml-2 text-yellow-300">
-                                  (Move {currentMoveIndex}/
-                                  {moveHistory.length - 1})
+                                <span className="ml-2 text-[#836EF9] font-medium">
+                                  ({currentMoveIndex}/{moveHistory.length - 1})
                                 </span>
                               )}
                           </span>
@@ -1254,7 +1251,7 @@ export default function ChessMultisynqApp() {
               <div className="bg-[#1E1E1E] p-3 border border-white/5 rounded-lg mb-3">
                 <div className="flex items-center gap-2 mt-1 mb-1 justify-between">
                   <div>
-                    <p className="text-white font-medium text-lg ml-2.5">
+                    <p className="text-white font-medium text-base ml-2">
                       Invite friend
                     </p>
                   </div>
@@ -1276,25 +1273,25 @@ export default function ChessMultisynqApp() {
                           setTimeout(() => setCopied(false), 2000);
                         });
                     }}
-                    className="px-2 py-1 text-sm flex items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/90 text-white rounded-lg transition-colors duration-300 ease-in-out"
+                    className="px-2.5 py-1.5 text-xs flex font-normal items-center gap-2 bg-[#836EF9] hover:bg-[#836EF9]/90 text-white rounded-lg transition-colors duration-300 ease-in-out"
                   >
                     Copy Link
                     {copied ? (
-                      <CheckIcon className="w-3.5 h-3.5" />
+                      <CheckIcon className="w-3 h-3" />
                     ) : (
-                      <CopyIcon className="w-3.5 h-3.5" />
+                      <CopyIcon className="w-3 h-3" />
                     )}
                   </button>
 
                   {/* Affichage des informations de pari */}
                 </div>
                 {gameInfo?.betAmount && gameInfo.betAmount > BigInt(0) && (
-                  <div className="px-3 pt-2 border-t border-white/10 mt-2">
+                  <div className="px-2 pt-2 border-t border-white/10 mt-3">
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-white text-lg font-medium">
+                      <span className="text-white text-base font-medium">
                         Prize Pool
                       </span>
-                      <span className="text-green-400 text-lg font-medium">
+                      <span className="text-green-400 text-base font-medium">
                         {getAvailableAmount() > "0"
                           ? getAvailableAmount()
                           : "0"}{" "}
@@ -1382,7 +1379,7 @@ export default function ChessMultisynqApp() {
                             address?.toLowerCase())
                       ))
                   }
-                  className="px-4 h-[40px] bg-[#836EF9] border border-white/5 text-white rounded-lg text-sm font-light transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="px-4 h-[40px] bg-[#836EF9] border border-white/5 text-white rounded-lg text-sm font-light transition-colors"
                 >
                   Send
                 </button>
@@ -1393,58 +1390,12 @@ export default function ChessMultisynqApp() {
                   {gameState.isActive ? (
                     // ========== PARTIE EN COURS ==========
                     <div className="space-y-3">
-                      {rematchInvitation &&
-                      rematchInvitation.from !== address &&
-                      gameState.gameResult.type &&
-                      !showGameEndModal ? (
-                        // Répondre à une offre de match nul
-                        <div>
-                          <p className="text-white text-sm text-center mb-3">
-                            Your opponent offers a draw
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleRespondDraw(true)}
-                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-base transition-colors"
-                            >
-                              Accept
-                            </button>
-                            <button
-                              onClick={() => handleRespondDraw(false)}
-                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-base transition-colors"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        // Boutons normaux pendant la partie
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={handleOfferDraw}
-                            disabled={
-                              gameState.drawOffer.offered ||
-                              (gameInfo?.betAmount !== undefined &&
-                                gameInfo.betAmount > BigInt(0) &&
-                                !(
-                                  (playerColor === "white" &&
-                                    gameInfo.whitePlayer.toLowerCase() ===
-                                      address?.toLowerCase()) ||
-                                  (playerColor === "black" &&
-                                    gameInfo.blackPlayer.toLowerCase() ===
-                                      address?.toLowerCase())
-                                ))
-                            }
-                            className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
-                          >
-                            {gameState.drawOffer.offered
-                              ? "Draw offer sent"
-                              : "Offer draw"}
-                          </button>
-                          <button
-                            onClick={handleResign}
-                            disabled={
-                              gameInfo?.betAmount !== undefined &&
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={handleOfferDraw}
+                          disabled={
+                            gameState.drawOffer.offered ||
+                            (gameInfo?.betAmount !== undefined &&
                               gameInfo.betAmount > BigInt(0) &&
                               !(
                                 (playerColor === "white" &&
@@ -1453,14 +1404,33 @@ export default function ChessMultisynqApp() {
                                 (playerColor === "black" &&
                                   gameInfo.blackPlayer.toLowerCase() ===
                                     address?.toLowerCase())
-                              )
-                            }
-                            className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Resign
-                          </button>
-                        </div>
-                      )}
+                              ))
+                          }
+                          className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                        >
+                          {gameState.drawOffer.offered
+                            ? "Draw offer sent"
+                            : "Offer draw"}
+                        </button>
+                        <button
+                          onClick={handleResign}
+                          disabled={
+                            gameInfo?.betAmount !== undefined &&
+                            gameInfo.betAmount > BigInt(0) &&
+                            !(
+                              (playerColor === "white" &&
+                                gameInfo.whitePlayer.toLowerCase() ===
+                                  address?.toLowerCase()) ||
+                              (playerColor === "black" &&
+                                gameInfo.blackPlayer.toLowerCase() ===
+                                  address?.toLowerCase())
+                            )
+                          }
+                          className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Resign
+                        </button>
+                      </div>
 
                       <div className="pt-3 border-t border-white/10">
                         <p className="text-gray-400 text-xs mb-2 text-center">
@@ -1506,28 +1476,7 @@ export default function ChessMultisynqApp() {
                   ) : gameState.gameResult.type ? (
                     // ========== PARTIE TERMINÉE ==========
                     <div className="space-y-3">
-                      {rematchInvitation &&
-                      rematchInvitation.from !== address ? (
-                        <div>
-                          <p className="text-white/80 font-light text-sm text-center mb-2">
-                            Your opponent offers you a rematch
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleRematchResponse(true)}
-                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
-                            >
-                              Accept
-                            </button>
-                            <button
-                              onClick={() => handleRematchResponse(false)}
-                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        </div>
-                      ) : gameState.gameResult.type && !showGameEndModal ? (
+                      {gameState.gameResult.type && !showGameEndModal ? (
                         <button
                           onClick={() => {
                             setShowGameEndModal(true);
@@ -1542,7 +1491,9 @@ export default function ChessMultisynqApp() {
                             onClick={handleNewGame}
                             disabled={
                               gameState.rematchOffer?.offered ||
-                              shouldDisableNavigationButtons()
+                              shouldDisableNavigationButtons() ||
+                              (rematchInvitation! &&
+                                rematchInvitation.from !== address)
                             }
                             className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
                           >

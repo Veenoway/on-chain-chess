@@ -537,7 +537,12 @@ export const useChessMain = () => {
 
         // MÉTHODE MANQUANTE: Timer complet
         handleUpdateTimer() {
-          if (!this.state.isActive || this.state.gameResult.type) return;
+          if (!this.state.isActive || this.state.gameResult.type) {
+            console.log(
+              "⏰ [ChessModel] Timer ignoré - partie inactive ou terminée"
+            );
+            return;
+          }
 
           let needsUpdate = false;
 
@@ -546,6 +551,12 @@ export const useChessMain = () => {
             const previousTime = this.state.whiteTime;
             this.state.whiteTime = Math.max(0, this.state.whiteTime - 1);
             needsUpdate = this.state.whiteTime !== previousTime;
+
+            console.log("⏰ [ChessModel] Timer blanc:", {
+              previous: previousTime,
+              current: this.state.whiteTime,
+              needsUpdate,
+            });
 
             if (this.state.whiteTime <= 0) {
               this.state.isActive = false;
@@ -556,6 +567,7 @@ export const useChessMain = () => {
               };
               this.state.lastGameWinner = "black";
               needsUpdate = true;
+              console.log("⏰ [ChessModel] Temps écoulé pour les blancs!");
               if ((window as any).finishGameOnContract) {
                 setTimeout(
                   () =>
@@ -569,6 +581,12 @@ export const useChessMain = () => {
             this.state.blackTime = Math.max(0, this.state.blackTime - 1);
             needsUpdate = this.state.blackTime !== previousTime;
 
+            console.log("⏰ [ChessModel] Timer noir:", {
+              previous: previousTime,
+              current: this.state.blackTime,
+              needsUpdate,
+            });
+
             if (this.state.blackTime <= 0) {
               this.state.isActive = false;
               this.state.gameResult = {
@@ -578,6 +596,7 @@ export const useChessMain = () => {
               };
               this.state.lastGameWinner = "white";
               needsUpdate = true;
+              console.log("⏰ [ChessModel] Temps écoulé pour les noirs!");
               if ((window as any).finishGameOnContract) {
                 setTimeout(
                   () =>
@@ -590,6 +609,7 @@ export const useChessMain = () => {
 
           if (needsUpdate) {
             this.state.lastMoveTime = Date.now();
+            console.log("⏰ [ChessModel] Publication de l'état mis à jour");
             this.publish(this.sessionId, "game-state", this.state);
           }
         }
@@ -747,6 +767,29 @@ export const useChessMain = () => {
             this.state.lastMoveTime = Date.now();
             this.state.drawOffer = { offered: false, by: null };
             this.state.rematchOffer = { offered: false, by: null };
+            // ✅ CORRIGÉ: Réinitialiser le temps au début de la partie
+            this.state.whiteTime = this.state.gameTimeLimit;
+            this.state.blackTime = this.state.gameTimeLimit;
+            console.log("🎮 [ChessModel] Partie démarrée avec temps:", {
+              whiteTime: this.state.whiteTime,
+              blackTime: this.state.blackTime,
+              gameTimeLimit: this.state.gameTimeLimit,
+            });
+
+            // ✅ AJOUTÉ: Réinitialiser l'historique au début de la partie
+            if (
+              (window as any).globalSetMoveHistory &&
+              (window as any).globalSetCurrentMoveIndex
+            ) {
+              const initialFen =
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+              (window as any).globalSetMoveHistory([initialFen]);
+              (window as any).globalSetCurrentMoveIndex(0);
+              console.log(
+                "📋 [ChessModel] Historique réinitialisé au début de la partie"
+              );
+            }
+
             this.publish(this.sessionId, "game-state", this.state);
           }
         }
@@ -900,7 +943,10 @@ export const useChessMain = () => {
                   (window as any).globalSetMoveHistory &&
                   (window as any).globalSetCurrentMoveIndex
                 ) {
-                  const currentHistory = prevState.moveHistory || [];
+                  const currentHistory = (window as any).globalGetMoveHistory
+                    ? (window as any).globalGetMoveHistory()
+                    : [];
+
                   if (!currentHistory.includes(newState.fen)) {
                     const newHistory = [...currentHistory, newState.fen];
                     (window as any).globalSetMoveHistory(newHistory);
@@ -1714,6 +1760,7 @@ export const useChessMain = () => {
     (window as any).globalSetFen = setFen;
     (window as any).globalSetMoveHistory = setMoveHistory;
     (window as any).globalSetCurrentMoveIndex = setCurrentMoveIndex;
+    (window as any).globalGetMoveHistory = () => moveHistory;
 
     (window as any).globalPlayOpponentMoveSound = (moveData: any) => {
       const tempGame = new Chess(fen);
@@ -1739,6 +1786,7 @@ export const useChessMain = () => {
     setFen,
     setMoveHistory,
     setCurrentMoveIndex,
+    moveHistory, // ✅ AJOUTÉ: Réagir aux changements de l'historique
   ]);
 
   return {

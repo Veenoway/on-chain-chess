@@ -15,25 +15,44 @@ export const useTimer = (
     const currentPlayer = gameState.players.find(
       (p: any) => p.id === currentPlayerId
     );
-    const isFirstPlayer =
-      gameState.players.length > 0 &&
-      gameState.players[0].id === currentPlayerId;
+
+    // ✅ CORRIGÉ: Seul le joueur dont c'est le tour doit déclencher le timer
+    const isCurrentPlayerTurn =
+      (gameState.turn === "w" && currentPlayer?.color === "white") ||
+      (gameState.turn === "b" && currentPlayer?.color === "black");
 
     const shouldRunTimer =
       gameState.isActive &&
       !gameState.gameResult.type &&
-      isFirstPlayer &&
       currentPlayer?.connected &&
       !isReconnecting &&
-      bothPlayersPaid();
+      bothPlayersPaid() &&
+      isCurrentPlayerTurn;
 
     if (shouldRunTimer && !timerRef.current) {
+      console.log(
+        "⏰ [useTimer] Démarrage du timer pour joueur:",
+        currentPlayerId,
+        "couleur:",
+        currentPlayer?.color,
+        "tour:",
+        gameState.turn
+      );
       timerRef.current = setInterval(() => {
         if (multisynqView) {
+          console.log("⏰ [useTimer] Mise à jour du timer");
           multisynqView.updateTimer();
         }
-      }, 5000);
+      }, 1000);
     } else if (!shouldRunTimer && timerRef.current) {
+      console.log(
+        "⏰ [useTimer] Arrêt du timer pour joueur:",
+        currentPlayerId,
+        "couleur:",
+        currentPlayer?.color,
+        "tour:",
+        gameState.turn
+      );
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
@@ -48,6 +67,7 @@ export const useTimer = (
     gameState.isActive,
     gameState.gameResult.type,
     gameState.players,
+    gameState.turn, // ✅ AJOUTÉ: Réagir aux changements de tour
     currentPlayerId,
     multisynqView,
     isReconnecting,

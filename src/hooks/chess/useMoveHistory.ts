@@ -51,35 +51,55 @@ export const useMoveHistory = (roomName: string) => {
   };
 
   const goToPreviousMove = () => {
+    console.log("📋 [useMoveHistory] goToPreviousMove:", {
+      currentMoveIndex,
+      moveHistoryLength: moveHistory.length,
+    });
     if (currentMoveIndex > 0) {
       const newIndex = currentMoveIndex - 1;
       setCurrentMoveIndex(newIndex);
+      console.log("📋 [useMoveHistory] Aller au coup précédent:", newIndex);
       return moveHistory[newIndex];
     }
     return null;
   };
 
   const goToNextMove = () => {
+    console.log("📋 [useMoveHistory] goToNextMove:", {
+      currentMoveIndex,
+      moveHistoryLength: moveHistory.length,
+    });
     if (currentMoveIndex < moveHistory.length - 1) {
       const newIndex = currentMoveIndex + 1;
       setCurrentMoveIndex(newIndex);
+      console.log("📋 [useMoveHistory] Aller au coup suivant:", newIndex);
       return moveHistory[newIndex];
     }
     return null;
   };
 
   const goToFirstMove = () => {
+    console.log("📋 [useMoveHistory] goToFirstMove:", {
+      currentMoveIndex,
+      moveHistoryLength: moveHistory.length,
+    });
     if (moveHistory.length > 0) {
       setCurrentMoveIndex(0);
+      console.log("📋 [useMoveHistory] Aller au premier coup");
       return moveHistory[0];
     }
     return null;
   };
 
   const goToLastMove = () => {
+    console.log("📋 [useMoveHistory] goToLastMove:", {
+      currentMoveIndex,
+      moveHistoryLength: moveHistory.length,
+    });
     if (moveHistory.length > 0) {
       const lastIndex = moveHistory.length - 1;
       setCurrentMoveIndex(lastIndex);
+      console.log("📋 [useMoveHistory] Aller au dernier coup:", lastIndex);
       return moveHistory[lastIndex];
     }
     return null;
@@ -88,6 +108,12 @@ export const useMoveHistory = (roomName: string) => {
   useEffect(() => {
     moveHistoryRef.current = moveHistory;
     currentMoveIndexRef.current = currentMoveIndex;
+
+    console.log("📋 [useMoveHistory] Historique mis à jour:", {
+      moveHistoryLength: moveHistory.length,
+      currentMoveIndex,
+      roomName,
+    });
 
     if (roomName && moveHistory.length > 0) {
       saveHistoryToStorage(moveHistory, currentMoveIndex, roomName);
