@@ -2,6 +2,11 @@
 "use client";
 import { WalletConnection } from "@/components/connect-wallet";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -18,6 +23,7 @@ import CapturedPieces from "../../components/captured-pieces";
 
 export default function ChessMultisynqApp() {
   const chess = useChessMain();
+  const [isResignPopoverOpen, setIsResignPopoverOpen] = useState(false);
 
   const {
     // États principaux
@@ -50,7 +56,6 @@ export default function ChessMultisynqApp() {
     handleOfferDraw,
     handleRespondDraw,
     handleResign,
-    handleRematchResponse,
     handleNewGame,
     handleBackHome,
 
@@ -68,8 +73,6 @@ export default function ChessMultisynqApp() {
 
     // Échiquier
     chessboardOptions,
-    getCheckmatedKingSquare,
-    getSquarePosition,
 
     // Betting
     paymentStatus,
@@ -133,11 +136,6 @@ export default function ChessMultisynqApp() {
   const handleSendMessage = () => {
     handleSendMessageWrapper(newMessage);
   };
-
-  // Position de l'icône de checkmate
-  const checkmateIconPosition = getSquarePosition(
-    getCheckmatedKingSquare || ""
-  );
 
   // Interface d'accueil
   if (gameFlow === "welcome") {
@@ -772,57 +770,11 @@ export default function ChessMultisynqApp() {
                       <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/80 backdrop-blur-xs">
                         <div className="bg-[#1E1E1E] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
                           <div className="text-center">
-                            {/* <h3
-                              className={`text-4xl uppercase font-extrabold mb-6 ${
-                                isWinner
-                                  ? "text-white"
-                                  : isDraw
-                                  ? "text-white"
-                                  : "text-white"
-                              }`}
-                            >
-                              {isWinner
-                                ? "You Win"
-                                : isDraw
-                                ? "Draw"
-                                : "You Lost"}
-                            </h3> */}
-
                             {isDraw && (
                               <p className="text-gray-400">
                                 {gameState.gameResult.message || ""}
                               </p>
                             )}
-
-                            {/* {gameState.gameResult.winner ===
-                            gameState.players.find(
-                              (p) => p.id !== currentPlayerId
-                            )?.color ? (
-                              <img
-                                src={
-                                  gameState.gameResult.winner ===
-                                  gameState.players.find(
-                                    (p) => p.id !== currentPlayerId
-                                  )?.color
-                                    ? "/loser.png"
-                                    : "/win.png"
-                                }
-                                alt="draw"
-                                className="w-2/3 mx-auto"
-                              />
-                            ) : gameState.gameResult.winner === "draw" ? (
-                              <img
-                                src="/draw.png"
-                                alt="draw"
-                                className="w-1/2 mx-auto"
-                              />
-                            ) : (
-                              <img
-                                src={"/win.png"}
-                                alt="draw"
-                                className="w-1/2 mx-auto"
-                              />
-                            )} */}
 
                             <div
                               className={`rounded-lg  flex flex-col justify-center `}
@@ -835,21 +787,8 @@ export default function ChessMultisynqApp() {
                                   ? "You Lost"
                                   : "You Won"}
                               </p>
-                              {/* <img
-                                src={
-                                  gameState.gameResult.winner ===
-                                  gameState.players.find(
-                                    (p) => p.id !== currentPlayerId
-                                  )?.color
-                                    ? "/loser.png"
-                                    : "/win.png"
-                                }
-                                alt="draw"
-                                className="h-[300px] mx-auto"
-                              /> */}
                             </div>
 
-                            {/* NOUVEAU: Affichage des claims si il y a un pari */}
                             {gameInfo?.betAmount &&
                               gameInfo.betAmount > BigInt(0) && (
                                 <div className="bg-[#1a1a1a] rounded-lg p-4 mb-4">
@@ -866,7 +805,6 @@ export default function ChessMultisynqApp() {
                                   </div>
 
                                   <div className="space-y-2">
-                                    {/* White Player Claim Status */}
                                     <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
                                       <div className="flex items-center gap-2">
                                         <div className="w-3.5 h-3.5 bg-white rounded-full"></div>
@@ -899,7 +837,6 @@ export default function ChessMultisynqApp() {
                                       </span>
                                     </div>
 
-                                    {/* Black Player Claim Status */}
                                     <div className="flex items-center justify-between p-2 bg-[#252525] rounded">
                                       <div className="flex items-center gap-2">
                                         <div className="w-3.5 h-3.5 bg-black border border-white rounded-full"></div>
@@ -938,16 +875,13 @@ export default function ChessMultisynqApp() {
 
                             <div className="space-y-4">
                               <div className="text-center space-y-3">
-                                {/* Boutons de claim - TOUJOURS VISIBLES mais disabled quand approprié */}
                                 <div className="space-y-3">
-                                  {/* Claim winnings - TOUJOURS AFFICHÉ */}
                                   {gameState.gameResult.winner !== "draw" && (
                                     <button
                                       onClick={async () => {
                                         if (gameId && canCurrentPlayerClaim()) {
                                           resetClaimState();
 
-                                          // CORRECTION: Déterminer le résultat basé sur l'adresse du joueur, pas sa couleur
                                           let resultParam: 1 | 2 | 3 = 2; // Par défaut BLACK_WINS
 
                                           if (gameInfo?.result === 1) {
@@ -1390,47 +1324,108 @@ export default function ChessMultisynqApp() {
                   {gameState.isActive ? (
                     // ========== PARTIE EN COURS ==========
                     <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={handleOfferDraw}
-                          disabled={
-                            gameState.drawOffer.offered ||
-                            (gameInfo?.betAmount !== undefined &&
-                              gameInfo.betAmount > BigInt(0) &&
-                              !(
-                                (playerColor === "white" &&
-                                  gameInfo.whitePlayer.toLowerCase() ===
-                                    address?.toLowerCase()) ||
-                                (playerColor === "black" &&
-                                  gameInfo.blackPlayer.toLowerCase() ===
-                                    address?.toLowerCase())
-                              ))
-                          }
-                          className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
-                        >
-                          {gameState.drawOffer.offered
-                            ? "Draw offer sent"
-                            : "Offer draw"}
-                        </button>
-                        <button
-                          onClick={handleResign}
-                          disabled={
-                            gameInfo?.betAmount !== undefined &&
-                            gameInfo.betAmount > BigInt(0) &&
-                            !(
-                              (playerColor === "white" &&
-                                gameInfo.whitePlayer.toLowerCase() ===
-                                  address?.toLowerCase()) ||
-                              (playerColor === "black" &&
-                                gameInfo.blackPlayer.toLowerCase() ===
-                                  address?.toLowerCase())
-                            )
-                          }
-                          className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Resign
-                        </button>
-                      </div>
+                      {/* ✅ REFAIRE: Interface pour les offres de match nul avec shadcn Popover */}
+                      {gameState.drawOffer.offered &&
+                      gameState.drawOffer.by !== playerColor ? (
+                        <div className="bg-[#252525] rounded-lg p-4 border border-[#836EF9]/20">
+                          <p className="text-white/80 font-light text-sm text-center mb-3">
+                            Your opponent offers you a draw
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleRespondDraw(true)}
+                              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleRespondDraw(false)}
+                              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={handleOfferDraw}
+                            disabled={
+                              gameState.drawOffer.offered ||
+                              (gameInfo?.betAmount !== undefined &&
+                                gameInfo.betAmount > BigInt(0) &&
+                                !(
+                                  (playerColor === "white" &&
+                                    gameInfo.whitePlayer.toLowerCase() ===
+                                      address?.toLowerCase()) ||
+                                  (playerColor === "black" &&
+                                    gameInfo.blackPlayer.toLowerCase() ===
+                                      address?.toLowerCase())
+                                ))
+                            }
+                            className="px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                          >
+                            {gameState.drawOffer.offered
+                              ? "Offer sent"
+                              : "Offer draw"}
+                          </button>
+
+                          <Popover
+                            open={isResignPopoverOpen}
+                            onOpenChange={setIsResignPopoverOpen}
+                          >
+                            <PopoverTrigger asChild>
+                              <button
+                                disabled={
+                                  gameInfo?.betAmount !== undefined &&
+                                  gameInfo.betAmount > BigInt(0) &&
+                                  !(
+                                    (playerColor === "white" &&
+                                      gameInfo.whitePlayer.toLowerCase() ===
+                                        address?.toLowerCase()) ||
+                                    (playerColor === "black" &&
+                                      gameInfo.blackPlayer.toLowerCase() ===
+                                        address?.toLowerCase())
+                                  )
+                                }
+                                className="px-3 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#836EF9] text-white rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Resign
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              side="top"
+                              align="end"
+                              className="w-48 bg-[#1E1E1E] border border-white/10 shadow-ring shadow-md text-white"
+                            >
+                              <div className="space-y-3">
+                                <p className="text-white/90 text-sm font-light text-center">
+                                  Are you sure you want to resign?
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => {
+                                      handleResign();
+                                      setIsResignPopoverOpen(false);
+                                    }}
+                                    className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setIsResignPopoverOpen(false);
+                                    }}
+                                    className="px-3 py-2 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-white rounded-lg text-sm transition-colors"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      )}
 
                       <div className="pt-3 border-t border-white/10">
                         <p className="text-gray-400 text-xs mb-2 text-center">

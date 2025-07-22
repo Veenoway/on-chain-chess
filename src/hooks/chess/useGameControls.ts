@@ -7,29 +7,49 @@ export const useGameControls = (
   currentPlayerId: string | null
 ) => {
   const handleOfferDraw = useCallback(() => {
+    console.log("🤝 [useGameControls] handleOfferDraw appelé");
+
     if (!multisynqView || !currentPlayerId) {
-      console.error("multisynqView ou currentPlayerId manquant");
+      console.error(
+        "❌ [useGameControls] multisynqView ou currentPlayerId manquant"
+      );
       return;
     }
 
     if (typeof multisynqView.offerDraw === "function") {
+      console.log("✅ [useGameControls] Envoi de l'offre de match nul");
       multisynqView.offerDraw(currentPlayerId);
     } else {
-      console.error("offerDraw n'est pas une fonction:", multisynqView);
+      console.error(
+        "❌ [useGameControls] offerDraw n'est pas une fonction:",
+        multisynqView
+      );
     }
   }, [multisynqView, currentPlayerId]);
 
   const handleRespondDraw = useCallback(
     (accepted: boolean) => {
+      console.log("🤝 [useGameControls] handleRespondDraw appelé:", {
+        accepted,
+      });
+
       if (!multisynqView || !currentPlayerId) {
-        console.error("multisynqView ou currentPlayerId manquant");
+        console.error(
+          "❌ [useGameControls] multisynqView ou currentPlayerId manquant"
+        );
         return;
       }
 
       if (typeof multisynqView.respondDraw === "function") {
+        console.log(
+          "✅ [useGameControls] Envoi de la réponse à l'offre de match nul"
+        );
         multisynqView.respondDraw(currentPlayerId, accepted);
       } else {
-        console.error("Respond draw n'est pas une fonction:", multisynqView);
+        console.error(
+          "❌ [useGameControls] respondDraw n'est pas une fonction:",
+          multisynqView
+        );
       }
     },
     [multisynqView, currentPlayerId]

@@ -809,17 +809,36 @@ export const useChessMain = () => {
         }
 
         handleOfferDraw(data: { playerId: string }) {
-          if (!this.state.isActive || this.state.gameResult.type) return;
+          console.log("🤝 [ChessModel] handleOfferDraw reçu:", data);
+
+          if (!this.state.isActive || this.state.gameResult.type) {
+            console.log(
+              "❌ [ChessModel] Offre de match nul ignorée - partie inactive ou terminée"
+            );
+            return;
+          }
 
           const player = this.state.players.find(
             (p: any) => p.id === data.playerId
           );
-          if (!player) return;
+          if (!player) {
+            console.log(
+              "❌ [ChessModel] Joueur non trouvé pour l'offre de match nul"
+            );
+            return;
+          }
 
           this.state.drawOffer = {
             offered: true,
             by: player.color as "white" | "black",
           };
+
+          console.log("✅ [ChessModel] Offre de match nul créée:", {
+            offered: this.state.drawOffer.offered,
+            by: this.state.drawOffer.by,
+            playerColor: player.color,
+            playerId: data.playerId,
+          });
 
           this.state.messages.push({
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -829,17 +848,40 @@ export const useChessMain = () => {
             timestamp: Date.now(),
           });
 
+          console.log(
+            "📡 [ChessModel] Publication de l'état avec offre de match nul"
+          );
           this.publish(this.sessionId, "game-state", this.state);
         }
 
         handleRespondDraw(data: { playerId: string; accepted: boolean }) {
-          if (!this.state.drawOffer.offered || this.state.gameResult.type)
+          console.log("🤝 [ChessModel] handleRespondDraw reçu:", data);
+
+          if (!this.state.drawOffer.offered || this.state.gameResult.type) {
+            console.log(
+              "❌ [ChessModel] Réponse à l'offre de match nul ignorée - pas d'offre active ou partie terminée"
+            );
             return;
+          }
 
           const player = this.state.players.find(
             (p: any) => p.id === data.playerId
           );
-          if (!player) return;
+          if (!player) {
+            console.log(
+              "❌ [ChessModel] Joueur non trouvé pour la réponse à l'offre de match nul"
+            );
+            return;
+          }
+
+          console.log(
+            "✅ [ChessModel] Réponse à l'offre de match nul traitée:",
+            {
+              accepted: data.accepted,
+              playerColor: player.color,
+              playerId: data.playerId,
+            }
+          );
 
           this.state.messages.push({
             id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -850,6 +892,7 @@ export const useChessMain = () => {
           });
 
           if (data.accepted) {
+            console.log("🤝 [ChessModel] Match nul accepté - fin de partie");
             this.state.isActive = false;
             this.state.gameResult = {
               type: "draw",
@@ -864,9 +907,14 @@ export const useChessMain = () => {
                 1000
               );
             }
+          } else {
+            console.log("❌ [ChessModel] Match nul refusé");
           }
 
           this.state.drawOffer = { offered: false, by: null };
+          console.log(
+            "📡 [ChessModel] Publication de l'état après réponse à l'offre de match nul"
+          );
           this.publish(this.sessionId, "game-state", this.state);
         }
 
