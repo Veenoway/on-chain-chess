@@ -717,6 +717,21 @@ export const useChessMain = () => {
             this.state.players[existingPlayerIndex].connected = true;
             this.state.players[existingPlayerIndex].id = playerId;
 
+            // ✅ AMÉLIORÉ: Message de reconnexion plus informatif
+            const reconnectionMessage = this.state.gameResult?.type
+              ? "Reconnected - game finished"
+              : this.state.isActive
+              ? "Reconnected - game in progress"
+              : "Reconnected to the game";
+
+            console.log("🔄 [ChessModel] Reconnexion joueur:", {
+              wallet: wallet.slice(0, 6) + "..." + wallet.slice(-4),
+              playerId,
+              gameFinished: !!this.state.gameResult?.type,
+              gameActive: this.state.isActive,
+              message: reconnectionMessage,
+            });
+
             // Ajouter un message de reconnexion
             this.state.messages.push({
               id: `msg_${Date.now()}_${Math.random()
@@ -724,7 +739,7 @@ export const useChessMain = () => {
                 .substr(2, 9)}`,
               playerId: playerId,
               playerWallet: wallet,
-              message: "Reconnected to the game",
+              message: reconnectionMessage,
               timestamp: Date.now(),
             });
 
@@ -1065,6 +1080,9 @@ export const useChessMain = () => {
             timestamp: newState.lastMoveTime,
             whiteTime: newState.whiteTime,
             blackTime: newState.blackTime,
+            gameResult: newState.gameResult,
+            isActive: newState.isActive,
+            players: newState.players?.length,
           });
 
           if (typeof (window as any).globalSetGameState === "function") {
@@ -1075,6 +1093,18 @@ export const useChessMain = () => {
                 hasNewMove &&
                 newState.lastMoveTime &&
                 newState.lastMoveTime !== prevState.lastMoveTime;
+
+              // ✅ NOUVEAU: Détecter une partie terminée lors de la restauration
+              if (newState.gameResult?.type && !prevState.gameResult?.type) {
+                console.log(
+                  "🏁 [ChessView] Partie terminée détectée depuis multisynq:",
+                  {
+                    resultType: newState.gameResult.type,
+                    winner: newState.gameResult.winner,
+                    message: newState.gameResult.message,
+                  }
+                );
+              }
 
               // ✅ NOUVEAU: Mettre à jour immédiatement le FEN local
               if (hasNewMove && (window as any).globalSetFen) {
@@ -1314,6 +1344,11 @@ export const useChessMain = () => {
     const passwordFromUrl = urlParams.get("password");
 
     if (roomFromUrl && gameFlow === "welcome") {
+      console.log("🔄 [useChessMain] Auto-join depuis URL après refresh:", {
+        room: roomFromUrl,
+        hasPassword: !!passwordFromUrl,
+        gameFlow,
+      });
       handleAutoJoinRoom(roomFromUrl, passwordFromUrl || "");
     }
   }, [multisynqReady, isConnected, address, gameFlow]);

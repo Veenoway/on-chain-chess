@@ -13,6 +13,35 @@ export const useGameModals = (gameResult: any, roomName?: string) => {
     password: string;
     betAmount?: string;
   } | null>(null);
+  // ✅ AJOUTÉ: Track si c'est le premier chargement pour détecter un refresh
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // ✅ NOUVEAU: Détecter une partie terminée lors du chargement initial (après refresh)
+  useEffect(() => {
+    if (isInitialLoad && gameResult.type) {
+      console.log(
+        "🔄 [useGameModals] Détection d'une partie terminée après refresh:",
+        {
+          gameResultType: gameResult.type,
+          roomName,
+        }
+      );
+
+      // Attendre un peu pour que tout soit initialisé
+      setTimeout(() => {
+        console.log(
+          "📖 [useGameModals] Restauration de la popup de fin de partie"
+        );
+        setShowGameEndModal(true);
+        setHasClosedModal(false); // S'assurer que la modal peut s'ouvrir
+      }, 2000); // Délai plus long pour la restauration après refresh
+
+      setIsInitialLoad(false);
+    } else if (isInitialLoad) {
+      // Pas de partie terminée au chargement initial
+      setIsInitialLoad(false);
+    }
+  }, [gameResult.type, isInitialLoad, roomName]);
 
   // ✅ NOUVEAU: Écouter les événements rematchInvitation
   useEffect(() => {
@@ -80,11 +109,18 @@ export const useGameModals = (gameResult: any, roomName?: string) => {
       hasClosedModal,
       isRematchRoom,
       roomName,
+      isInitialLoad,
     });
 
     // ✅ MODIFIÉ: Permettre l'ouverture si le jeu se termine vraiment (même dans rematch)
-    if (gameResult.type && !showGameEndModal && !hasClosedModal) {
-      console.log("📖 [useGameModals] Ouverture automatique du modal endGame");
+    // et ne pas l'empêcher si c'est un chargement initial après refresh
+    if (
+      gameResult.type &&
+      !showGameEndModal &&
+      !hasClosedModal &&
+      !isInitialLoad
+    ) {
+      console.log("�� [useGameModals] Ouverture automatique du modal endGame");
       const timer = setTimeout(() => {
         setShowGameEndModal(true);
       }, 1000);
@@ -111,6 +147,7 @@ export const useGameModals = (gameResult: any, roomName?: string) => {
     hasClosedModal,
     rematchInvitation,
     roomName,
+    isInitialLoad, // ✅ AJOUTÉ: Prendre en compte l'état de chargement initial
   ]);
 
   const handleCloseGameEndModal = () => {
@@ -124,6 +161,8 @@ export const useGameModals = (gameResult: any, roomName?: string) => {
     setHasClosedPaymentModal(false);
     setIsRematchTransition(false);
     setRematchInvitation(null);
+    // ✅ AJOUTÉ: Réinitialiser aussi le flag de chargement initial
+    setIsInitialLoad(true);
   };
 
   return {

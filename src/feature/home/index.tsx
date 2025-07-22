@@ -1327,7 +1327,7 @@ export default function ChessMultisynqApp() {
                       {/* ✅ REFAIRE: Interface pour les offres de match nul avec shadcn Popover */}
                       {gameState.drawOffer.offered &&
                       gameState.drawOffer.by !== playerColor ? (
-                        <div className="bg-[#252525] rounded-lg p-4 border border-[#836EF9]/20">
+                        <div>
                           <p className="text-white/80 font-light text-sm text-center mb-3">
                             Your opponent offers you a draw
                           </p>
@@ -1396,7 +1396,7 @@ export default function ChessMultisynqApp() {
                             <PopoverContent
                               side="top"
                               align="end"
-                              className="w-48 bg-[#1E1E1E] border border-white/10 shadow-ring shadow-md text-white"
+                              className="w-48 bg-[#1E1E1E] border border-white/10 shadow-ring shadow-lg text-white"
                             >
                               <div className="space-y-3">
                                 <p className="text-white/90 text-sm font-light text-center">
