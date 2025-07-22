@@ -59,10 +59,10 @@ export default function ChessMultisynqApp() {
     getOpponentTime,
 
     // Navigation
-    goToPreviousMoveWithFen: goToPreviousMove,
-    goToNextMoveWithFen: goToNextMove,
-    goToFirstMoveWithFen: goToFirstMove,
-    goToLastMoveWithFen: goToLastMove,
+    goToPreviousMoveWithFen,
+    goToNextMoveWithFen,
+    goToFirstMoveWithFen,
+    goToLastMoveWithFen,
     currentMoveIndex,
     moveHistory,
 
@@ -371,15 +371,8 @@ export default function ChessMultisynqApp() {
 
   return (
     <div className="min-h-screen font-light bg-gradient-to-br  from-[#101010] via-[#1f1f1f] to-[#0c0c0c] p-4">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto mt-10">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6 my-8 ">
-          <div className="w-full">
-            <div className="flex items-center justify-between w-full gap-3">
-              {/* <img src="/synqmate.png" alt="logo" className=" w-[240px]" /> */}
-            </div>
-          </div>
-        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
           {/* Panel central - Échiquier */}
@@ -472,27 +465,6 @@ export default function ChessMultisynqApp() {
 
                   <div className="relative aspect-square max-w-full w-full mx-auto">
                     <Chessboard options={chessboardOptions as any} />
-
-                    {checkmateIconPosition && getCheckmatedKingSquare && (
-                      <div
-                        className="absolute pointer-events-none z-1"
-                        style={{
-                          left: `${checkmateIconPosition.left}px`,
-                          top: `${checkmateIconPosition.top}px`,
-                          transform: "translate(-50%, -50%)",
-                        }}
-                      >
-                        <div className="relative z-[0] animate-in zoom-in-50 duration-200">
-                          <div className="absolute inset-0 w-10 h-10 bg-red-500 rounded-full opacity-40 animate-ping -translate-x-1/2 -translate-y-1/2 z-[0]" />
-                          <div className="absolute inset-0 w-8 h-8 bg-red-600 rounded-full opacity-95 -translate-x-1/2 -translate-y-1/2 z-[0]">
-                            <div className="relative text-xl text-white font-medium flex items-center justify-center w-8 h-8 ">
-                              ✗
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
                     {((isBettingEnabled &&
                       parseFloat(betAmount) > 0 &&
                       gameState.roomName &&
@@ -723,13 +695,6 @@ export default function ChessMultisynqApp() {
                                             ? "Confirming..."
                                             : "Cancelling..."}
                                         </button>
-                                      ) : cancelState.isSuccess ? (
-                                        <button
-                                          disabled
-                                          className="w-full mt-5 px-6 py-4 bg-[#836EF9] disabled:bg-[#404040] text-white rounded-lg font-medium text-lg transition-colors flex items-center justify-center"
-                                        >
-                                          Back to Home
-                                        </button>
                                       ) : cancelState.isError ? (
                                         <button
                                           onClick={() =>
@@ -797,7 +762,7 @@ export default function ChessMultisynqApp() {
                       currentMoveIndex < moveHistory.length - 1 && (
                         <div className="absolute top-2 right-2 z-10">
                           <button
-                            onClick={goToLastMove}
+                            onClick={goToLastMoveWithFen}
                             className="bg-[#836EF9]/90 backdrop-blur-sm px-3 py-1 rounded-lg border border-[#836EF9] text-white text-sm font-medium hover:bg-[#836EF9] transition-colors"
                           >
                             Back to game
@@ -975,265 +940,254 @@ export default function ChessMultisynqApp() {
                               )}
 
                             <div className="space-y-4">
-                              {gameState.rematchOffer?.offered &&
-                              gameState.rematchOffer?.by !==
-                                gameState.players.find(
-                                  (p) => p.id === currentPlayerId
-                                )?.color ? (
-                                <div className="text-center space-y-4">
-                                  <p className="text-white/80 font-light text-base text-center">
-                                    Your opponent offers you a rematch
-                                  </p>
-                                  <div className="grid grid-cols-2 gap-4">
+                              <div className="text-center space-y-3">
+                                {/* Boutons de claim - TOUJOURS VISIBLES mais disabled quand approprié */}
+                                <div className="space-y-3">
+                                  {/* Claim winnings - TOUJOURS AFFICHÉ */}
+                                  {gameState.gameResult.winner !== "draw" && (
                                     <button
-                                      onClick={() =>
-                                        handleRematchResponse(true)
-                                      }
-                                      className="col-span-1 px-8 py-2 bg-[#836EF9] hover:bg-[#937EF9] text-white rounded-lg font-medium text-lg transition-colors"
-                                    >
-                                      Accept
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleRematchResponse(false)
-                                      }
-                                      className="col-span-1 px-8 py-2 bg-[#252525] hover:bg-[#252525] border border-[#836EF9] text-white rounded-lg font-medium text-lg transition-colors"
-                                    >
-                                      Decline
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-center space-y-3">
-                                  {/* Boutons de claim - TOUJOURS VISIBLES mais disabled quand approprié */}
-                                  <div className="space-y-3">
-                                    {/* Claim winnings - TOUJOURS AFFICHÉ */}
-                                    {gameState.gameResult.winner !== "draw" && (
-                                      <button
-                                        onClick={async () => {
-                                          if (
-                                            gameId &&
-                                            canCurrentPlayerClaim()
-                                          ) {
-                                            resetClaimState();
+                                      onClick={async () => {
+                                        if (gameId && canCurrentPlayerClaim()) {
+                                          resetClaimState();
 
-                                            // CORRECTION: Déterminer le résultat basé sur l'adresse du joueur, pas sa couleur
-                                            let resultParam: 1 | 2 | 3 = 2; // Par défaut BLACK_WINS
+                                          // CORRECTION: Déterminer le résultat basé sur l'adresse du joueur, pas sa couleur
+                                          let resultParam: 1 | 2 | 3 = 2; // Par défaut BLACK_WINS
 
-                                            if (gameInfo?.result === 1) {
-                                              resultParam = 1; // WHITE_WINS
-                                            } else if (gameInfo?.result === 2) {
-                                              resultParam = 2; // BLACK_WINS
-                                            } else if (gameInfo?.result === 3) {
-                                              resultParam = 3; // DRAW
-                                            }
-
-                                            await claimWinnings(
-                                              gameId,
-                                              resultParam,
-                                              () => {},
-                                              (error) => {
-                                                console.error(
-                                                  "Claim failed:",
-                                                  error
-                                                );
-                                              }
-                                            );
+                                          if (gameInfo?.result === 1) {
+                                            resultParam = 1; // WHITE_WINS
+                                          } else if (gameInfo?.result === 2) {
+                                            resultParam = 2; // BLACK_WINS
+                                          } else if (gameInfo?.result === 3) {
+                                            resultParam = 3; // DRAW
                                           }
-                                        }}
-                                        disabled={
-                                          !canCurrentPlayerClaim() ||
-                                          claimState.isLoading ||
-                                          isPending ||
-                                          isConfirming ||
-                                          (gameInfo &&
-                                            gameInfo.state === 2 &&
-                                            claimState.isSuccess)
-                                        }
-                                        className={`w-full px-6 py-4 ${
-                                          claimState.isSuccess
-                                            ? "bg-[#252525] border border-[#836EF9] text-[#836EF9]"
-                                            : claimState.isError
-                                            ? "bg-[#252525] border border-[#eb3f3f] text-[#eb3f3f]"
-                                            : gameInfo && gameInfo.state !== 2
-                                            ? "bg-[#252525] border border-white/5 text-white"
-                                            : "bg-[#836EF9] hover:bg-[#836EF9]/80"
-                                        } disabled:bg-[#252525] text-white rounded-lg border border-white/5 font-normal text-base transition-colors`}
-                                      >
-                                        {!canCurrentPlayerClaim() ? (
-                                          "Waiting for opponent..."
-                                        ) : gameInfo && gameInfo.state !== 2 ? (
-                                          <div className="flex items-center justify-center gap-2">
-                                            Waiting for game finalization...
-                                          </div>
-                                        ) : isPending ||
-                                          isConfirming ||
-                                          claimState.isLoading ? (
-                                          "Confirming transaction..."
-                                        ) : claimState.isError ? (
-                                          "Try again"
-                                        ) : claimState.isSuccess ? (
-                                          "Successfully claimed"
-                                        ) : (
-                                          `Claim  ${
-                                            gameInfo?.betAmount
-                                              ? formatEther(
-                                                  gameInfo.betAmount * BigInt(2)
-                                                )
-                                              : "0"
-                                          } MON`
-                                        )}
-                                      </button>
-                                    )}
 
-                                    {/* Claim draw refund - TOUJOURS AFFICHÉ si match nul */}
-                                    {gameState.gameResult.winner === "draw" && (
-                                      <button
-                                        onClick={async () => {
-                                          if (
-                                            gameId &&
-                                            canCurrentPlayerClaim()
-                                          ) {
-                                            try {
-                                              await claimDrawRefund(gameId);
-                                            } catch (error) {
+                                          await claimWinnings(
+                                            gameId,
+                                            resultParam,
+                                            () => {},
+                                            (error) => {
                                               console.error(
                                                 "Claim failed:",
                                                 error
                                               );
                                             }
-                                          }
-                                        }}
-                                        disabled={
-                                          !canCurrentPlayerClaim() ||
-                                          getAvailableAmount() <= "0" ||
-                                          isPending ||
-                                          isConfirming ||
-                                          (gameInfo &&
-                                            gameInfo.state === 2 &&
-                                            claimState.isSuccess)
+                                          );
                                         }
-                                        className={`w-full px-6 py-4 ${
-                                          gameInfo && gameInfo.state !== 2
-                                            ? "bg-[#252525] border border-white/5 text-white"
-                                            : "bg-[#836EF9] hover:bg-[#937EF9]"
-                                        } disabled:bg-[#252525] text-white rounded-lg font-normal text-base transition-colors`}
-                                      >
-                                        {!canCurrentPlayerClaim() ? (
-                                          "No refund available"
-                                        ) : getAvailableAmount() <= "0" ? (
-                                          "Already claimed"
-                                        ) : gameInfo && gameInfo.state !== 2 ? (
-                                          <div className="flex items-center justify-center gap-2">
-                                            <div className="w-4 h-4 border border-white/20 border-t-white rounded-full animate-spin" />
-                                            Waiting for game finalization...
-                                          </div>
-                                        ) : isPending || isConfirming ? (
-                                          "Confirming..."
-                                        ) : (
-                                          `Claim Refund`
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
-                                  {/* Accept/Decline seulement si on a reçu une invitation */}
-                                  {true ? (
-                                    <div className="space-y-3 mb-3">
-                                      <p className="text-center text-sm text-white/80 font-thin max-w-[80%] mx-auto">
-                                        Your opponent offers you a rematch for{" "}
-                                        <span className="text-white font-medium">
-                                          {rematchInvitation?.betAmount
-                                            ? `${rematchInvitation?.betAmount} MON`
-                                            : `${betAmount} MON`}
-                                        </span>
-                                      </p>
-                                      <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                          onClick={async () => {
+                                      }}
+                                      disabled={
+                                        !canCurrentPlayerClaim() ||
+                                        claimState.isLoading ||
+                                        isPending ||
+                                        isConfirming ||
+                                        (gameInfo &&
+                                          gameInfo.state === 2 &&
+                                          claimState.isSuccess)
+                                      }
+                                      className={`w-full px-6 py-4 ${
+                                        claimState.isSuccess
+                                          ? "bg-[#252525] border border-[#836EF9] text-[#836EF9]"
+                                          : claimState.isError
+                                          ? "bg-[#252525] border border-[#eb3f3f] text-[#eb3f3f]"
+                                          : gameInfo && gameInfo.state !== 2
+                                          ? "bg-[#252525] border border-white/5 text-white"
+                                          : "bg-[#836EF9] hover:bg-[#836EF9]/80"
+                                      } disabled:bg-[#252525] text-white rounded-lg border border-white/5 font-normal text-base transition-colors`}
+                                    >
+                                      {!canCurrentPlayerClaim() ? (
+                                        "Waiting for opponent..."
+                                      ) : gameInfo && gameInfo.state !== 2 ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                          Waiting for game finalization...
+                                        </div>
+                                      ) : isPending ||
+                                        isConfirming ||
+                                        claimState.isLoading ? (
+                                        "Confirming transaction..."
+                                      ) : claimState.isError ? (
+                                        "Try again"
+                                      ) : claimState.isSuccess ? (
+                                        "Successfully claimed"
+                                      ) : (
+                                        `Claim  ${
+                                          gameInfo?.betAmount
+                                            ? formatEther(
+                                                gameInfo.betAmount * BigInt(2)
+                                              )
+                                            : "0"
+                                        } MON`
+                                      )}
+                                    </button>
+                                  )}
+
+                                  {/* Claim draw refund - TOUJOURS AFFICHÉ si match nul */}
+                                  {gameState.gameResult.winner === "draw" && (
+                                    <button
+                                      onClick={async () => {
+                                        if (gameId && canCurrentPlayerClaim()) {
+                                          try {
+                                            await claimDrawRefund(gameId);
+                                          } catch (error) {
+                                            console.error(
+                                              "Claim failed:",
+                                              error
+                                            );
+                                          }
+                                        }
+                                      }}
+                                      disabled={
+                                        !canCurrentPlayerClaim() ||
+                                        getAvailableAmount() <= "0" ||
+                                        isPending ||
+                                        isConfirming ||
+                                        (gameInfo &&
+                                          gameInfo.state === 2 &&
+                                          claimState.isSuccess)
+                                      }
+                                      className={`w-full px-6 py-4 ${
+                                        gameInfo && gameInfo.state !== 2
+                                          ? "bg-[#252525] border border-white/5 text-white"
+                                          : "bg-[#836EF9] hover:bg-[#937EF9]"
+                                      } disabled:bg-[#252525] text-white rounded-lg font-normal text-base transition-colors`}
+                                    >
+                                      {!canCurrentPlayerClaim() ? (
+                                        "No refund available"
+                                      ) : getAvailableAmount() <= "0" ? (
+                                        "Already claimed"
+                                      ) : gameInfo && gameInfo.state !== 2 ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                          <div className="w-4 h-4 border border-white/20 border-t-white rounded-full animate-spin" />
+                                          Waiting for game finalization...
+                                        </div>
+                                      ) : isPending || isConfirming ? (
+                                        "Confirming..."
+                                      ) : (
+                                        `Claim Refund`
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                                {/* Accept/Decline seulement si on a reçu une invitation */}
+                                {rematchInvitation &&
+                                rematchInvitation.from !== address ? (
+                                  <div className="space-y-3 mb-3">
+                                    <p className="text-center text-sm text-white/80 font-thin max-w-[80%] mx-auto">
+                                      Your opponent offers you a rematch for{" "}
+                                      <span className="text-white font-medium">
+                                        {rematchInvitation?.betAmount
+                                          ? `${rematchInvitation?.betAmount} MON`
+                                          : `${betAmount} MON`}
+                                      </span>
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <button
+                                        onClick={async () => {
+                                          console.log(
+                                            "✅ [multisynq.tsx] Acceptation du rematch - rejoindre la room:",
+                                            rematchInvitation
+                                          );
+
+                                          setRematchInvitation(null);
+                                          setShowGameEndModal(false);
+
+                                          // ✅ SIMPLIFIÉ: Juste rejoindre la room existante créée par User A
+                                          try {
                                             console.log(
-                                              "✅ [multisynq.tsx] Acceptation du rematch - rejoindre la room:",
-                                              rematchInvitation
+                                              "🏃‍♂️ [multisynq.tsx] Rejoint la room de rematch..."
                                             );
 
-                                            setRematchInvitation(null);
-                                            setShowGameEndModal(false);
-
-                                            // ✅ SIMPLIFIÉ: Juste rejoindre la room existante créée par User A
-                                            try {
-                                              console.log(
-                                                "🏃‍♂️ [multisynq.tsx] Rejoint la room de rematch..."
-                                              );
-                                              await handleAutoJoinRoom(
-                                                rematchInvitation.roomName,
-                                                rematchInvitation.password
-                                              );
-                                              console.log(
-                                                "✅ [multisynq.tsx] Rejoint la room de rematch avec succès - popup paiement va s'afficher"
-                                              );
-                                            } catch (error) {
+                                            if (!rematchInvitation) {
                                               console.error(
-                                                "❌ [multisynq.tsx] Erreur lors du join de rematch:",
-                                                error
+                                                "❌ [multisynq.tsx] Invitation de rematch manquante"
                                               );
+                                              return;
                                             }
-                                          }}
-                                          className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-normal text-base transition-colors"
-                                        >
-                                          Accept
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            console.log("❌ Refus du rematch");
-                                            setRematchInvitation(null);
-                                          }}
-                                          className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-normal text-base transition-colors"
-                                        >
-                                          Decline
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-between gap-3">
-                                      <button
-                                        onClick={handleNewGame}
-                                        disabled={
-                                          gameState.rematchOffer?.offered ||
-                                          shouldDisableNavigationButtons()
-                                        }
-                                        className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
+
+                                            await handleAutoJoinRoom(
+                                              rematchInvitation.roomName,
+                                              rematchInvitation.password
+                                            );
+
+                                            // ✅ NOUVEAU: Mettre à jour l'URL pour éviter les problèmes de refresh
+                                            const newUrl = `${window.location.pathname}?room=${rematchInvitation.roomName}&password=${rematchInvitation.password}`;
+                                            window.history.pushState(
+                                              {},
+                                              "",
+                                              newUrl
+                                            );
+                                            console.log(
+                                              "🔗 [multisynq.tsx] URL mise à jour:",
+                                              newUrl
+                                            );
+
+                                            console.log(
+                                              "✅ [multisynq.tsx] Rejoint la room de rematch avec succès - popup paiement va s'afficher"
+                                            );
+                                          } catch (error) {
+                                            console.error(
+                                              "❌ [multisynq.tsx] Erreur lors du join de rematch:",
+                                              error
+                                            );
+                                          }
+                                        }}
+                                        className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-normal text-base transition-colors"
                                       >
-                                        {shouldDisableNavigationButtons()
-                                          ? gameInfo && gameInfo.state !== 2
-                                            ? "Finalizing..."
-                                            : gameInfo?.betAmount &&
-                                              gameInfo.betAmount > BigInt(0) &&
-                                              canOfferRematch()
-                                            ? "Rematch"
-                                            : "New game"
-                                          : gameState.rematchOffer?.offered
-                                          ? "Waiting for opponent"
+                                        Accept
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          console.log(
+                                            "❌ [multisynq.tsx] Refus du rematch"
+                                          );
+                                          setRematchInvitation(null);
+                                          // La popup reste ouverte et affiche les boutons normaux (Rematch/Analysis)
+                                        }}
+                                        className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-normal text-base transition-colors"
+                                      >
+                                        Decline
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between gap-3">
+                                    <button
+                                      onClick={handleNewGame}
+                                      disabled={
+                                        gameState.rematchOffer?.offered ||
+                                        shouldDisableNavigationButtons()
+                                      }
+                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
+                                    >
+                                      {shouldDisableNavigationButtons()
+                                        ? gameInfo && gameInfo.state !== 2
+                                          ? "Finalizing..."
                                           : gameInfo?.betAmount &&
                                             gameInfo.betAmount > BigInt(0) &&
                                             canOfferRematch()
                                           ? "Rematch"
-                                          : "New game"}
-                                      </button>
+                                          : "New game"
+                                        : gameState.rematchOffer?.offered
+                                        ? "Waiting for opponent"
+                                        : gameInfo?.betAmount &&
+                                          gameInfo.betAmount > BigInt(0) &&
+                                          canOfferRematch()
+                                        ? "Rematch"
+                                        : "New game"}
+                                    </button>
 
-                                      <button
-                                        onClick={handleCloseGameEndModal}
-                                        disabled={shouldDisableNavigationButtons()}
-                                        className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
-                                      >
-                                        {shouldDisableNavigationButtons()
-                                          ? gameInfo && gameInfo.state !== 2
-                                            ? "Finalizing..."
-                                            : "Analysis"
-                                          : "Analysis"}
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                                    <button
+                                      onClick={handleCloseGameEndModal}
+                                      disabled={shouldDisableNavigationButtons()}
+                                      className="w-full h-[45px] bg-[#eaeaea] hover:bg-[#252525] hover:border-white/10 border border-[#252525] disabled:bg-[#252525] disabled:border-white/5 disabled:cursor-not-allowed text-black hover:text-white disabled:text-white rounded-lg font-normal text-base transition-colors"
+                                    >
+                                      {shouldDisableNavigationButtons()
+                                        ? gameInfo && gameInfo.state !== 2
+                                          ? "Finalizing..."
+                                          : "Analysis"
+                                        : "Analysis"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1439,10 +1393,10 @@ export default function ChessMultisynqApp() {
                   {gameState.isActive ? (
                     // ========== PARTIE EN COURS ==========
                     <div className="space-y-3">
-                      {gameState.drawOffer.offered &&
-                      gameState.drawOffer.by !==
-                        gameState.players.find((p) => p.id === currentPlayerId)
-                          ?.color ? (
+                      {rematchInvitation &&
+                      rematchInvitation.from !== address &&
+                      gameState.gameResult.type &&
+                      !showGameEndModal ? (
                         // Répondre à une offre de match nul
                         <div>
                           <p className="text-white text-sm text-center mb-3">
@@ -1515,21 +1469,21 @@ export default function ChessMultisynqApp() {
                         </p>
                         <div className="grid grid-cols-4 gap-1">
                           <button
-                            onClick={goToFirstMove}
+                            onClick={goToFirstMoveWithFen}
                             disabled={currentMoveIndex === 0}
                             className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
                           >
                             ⏮
                           </button>
                           <button
-                            onClick={goToPreviousMove}
+                            onClick={goToPreviousMoveWithFen}
                             disabled={currentMoveIndex === 0}
                             className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
                           >
                             ◀
                           </button>
                           <button
-                            onClick={goToNextMove}
+                            onClick={goToNextMoveWithFen}
                             disabled={
                               currentMoveIndex === moveHistory.length - 1
                             }
@@ -1538,7 +1492,7 @@ export default function ChessMultisynqApp() {
                             ▶
                           </button>
                           <button
-                            onClick={goToLastMove}
+                            onClick={goToLastMoveWithFen}
                             disabled={
                               currentMoveIndex === moveHistory.length - 1
                             }
@@ -1573,6 +1527,15 @@ export default function ChessMultisynqApp() {
                             </button>
                           </div>
                         </div>
+                      ) : gameState.gameResult.type && !showGameEndModal ? (
+                        <button
+                          onClick={() => {
+                            setShowGameEndModal(true);
+                          }}
+                          className="w-full px-3 py-2 bg-[#836EF9] hover:bg-[#937EF9] disabled:bg-[#404040] disabled:cursor-not-allowed text-white rounded-lg text-sm transition-colors"
+                        >
+                          Game Results
+                        </button>
                       ) : (
                         <div className="space-y-2">
                           <button
@@ -1613,21 +1576,21 @@ export default function ChessMultisynqApp() {
                         </p>
                         <div className="grid grid-cols-4 gap-1">
                           <button
-                            onClick={goToFirstMove}
+                            onClick={goToFirstMoveWithFen}
                             disabled={currentMoveIndex === 0}
                             className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
                           >
                             ⏮
                           </button>
                           <button
-                            onClick={goToPreviousMove}
+                            onClick={goToPreviousMoveWithFen}
                             disabled={currentMoveIndex === 0}
                             className="px-2 py-1 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs transition-colors"
                           >
                             ◀
                           </button>
                           <button
-                            onClick={goToNextMove}
+                            onClick={goToNextMoveWithFen}
                             disabled={
                               currentMoveIndex === moveHistory.length - 1
                             }
@@ -1636,7 +1599,7 @@ export default function ChessMultisynqApp() {
                             ▶
                           </button>
                           <button
-                            onClick={goToLastMove}
+                            onClick={goToLastMoveWithFen}
                             disabled={
                               currentMoveIndex === moveHistory.length - 1
                             }

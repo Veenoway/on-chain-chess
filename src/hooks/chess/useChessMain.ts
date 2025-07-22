@@ -1241,8 +1241,10 @@ export const useChessMain = () => {
     resetModals();
     setCurrentPlayerId(null);
     setNewMessage("");
-    setMoveHistory([]);
-    setCurrentMoveIndex(-1);
+    setMoveHistory([
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    ]);
+    setCurrentMoveIndex(0);
     setFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     window.history.pushState({}, "", window.location.pathname);
     setConnectionStatus("Ready to play");

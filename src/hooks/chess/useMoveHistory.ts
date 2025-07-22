@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
 export const useMoveHistory = (roomName: string) => {
-  const [moveHistory, setMoveHistory] = useState<string[]>([]);
-  const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
-  const moveHistoryRef = useRef<string[]>([]);
-  const currentMoveIndexRef = useRef(-1);
+  const [moveHistory, setMoveHistory] = useState<string[]>([
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  ]);
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
+  const moveHistoryRef = useRef<string[]>([
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  ]);
+  const currentMoveIndexRef = useRef(0);
 
   const getStorageKey = (roomName: string) => `chess_history_${roomName}`;
 
