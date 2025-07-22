@@ -7,21 +7,18 @@ export const useGameControls = (
   currentPlayerId: string | null
 ) => {
   const handleOfferDraw = useCallback(() => {
-    console.log("🤝 [useGameControls] handleOfferDraw appelé");
-
     if (!multisynqView || !currentPlayerId) {
       console.error(
-        "❌ [useGameControls] multisynqView ou currentPlayerId manquant"
+        " [useGameControls] multisynqView or currentPlayerId is missing"
       );
       return;
     }
 
     if (typeof multisynqView.offerDraw === "function") {
-      console.log("✅ [useGameControls] Envoi de l'offre de match nul");
       multisynqView.offerDraw(currentPlayerId);
     } else {
       console.error(
-        "❌ [useGameControls] offerDraw n'est pas une fonction:",
+        " [useGameControls] offerDraw is not a function:",
         multisynqView
       );
     }
@@ -29,25 +26,18 @@ export const useGameControls = (
 
   const handleRespondDraw = useCallback(
     (accepted: boolean) => {
-      console.log("🤝 [useGameControls] handleRespondDraw appelé:", {
-        accepted,
-      });
-
       if (!multisynqView || !currentPlayerId) {
         console.error(
-          "❌ [useGameControls] multisynqView ou currentPlayerId manquant"
+          " [useGameControls] multisynqView or currentPlayerId is missing"
         );
         return;
       }
 
       if (typeof multisynqView.respondDraw === "function") {
-        console.log(
-          "✅ [useGameControls] Envoi de la réponse à l'offre de match nul"
-        );
         multisynqView.respondDraw(currentPlayerId, accepted);
       } else {
         console.error(
-          "❌ [useGameControls] respondDraw n'est pas une fonction:",
+          " [useGameControls] respondDraw is not a function:",
           multisynqView
         );
       }
@@ -57,14 +47,14 @@ export const useGameControls = (
 
   const handleResign = useCallback(() => {
     if (!multisynqView || !currentPlayerId) {
-      console.error("multisynqView ou currentPlayerId manquant");
+      console.error("multisynqView or currentPlayerId is missing");
       return;
     }
 
     if (typeof multisynqView.resign === "function") {
       multisynqView.resign(currentPlayerId);
     } else {
-      console.error("resign n'est pas une fonction:", multisynqView);
+      console.error("resign is not a function:", multisynqView);
     }
   }, [multisynqView, currentPlayerId]);
 
@@ -77,7 +67,7 @@ export const useGameControls = (
       if (typeof multisynqView.respondRematch === "function") {
         multisynqView.respondRematch(currentPlayerId, accepted);
       } else {
-        console.error("respondRematch n'est pas une fonction:", multisynqView);
+        console.error("respondRematch is not a function:", multisynqView);
       }
     },
     [multisynqView, currentPlayerId]

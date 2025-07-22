@@ -19,11 +19,11 @@ export const useAudio = () => {
       audio.volume = 0.5;
 
       audio.addEventListener("canplaythrough", () => {
-        console.log(`✅ Audio ${name} loaded successfully`);
+        console.log(`Audio ${name} loaded successfully`);
       });
 
       audio.addEventListener("error", (e) => {
-        console.warn(`⚠️ Failed to load audio ${name}:`, e);
+        console.warn(`Failed to load audio ${name}:`, e);
       });
     });
 
@@ -72,12 +72,12 @@ export const useAudio = () => {
         soundToPlay.currentTime = 0;
         soundToPlay
           .play()
-          .then(() => console.log(`✅ Sound ${soundName} played successfully`))
+          .then(() => console.log(`Sound ${soundName} played successfully`))
           .catch((error) =>
-            console.warn(`⚠️ Failed to play sound ${soundName}:`, error)
+            console.warn(`Failed to play sound ${soundName}:`, error)
           );
       } catch (error) {
-        console.error("❌ Error in playMoveSound:", error);
+        console.error("Error in playMoveSound:", error);
       }
     },
     [audioCache]

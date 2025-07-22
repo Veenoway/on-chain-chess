@@ -34,16 +34,16 @@ export const useMultisynq = () => {
     const apiKey = process.env.NEXT_PUBLIC_MULTISYNQ_API_KEY;
 
     if (!apiKey) {
-      throw new Error("Clé API Multisynq manquante");
+      throw new Error("Multisynq API key is missing");
     }
 
     if (!multisynqReady) {
-      throw new Error("Multisynq n'est pas prêt");
+      throw new Error("Multisynq is not ready");
     }
 
     const { Multisynq } = window as any;
     if (!Multisynq) {
-      throw new Error("Multisynq non disponible");
+      throw new Error("Multisynq is not available");
     }
 
     try {
@@ -53,10 +53,7 @@ export const useMultisynq = () => {
             multisynqView.session.close();
           }
         } catch (error) {
-          console.warn(
-            "Erreur lors de la fermeture de l'ancienne session:",
-            error
-          );
+          console.warn("Error closing old session:", error);
         }
         setMultisynqSession(null);
         setMultisynqView(null);
@@ -73,7 +70,7 @@ export const useMultisynq = () => {
 
       return session;
     } catch (error) {
-      console.error("Erreur création session:", error);
+      console.error("Error creating session:", error);
       throw error;
     }
   };
@@ -85,7 +82,7 @@ export const useMultisynq = () => {
           multisynqView.session.close();
         }
       } catch (error) {
-        console.warn("Erreur lors de la fermeture de la session:", error);
+        console.warn("Error closing session:", error);
       }
     }
     setMultisynqSession(null);

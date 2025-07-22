@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useChessMain } from "@/hooks/chess/useChessMain";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { formatEther } from "viem";
 import { useSwitchChain } from "wagmi";
@@ -26,14 +26,12 @@ export default function ChessMultisynqApp() {
   const [isResignPopoverOpen, setIsResignPopoverOpen] = useState(false);
 
   const {
-    // États principaux
     gameState,
     gameFlow,
     currentPlayerId,
     playerColor,
     fen,
 
-    // Interface
     menuActive,
     setMenuActive,
     roomInput,
@@ -48,7 +46,6 @@ export default function ChessMultisynqApp() {
     newMessage,
     setNewMessage,
 
-    // Actions
     handleCreateRoom,
     handleJoinRoom,
     handleAutoJoinRoom,
@@ -59,11 +56,9 @@ export default function ChessMultisynqApp() {
     handleNewGame,
     handleBackHome,
 
-    // Timer
     getCurrentPlayerTime,
     getOpponentTime,
 
-    // Navigation
     goToPreviousMoveWithFen,
     goToNextMoveWithFen,
     goToFirstMoveWithFen,
@@ -71,17 +66,14 @@ export default function ChessMultisynqApp() {
     currentMoveIndex,
     moveHistory,
 
-    // Échiquier
     chessboardOptions,
 
-    // Betting
     paymentStatus,
     bothPlayersPaid,
     canCurrentPlayerClaim,
     getAvailableAmount,
     isFinalizingGame,
 
-    // Modals
     showGameEndModal,
     setShowGameEndModal,
     hasClosedPaymentModal,
@@ -93,7 +85,6 @@ export default function ChessMultisynqApp() {
     setBettingGameCreationFailed,
     multisynqView,
 
-    // États wallet et contract
     isConnected,
     isWrongNetwork,
     address,
@@ -116,28 +107,16 @@ export default function ChessMultisynqApp() {
     handleCloseGameEndModal,
     setPaymentStatus,
 
-    // État de reconnexion
     isReconnecting,
   } = chess;
 
-  // ✅ DEBUGGING: Monitor rematchInvitation state changes
-  useEffect(() => {
-    console.log(
-      "🎮 [multisynq.tsx] rematchInvitation state changed:",
-      rematchInvitation
-    );
-  }, [rematchInvitation]);
-
-  // États locaux uniquement pour l'UI
   const [copied, setCopied] = useState(false);
   const { switchChain } = useSwitchChain();
 
-  // Fonction wrapper pour envoyer un message
   const handleSendMessage = () => {
     handleSendMessageWrapper(newMessage);
   };
 
-  // Interface d'accueil
   if (gameFlow === "welcome") {
     return (
       <div className="min-h-screen bg-gradient-to-br  from-[#101010] via-[#1d1D1d] to-[#0c0c0c] bg-center bg-cover flex items-center justify-center p-4">
@@ -361,10 +340,6 @@ export default function ChessMultisynqApp() {
     );
   }
 
-  //   const isWinner =
-  //     gameState.gameResult.winner ===
-  //     gameState.players.find((p) => p.id === currentPlayerId)?.color;
-
   const isDraw = gameState.gameResult.winner === "draw";
 
   return (
@@ -373,12 +348,10 @@ export default function ChessMultisynqApp() {
         {/* Header */}
 
         <div className="grid grid-cols-1 lg:grid-cols-6 gap-6">
-          {/* Panel central - Échiquier */}
           <div className="lg:col-span-4">
             <div className="relative">
               <div className="lg:col-span-3">
                 <div className="rounded-xl">
-                  {/* Pièces capturées par l'adversaire (en haut) */}
                   <div className="flex justify-between items-center mb-3">
                     <div className="flex items-center justify-between">
                       {gameState.players.find(
@@ -401,7 +374,6 @@ export default function ChessMultisynqApp() {
                                 {gameState.players
                                   .find((entry) => entry.wallet !== address)
                                   ?.wallet.slice(-4)}
-                                {/* Indicateur de connexion */}
                                 {gameState.players.find(
                                   (entry) => entry.wallet !== address
                                 )?.connected ? (
@@ -477,7 +449,6 @@ export default function ChessMultisynqApp() {
                       (isRematchTransition &&
                         isBettingEnabled &&
                         parseFloat(betAmount) > 0) ||
-                      // ✅ NOUVEAU: Afficher pour les rooms de rematch
                       (gameState.roomName &&
                         gameState.roomName.startsWith("rematch-") &&
                         gameInfo?.betAmount &&
@@ -485,8 +456,7 @@ export default function ChessMultisynqApp() {
                         !bothPlayersPaid())) &&
                       !hasClosedPaymentModal &&
                       gameFlow === "game" &&
-                      gameState.gameResult.type === null && // ✅ Ne pas afficher si jeu terminé
-                      // ✅ MODIFIÉ: Pour les rematches, autoriser l'affichage même si jeu actif
+                      gameState.gameResult.type === null &&
                       (gameState.roomName?.startsWith("rematch-") ||
                         !gameState.isActive) && (
                         <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/70 backdrop-blur-sm">
@@ -496,7 +466,6 @@ export default function ChessMultisynqApp() {
                                 Payment Status
                               </h3>
 
-                              {/* Informations de paiement et gains */}
                               <div className="">
                                 <div className="flex justify-between text-white text-base mb-2">
                                   <span className="text-gray-300">
@@ -610,7 +579,6 @@ export default function ChessMultisynqApp() {
                                         }
                                       }
 
-                                      // Cas 1: Création de betting game (pas encore de gameInfo)
                                       if (
                                         (!gameInfo ||
                                           gameInfo.betAmount === BigInt(0)) &&
@@ -733,7 +701,6 @@ export default function ChessMultisynqApp() {
                         </div>
                       )}
 
-                    {/* Indicateur de mode analyse */}
                     {((gameState.gameResult.type && !showGameEndModal) ||
                       (gameState.isActive &&
                         currentMoveIndex < moveHistory.length - 1)) && (
@@ -765,7 +732,6 @@ export default function ChessMultisynqApp() {
                         </div>
                       )}
 
-                    {/* MODAL ENDGAME */}
                     {showGameEndModal && (
                       <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/80 backdrop-blur-xs">
                         <div className="bg-[#1E1E1E] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
@@ -882,7 +848,7 @@ export default function ChessMultisynqApp() {
                                         if (gameId && canCurrentPlayerClaim()) {
                                           resetClaimState();
 
-                                          let resultParam: 1 | 2 | 3 = 2; // Par défaut BLACK_WINS
+                                          let resultParam: 1 | 2 | 3 = 2;
 
                                           if (gameInfo?.result === 1) {
                                             resultParam = 1; // WHITE_WINS
@@ -950,7 +916,6 @@ export default function ChessMultisynqApp() {
                                     </button>
                                   )}
 
-                                  {/* Claim draw refund - TOUJOURS AFFICHÉ si match nul */}
                                   {gameState.gameResult.winner === "draw" && (
                                     <button
                                       onClick={async () => {
@@ -997,7 +962,7 @@ export default function ChessMultisynqApp() {
                                     </button>
                                   )}
                                 </div>
-                                {/* Accept/Decline seulement si on a reçu une invitation */}
+
                                 {rematchInvitation &&
                                 rematchInvitation.from !== address ? (
                                   <div className="space-y-3 mb-3">
@@ -1020,12 +985,7 @@ export default function ChessMultisynqApp() {
                                           setRematchInvitation(null);
                                           setShowGameEndModal(false);
 
-                                          // ✅ SIMPLIFIÉ: Juste rejoindre la room existante créée par User A
                                           try {
-                                            console.log(
-                                              "🏃‍♂️ [multisynq.tsx] Rejoint la room de rematch..."
-                                            );
-
                                             if (!rematchInvitation) {
                                               console.error(
                                                 "❌ [multisynq.tsx] Invitation de rematch manquante"
@@ -1033,25 +993,34 @@ export default function ChessMultisynqApp() {
                                               return;
                                             }
 
+                                            if (
+                                              rematchInvitation.betAmount ||
+                                              rematchInvitation.gameTime
+                                            ) {
+                                              (
+                                                window as any
+                                              ).rematchAcceptDetails = {
+                                                betAmount:
+                                                  rematchInvitation.betAmount,
+                                                gameTime:
+                                                  rematchInvitation.gameTime
+                                                    ? parseInt(
+                                                        rematchInvitation.gameTime
+                                                      )
+                                                    : undefined,
+                                              };
+                                            }
+
                                             await handleAutoJoinRoom(
                                               rematchInvitation.roomName,
                                               rematchInvitation.password
                                             );
 
-                                            // ✅ NOUVEAU: Mettre à jour l'URL pour éviter les problèmes de refresh
                                             const newUrl = `${window.location.pathname}?room=${rematchInvitation.roomName}&password=${rematchInvitation.password}`;
                                             window.history.pushState(
                                               {},
                                               "",
                                               newUrl
-                                            );
-                                            console.log(
-                                              "🔗 [multisynq.tsx] URL mise à jour:",
-                                              newUrl
-                                            );
-
-                                            console.log(
-                                              "✅ [multisynq.tsx] Rejoint la room de rematch avec succès - popup paiement va s'afficher"
                                             );
                                           } catch (error) {
                                             console.error(
@@ -1066,11 +1035,7 @@ export default function ChessMultisynqApp() {
                                       </button>
                                       <button
                                         onClick={() => {
-                                          console.log(
-                                            "❌ [multisynq.tsx] Refus du rematch"
-                                          );
                                           setRematchInvitation(null);
-                                          // La popup reste ouverte et affiche les boutons normaux (Rematch/Analysis)
                                         }}
                                         className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-normal text-base transition-colors"
                                       >
@@ -1179,7 +1144,6 @@ export default function ChessMultisynqApp() {
               </div>
             </div>
           </div>
-          {/* Panel de droite - Chat */}
           <div className="lg:col-span-2">
             <div className="rounded-lg  full flex flex-col h-[800px]  ">
               <div className="bg-[#1E1E1E] p-3 border border-white/5 rounded-lg mb-3">
@@ -1216,8 +1180,6 @@ export default function ChessMultisynqApp() {
                       <CopyIcon className="w-3 h-3" />
                     )}
                   </button>
-
-                  {/* Affichage des informations de pari */}
                 </div>
                 {gameInfo?.betAmount && gameInfo.betAmount > BigInt(0) && (
                   <div className="px-2 pt-2 border-t border-white/10 mt-3">
@@ -1318,13 +1280,11 @@ export default function ChessMultisynqApp() {
                   Send
                 </button>
               </div>
-              {/* Box persistante - toujours visible */}
+
               <div className="space-y-3 mt-3">
                 <div className="p-3 bg-[#1E1E1E] border border-white/5 rounded-lg">
                   {gameState.isActive ? (
-                    // ========== PARTIE EN COURS ==========
                     <div className="space-y-3">
-                      {/* ✅ REFAIRE: Interface pour les offres de match nul avec shadcn Popover */}
                       {gameState.drawOffer.offered &&
                       gameState.drawOffer.by !== playerColor ? (
                         <div>
@@ -1469,7 +1429,6 @@ export default function ChessMultisynqApp() {
                       </div>
                     </div>
                   ) : gameState.gameResult.type ? (
-                    // ========== PARTIE TERMINÉE ==========
                     <div className="space-y-3">
                       {gameState.gameResult.type && !showGameEndModal ? (
                         <button
@@ -1507,7 +1466,6 @@ export default function ChessMultisynqApp() {
                         </div>
                       )}
 
-                      {/* Navigation après la partie */}
                       <div
                         className="pt-3 border-t border-white/10 "
                         onClick={() => {

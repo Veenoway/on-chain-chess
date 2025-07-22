@@ -19,7 +19,6 @@ export const useContractIntegration = (
     blackClaimed: boolean;
   }>({ whiteClaimed: false, blackClaimed: false });
 
-  // Monitor claims and notify in chat
   useEffect(() => {
     if (!gameInfo || !multisynqView || !currentPlayerId || !address) return;
 
@@ -81,7 +80,6 @@ export const useContractIntegration = (
     lastClaimState,
   ]);
 
-  // Auto-refetch after successful transactions
   useEffect(() => {
     if (isSuccess && gameId) {
       setTimeout(() => {
@@ -147,7 +145,7 @@ export const useContractIntegration = (
         );
 
         if (!winnerPlayer) {
-          console.error("Impossible de trouver le joueur gagnant");
+          console.error("Impossible to find the winner player");
           return;
         }
 

@@ -14,6 +14,7 @@ export const useRoomManagement = (
   setConnectionStatus: (status: string) => void,
   setHasClosedPaymentModal: (closed: boolean) => void,
   selectedGameTime: number,
+  setSelectedGameTime: (time: number) => void,
   isBettingEnabled: boolean,
   betAmount: string,
   createBettingGame: (amount: string, roomName: string) => Promise<void>,
@@ -51,6 +52,7 @@ export const useRoomManagement = (
         `chess-${Math.random().toString(36).substring(2, 8)}`;
       const password =
         rematchDetails?.password || Math.random().toString(36).substring(2, 6);
+      const gameTime = rematchDetails?.gameTime || selectedGameTime;
       const playerId = `player_${address.slice(-8)}_${Math.random()
         .toString(36)
         .substring(2, 6)}`;
@@ -69,9 +71,9 @@ export const useRoomManagement = (
         ...prev,
         roomName,
         roomPassword: password,
-        gameTimeLimit: selectedGameTime,
-        whiteTime: selectedGameTime,
-        blackTime: selectedGameTime,
+        gameTimeLimit: gameTime,
+        whiteTime: gameTime,
+        blackTime: gameTime,
       }));
       setHasClosedPaymentModal(false);
 
@@ -89,8 +91,12 @@ export const useRoomManagement = (
       }
 
       setTimeout(() => {
-        session.view.setGameTime(selectedGameTime);
+        session.view.setGameTime(gameTime);
       }, 100);
+
+      if (gameTime !== selectedGameTime) {
+        setSelectedGameTime(gameTime);
+      }
 
       if ((window as any).Multisynq?.App?.makeWidgetDock) {
         (window as any).Multisynq.App.makeWidgetDock();
@@ -174,6 +180,13 @@ export const useRoomManagement = (
     setConnectionStatus("Connexion automatique...");
 
     try {
+      const rematchAcceptDetails = (window as any).rematchAcceptDetails;
+      const gameTime = rematchAcceptDetails?.gameTime || selectedGameTime;
+
+      if (rematchAcceptDetails) {
+        delete (window as any).rematchAcceptDetails;
+      }
+
       const session = await createMultisynqSession(roomName, password);
 
       setMultisynqSession(session);
@@ -184,10 +197,21 @@ export const useRoomManagement = (
           ...prev,
           roomName,
           roomPassword: password || "",
+          gameTimeLimit: gameTime,
+          whiteTime: gameTime,
+          blackTime: gameTime,
         }));
 
         setHasClosedPaymentModal(false);
       }, 200);
+
+      setTimeout(() => {
+        session.view.setGameTime(gameTime);
+      }, 300);
+
+      if (gameTime !== selectedGameTime) {
+        setSelectedGameTime(gameTime);
+      }
 
       setGameFlow("game");
       setConnectionStatus(`Connecté à: ${roomName}`);

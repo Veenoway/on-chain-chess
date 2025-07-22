@@ -113,7 +113,6 @@ export const useBettingGame = (gameInfo: any, address: string | undefined) => {
     }
   };
 
-  // Sync betAmount with contract
   useEffect(() => {
     if (gameInfo?.betAmount && gameInfo.betAmount > BigInt(0)) {
       const currentBetAmount = formatEther(gameInfo.betAmount);

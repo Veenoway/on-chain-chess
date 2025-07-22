@@ -16,7 +16,6 @@ export const useTimer = (
       (p: any) => p.id === currentPlayerId
     );
 
-    // ✅ CORRIGÉ: Seul le joueur dont c'est le tour doit déclencher le timer
     const isCurrentPlayerTurn =
       (gameState.turn === "w" && currentPlayer?.color === "white") ||
       (gameState.turn === "b" && currentPlayer?.color === "black");
@@ -30,29 +29,12 @@ export const useTimer = (
       isCurrentPlayerTurn;
 
     if (shouldRunTimer && !timerRef.current) {
-      console.log(
-        "⏰ [useTimer] Démarrage du timer pour joueur:",
-        currentPlayerId,
-        "couleur:",
-        currentPlayer?.color,
-        "tour:",
-        gameState.turn
-      );
       timerRef.current = setInterval(() => {
         if (multisynqView) {
-          console.log("⏰ [useTimer] Mise à jour du timer");
           multisynqView.updateTimer();
         }
       }, 1000);
     } else if (!shouldRunTimer && timerRef.current) {
-      console.log(
-        "⏰ [useTimer] Arrêt du timer pour joueur:",
-        currentPlayerId,
-        "couleur:",
-        currentPlayer?.color,
-        "tour:",
-        gameState.turn
-      );
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
@@ -67,7 +49,7 @@ export const useTimer = (
     gameState.isActive,
     gameState.gameResult.type,
     gameState.players,
-    gameState.turn, // ✅ AJOUTÉ: Réagir aux changements de tour
+    gameState.turn,
     currentPlayerId,
     multisynqView,
     isReconnecting,
