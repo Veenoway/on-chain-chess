@@ -17,10 +17,7 @@ export const useRematchLogic = (
   createBettingGame: (amount: string, roomName: string) => Promise<void>,
   setRoomBetAmount: (amount: string) => void,
   getCorrectBetAmount: () => string,
-  handleCreateRoom: () => Promise<void>,
-  setFen: (fen: string) => void,
-  setMoveHistory: (history: string[]) => void,
-  setCurrentMoveIndex: (index: number) => void
+  handleCreateRoom: () => Promise<void>
 ) => {
   const [isCreatingRematch, setIsCreatingRematch] = useState(false);
   // ✅ SUPPRIMÉ: rematchInvitation local (conflit avec useGameModals)

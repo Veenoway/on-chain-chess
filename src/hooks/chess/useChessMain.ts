@@ -240,10 +240,7 @@ export const useChessMain = () => {
       createBettingGame,
       setRoomBetAmount,
       getCorrectBetAmount,
-      handleCreateRoom,
-      setFen,
-      setMoveHistory,
-      setCurrentMoveIndex
+      handleCreateRoom
     );
 
   // Initialize Multisynq
@@ -1363,6 +1360,12 @@ export const useChessMain = () => {
         currentPlayerPaid: false,
       });
 
+      // ✅ AJOUTÉ: Réinitialiser le state de claim pour la nouvelle partie
+      resetClaimState();
+      console.log(
+        "🔄 [useChessMain] État de claim réinitialisé pour le rematch"
+      );
+
       const initialFen =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
       setGameState((prev: any) => ({
@@ -1677,7 +1680,7 @@ export const useChessMain = () => {
   useEffect(() => {
     if (gameState.roomName && gameState.roomName.startsWith("rematch-")) {
       console.log(
-        "🔄 [useChessMain] Détection room de rematch - réinitialisation échiquier"
+        "🔄 [useChessMain] Détection room de rematch - réinitialisation complète"
       );
       const initialFen =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -1687,12 +1690,21 @@ export const useChessMain = () => {
       setMoveHistory([initialFen]);
       setCurrentMoveIndex(0);
 
+      // ✅ AJOUTÉ: Réinitialiser le state de claim pour la nouvelle partie
+      resetClaimState();
+
       console.log(
-        "✅ [useChessMain] Échiquier réinitialisé pour room:",
+        "✅ [useChessMain] Échiquier et état claim réinitialisés pour room:",
         gameState.roomName
       );
     }
-  }, [gameState.roomName, setFen, setMoveHistory, setCurrentMoveIndex]);
+  }, [
+    gameState.roomName,
+    setFen,
+    setMoveHistory,
+    setCurrentMoveIndex,
+    resetClaimState,
+  ]);
 
   useEffect(() => {
     (window as any).globalSetGameState = setGameState;
