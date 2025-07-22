@@ -82,12 +82,8 @@ export const useGameModals = (gameResult: any, roomName?: string) => {
       roomName,
     });
 
-    if (
-      gameResult.type &&
-      !showGameEndModal &&
-      !hasClosedModal &&
-      !isRematchRoom
-    ) {
+    // ✅ MODIFIÉ: Permettre l'ouverture si le jeu se termine vraiment (même dans rematch)
+    if (gameResult.type && !showGameEndModal && !hasClosedModal) {
       console.log("📖 [useGameModals] Ouverture automatique du modal endGame");
       const timer = setTimeout(() => {
         setShowGameEndModal(true);
@@ -101,10 +97,10 @@ export const useGameModals = (gameResult: any, roomName?: string) => {
       );
       setShowGameEndModal(false);
       setHasClosedModal(false);
-    } else if (isRematchRoom && showGameEndModal) {
-      // ✅ NOUVEAU: Fermer automatiquement la popup endGame dans les rooms de rematch
+    } else if (isRematchRoom && showGameEndModal && !gameResult.type) {
+      // ✅ MODIFIÉ: Fermer seulement si room de rematch ET pas de résultat de jeu
       console.log(
-        "🔒 [useGameModals] Fermeture forcée du modal endGame - room de rematch"
+        "🔒 [useGameModals] Fermeture forcée du modal endGame - room de rematch sans résultat"
       );
       setShowGameEndModal(false);
       setHasClosedModal(false);
