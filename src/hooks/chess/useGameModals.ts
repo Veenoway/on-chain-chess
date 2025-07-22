@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export const useGameModals = (gameResult: any) => {
+export const useGameModals = (gameResult: any, roomName?: string) => {
   const [showGameEndModal, setShowGameEndModal] = useState(false);
   const [hasClosedModal, setHasClosedModal] = useState(false);
   const [hasClosedPaymentModal, setHasClosedPaymentModal] = useState(false);
@@ -16,7 +16,14 @@ export const useGameModals = (gameResult: any) => {
 
   // ✅ NOUVEAU: Écouter les événements rematchInvitation
   useEffect(() => {
+    console.log(
+      "🔧 [useGameModals] Installation du listener rematchInvitation"
+    );
+
     const handleRematchInvitation = (event: CustomEvent) => {
+      console.log("📨 [useGameModals] Événement rematchInvitation reçu!");
+      console.log("📋 [useGameModals] Event detail:", event.detail);
+
       const { from, roomName, password, betAmount } = event.detail;
 
       console.log("📨 [useGameModals] Invitation de rematch reçue:", {
@@ -34,8 +41,13 @@ export const useGameModals = (gameResult: any) => {
         betAmount: betAmount || undefined,
       });
 
+      console.log("✅ [useGameModals] State rematchInvitation mis à jour");
+
       // Auto-clear après 60 secondes
       setTimeout(() => {
+        console.log(
+          "⏰ [useGameModals] Auto-clear rematchInvitation après 60s"
+        );
         setRematchInvitation(null);
       }, 60000);
     };
@@ -45,7 +57,12 @@ export const useGameModals = (gameResult: any) => {
       handleRematchInvitation as unknown as EventListener
     );
 
+    console.log("✅ [useGameModals] Listener rematchInvitation installé");
+
     return () => {
+      console.log(
+        "🧹 [useGameModals] Suppression du listener rematchInvitation"
+      );
       window.removeEventListener(
         "rematchInvitation",
         handleRematchInvitation as unknown as EventListener
@@ -55,17 +72,50 @@ export const useGameModals = (gameResult: any) => {
 
   // Auto-open game end modal
   useEffect(() => {
-    if (gameResult.type && !showGameEndModal && !hasClosedModal) {
+    const isRematchRoom = roomName && roomName.startsWith("rematch-");
+
+    console.log("🔍 [useGameModals] Auto-open endGame modal check:", {
+      gameResultType: gameResult.type,
+      showGameEndModal,
+      hasClosedModal,
+      isRematchRoom,
+      roomName,
+    });
+
+    if (
+      gameResult.type &&
+      !showGameEndModal &&
+      !hasClosedModal &&
+      !isRematchRoom
+    ) {
+      console.log("📖 [useGameModals] Ouverture automatique du modal endGame");
       const timer = setTimeout(() => {
         setShowGameEndModal(true);
       }, 1000);
 
       return () => clearTimeout(timer);
-    } else if (!gameResult.type && showGameEndModal) {
+    } else if (!gameResult.type && showGameEndModal && !rematchInvitation) {
+      // ✅ FIXÉ: Ne pas fermer automatiquement s'il y a une invitation de rematch en cours
+      console.log(
+        "🔒 [useGameModals] Fermeture automatique du modal bloquée - invitation de rematch en cours"
+      );
+      setShowGameEndModal(false);
+      setHasClosedModal(false);
+    } else if (isRematchRoom && showGameEndModal) {
+      // ✅ NOUVEAU: Fermer automatiquement la popup endGame dans les rooms de rematch
+      console.log(
+        "🔒 [useGameModals] Fermeture forcée du modal endGame - room de rematch"
+      );
       setShowGameEndModal(false);
       setHasClosedModal(false);
     }
-  }, [gameResult.type, showGameEndModal, hasClosedModal]);
+  }, [
+    gameResult.type,
+    showGameEndModal,
+    hasClosedModal,
+    rematchInvitation,
+    roomName,
+  ]);
 
   const handleCloseGameEndModal = () => {
     setShowGameEndModal(false);

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { useChessMain } from "@/hooks/chess/useChessMain";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { formatEther } from "viem";
 import { useSwitchChain } from "wagmi";
@@ -116,6 +116,14 @@ export default function ChessMultisynqApp() {
     // État de reconnexion
     isReconnecting,
   } = chess;
+
+  // ✅ DEBUGGING: Monitor rematchInvitation state changes
+  useEffect(() => {
+    console.log(
+      "🎮 [multisynq.tsx] rematchInvitation state changed:",
+      rematchInvitation
+    );
+  }, [rematchInvitation]);
 
   // États locaux uniquement pour l'UI
   const [copied, setCopied] = useState(false);
@@ -1142,24 +1150,28 @@ export default function ChessMultisynqApp() {
                                         <button
                                           onClick={async () => {
                                             console.log(
-                                              "✅ Acceptation du rematch:",
+                                              "✅ [multisynq.tsx] Acceptation du rematch - rejoindre la room:",
                                               rematchInvitation
                                             );
+
                                             setRematchInvitation(null);
                                             setShowGameEndModal(false);
 
-                                            // ✅ NOUVEAU: Rejoindre directement la nouvelle room du rematch
+                                            // ✅ SIMPLIFIÉ: Juste rejoindre la room existante créée par User A
                                             try {
+                                              console.log(
+                                                "🏃‍♂️ [multisynq.tsx] Rejoint la room de rematch..."
+                                              );
                                               await handleAutoJoinRoom(
                                                 rematchInvitation.roomName,
                                                 rematchInvitation.password
                                               );
                                               console.log(
-                                                "🎮 Rejoint la room de rematch avec succès"
+                                                "✅ [multisynq.tsx] Rejoint la room de rematch avec succès - popup paiement va s'afficher"
                                               );
                                             } catch (error) {
                                               console.error(
-                                                "❌ Erreur lors du join de rematch:",
+                                                "❌ [multisynq.tsx] Erreur lors du join de rematch:",
                                                 error
                                               );
                                             }

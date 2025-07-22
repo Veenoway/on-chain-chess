@@ -51,11 +51,14 @@ export const useRematchLogic = (
     return false;
   };
 
+  // ✅ À CHANGER : Créer la room IMMÉDIATEMENT
   const createRematchWithPayment = async () => {
     if (isCreatingRematch) return;
 
     setIsCreatingRematch(true);
-    console.log("🔄 Création d'un rematch avec nouvelle room...");
+    console.log(
+      "🔄 [useRematchLogic] Création immédiate d'une nouvelle room pour rematch..."
+    );
 
     try {
       // 1. Générer les détails de la nouvelle room
@@ -65,22 +68,34 @@ export const useRematchLogic = (
       const newRoomPassword = Math.random().toString(36).substring(2, 6);
       const correctBetAmount = getCorrectBetAmount();
 
-      console.log("📋 Détails du rematch:", {
+      console.log("📋 [useRematchLogic] Détails du rematch:", {
         newRoomName,
         newRoomPassword,
         betAmount: correctBetAmount,
       });
 
-      // 2. Envoyer l'invitation dans la room actuelle AVANT de changer de room
-      let invitationSent = false;
+      // 2. Stocker les détails pour handleCreateRoom
+      (window as any).rematchRoomDetails = {
+        roomName: newRoomName,
+        password: newRoomPassword,
+        betAmount: correctBetAmount,
+      };
+
+      // 3. Fermer le modal et créer la room IMMÉDIATEMENT
+      setShowGameEndModal(false);
+      console.log("🏗️ [useRematchLogic] Création immédiate de la room...");
+      await handleCreateRoom();
+      console.log("✅ [useRematchLogic] Room créée avec succès!");
+
+      // 4. PUIS envoyer l'invitation avec les détails de la room créée
       if (multisynqView && currentPlayerId && address) {
         try {
           const invitationMessage = `REMATCH_INVITATION:${newRoomName}:${newRoomPassword}:${correctBetAmount}`;
 
           console.log(
-            "📨 Envoi de l'invitation de rematch:",
-            invitationMessage
+            "📨 [useRematchLogic] Envoi de l'invitation après création de room:"
           );
+          console.log("   - Message:", invitationMessage);
 
           multisynqView.sendMessage(
             invitationMessage,
@@ -88,60 +103,29 @@ export const useRematchLogic = (
             address
           );
 
-          invitationSent = true;
-          console.log("✅ Invitation envoyée avec succès");
+          console.log("✅ [useRematchLogic] Invitation envoyée avec succès");
         } catch (error) {
-          console.error("❌ Erreur envoi invitation:", error);
+          console.error("❌ [useRematchLogic] Erreur envoi invitation:", error);
         }
+      } else {
+        console.error(
+          "❌ [useRematchLogic] Impossible d'envoyer l'invitation:",
+          {
+            multisynqView: !!multisynqView,
+            currentPlayerId,
+            address,
+          }
+        );
       }
 
-      // 3. Fermer la modal de fin de jeu
-      setShowGameEndModal(false);
-
-      // 4. Réinitialiser immédiatement l'état local du jeu pour le créateur
       console.log(
-        "🔄 Réinitialisation immédiate de l'état du jeu pour le créateur"
+        "✅ [useRematchLogic] Rematch flow complété - User A dans nouvelle room avec popup paiement"
       );
-      const initialFen =
-        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
-      // Réinitialiser l'affichage de l'échiquier
-      setFen(initialFen);
-      setMoveHistory([initialFen]);
-      setCurrentMoveIndex(0);
-
-      // Réinitialiser l'état du jeu
-      setGameState((prev: any) => ({
-        ...prev,
-        fen: initialFen,
-        gameResult: { type: null },
-        isActive: false,
-        turn: "w",
-        drawOffer: { offered: false, by: null },
-        rematchOffer: { offered: false, by: null },
-        lastMoveTime: null,
-      }));
-
-      // 5. Stocker les détails pour handleCreateRoom
-      (window as any).rematchRoomDetails = {
-        roomName: newRoomName,
-        password: newRoomPassword,
-        betAmount: correctBetAmount,
-        invitationSent,
-      };
-
-      // 5. Créer la nouvelle room immédiatement (avec un petit délai si invitation envoyée)
-      if (invitationSent) {
-        console.log("⏳ Attente puis création de la nouvelle room...");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
-      console.log("🏗️ Création de la nouvelle room et contrat...");
-      await handleCreateRoom();
-
-      console.log("✅ Rematch créé avec succès !");
     } catch (error) {
-      console.error("❌ Erreur lors de la création du rematch:", error);
+      console.error(
+        "❌ [useRematchLogic] Erreur lors de la création du rematch:",
+        error
+      );
       setBettingGameCreationFailed(true);
     } finally {
       setIsCreatingRematch(false);
