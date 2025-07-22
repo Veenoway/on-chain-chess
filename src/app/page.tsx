@@ -1,4 +1,4 @@
-import ChessMultisynqApp from "@/feature/home/multisynq";
+import ChessMultisynqApp from "@/feature/home";
 
 export default function Home() {
   return <ChessMultisynqApp />;

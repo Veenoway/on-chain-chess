@@ -243,7 +243,6 @@ export const useChessMain = () => {
       handleCreateRoom
     );
 
-  // Initialize Multisynq
   useEffect(() => {
     if (typeof window === "undefined") return;
 

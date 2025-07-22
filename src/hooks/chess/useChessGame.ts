@@ -55,8 +55,8 @@ export const useChessGame = () => {
 
     if (getCheckmatedKingSquare) {
       styles[getCheckmatedKingSquare] = {
-        backgroundColor: "rgba(131, 110, 249, 0.3)",
-        boxShadow: "inset 0 0 15px rgba(131, 110, 249, 0.6)",
+        backgroundColor: "rgba(255, 0, 0, 0.3)",
+        boxShadow: "inset 0 0 15px rgba(255, 0, 0, 0.6)",
       };
     }
 
