@@ -148,7 +148,7 @@ export default function ChessMultisynqApp() {
       <div
         className={`min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] bg-center bg-cover flex justify-center p-4 ${
           chess.isConnected
-            ? "pt-[50px] sm:pt-[100px] lg:pt-[200px]"
+            ? "pt-[50px] sm:pt-[10vh] lg:pt-[14vh]"
             : "items-center"
         }`}
       >

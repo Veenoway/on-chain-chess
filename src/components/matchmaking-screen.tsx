@@ -72,7 +72,7 @@ export function MatchmakingScreen({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] pt-[50px] sm:pt-[100px] lg:pt-[200px] flex justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] pt-[50px] sm:pt-[10vh] lg:pt-[15vh] flex justify-center p-4">
       <div className="w-full max-w-xl">
         <div className="text-center mb-5">
           <h1 className="text-4xl uppercase md:leading-[80px] md:text-6xl font-bold text-white mb-3">
