@@ -1,5 +1,6 @@
 import { Header } from "@/layouts/header";
 import ContextProvider from "@/lib/wagmi/provider";
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { Unbounded } from "next/font/google";
 import { headers } from "next/headers";
@@ -29,6 +30,7 @@ export default async function RootLayout({
         <ContextProvider cookies={cookies}>
           <Header />
           {children}
+          <Analytics />
           <Toaster
             position="top-right"
             toastOptions={{
