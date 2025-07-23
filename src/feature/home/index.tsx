@@ -151,7 +151,7 @@ export default function ChessMultisynqApp() {
             <h1 className="text-3xl md:text-5xl md: leading-loose font-bold text-white mb-2">
               Welcome to SynqMate
             </h1>
-            <p className="text-white/80 text-sm md:text-lg mt-6">
+            <p className="text-white/80 text-sm md:text-lg mt-6  md:max-w-[90%] mx-auto">
               Find a match, bet and win crypto while playing chess.
             </p>
           </div>
