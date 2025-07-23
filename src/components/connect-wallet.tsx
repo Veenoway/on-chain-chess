@@ -52,7 +52,7 @@ export function WalletConnection({ className }: { className?: string }) {
           `bg-[#836EF9]
           flex items-center rounded-lg uppercase h-[40px] sm:h-[50px] w-fit justify-center border border-borderColor px-2.5 sm:px-6 py-5
            text-sm sm:text-lg text-white mx-auto font-medium transition-all duration-300 ease-in-out
-          disabled:opacity-50 disabled:cursor-not-allowed`,
+          `,
           className
         )}
       >
@@ -71,7 +71,7 @@ export function WalletConnection({ className }: { className?: string }) {
               `bg-[#836EF9]
              flex items-center justify-center rounded-lg mx-auto w-fit h-[40px] sm:h-[50px] px-2.5 sm:px-6 py-5
              text-sm sm:text-lg text-white font-medium transition-all duration-300 ease-in-out
-             ${isConnecting ? "opacity-50 cursor-not-allowed" : ""}`,
+             ${isConnecting ? "" : ""}`,
               className
             )}
           >
