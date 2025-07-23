@@ -135,10 +135,6 @@ export default function ChessMultisynqApp() {
     }
   };
 
-  const handleCancelMatchmaking = () => {
-    chess.setGameFlow("welcome");
-  };
-
   if (chess.gameFlow === "welcome") {
     return (
       <div
