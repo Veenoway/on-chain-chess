@@ -214,9 +214,7 @@ export function MatchmakingScreen({
                   Position in queue:
                 </span>
                 <span className="text-white">
-                  {queueStatus?.queuePosition
-                    ? queueStatus.queuePosition + 1
-                    : 0}
+                  {queueStatus?.queuePosition ? queueStatus.queuePosition : 1}
                 </span>
               </div>
               <div className="flex justify-between items-center mb-2">
