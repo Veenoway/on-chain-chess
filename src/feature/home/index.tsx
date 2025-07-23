@@ -296,9 +296,9 @@ export default function ChessMultisynqApp() {
                           Bet Amount (MON)
                         </label>
                         <input
-                          type="number"
-                          step="0.1"
-                          min="0.1"
+                          type="text"
+                          inputMode="decimal"
+                          pattern="^[0-9]*\.?[0-9]*$"
                           value={chess.betAmount}
                           onChange={(e) => chess.setBetAmount(e.target.value)}
                           className="w-full px-4 py-2 h-12 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"

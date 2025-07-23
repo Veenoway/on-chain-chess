@@ -21,7 +21,7 @@ export function MatchmakingScreen({
 }: MatchmakingScreenProps) {
   const [selectedGameTime, setSelectedGameTime] = useState(600);
   const [betAmount, setBetAmount] = useState("1");
-  const [isBettingEnabled, setIsBettingEnabled] = useState(false);
+  const [isBettingEnabled, setIsBettingEnabled] = useState(true);
 
   const { address } = useAccount();
 
@@ -263,7 +263,7 @@ export function MatchmakingScreen({
                   <SelectContent className="bg-[#252525] border border-white/10">
                     <SelectItem
                       value="180"
-                      className="text-white hover:bg-white/10 h-10 text-sm md:text-base"
+                      className="text-white h-10 text-sm md:text-base "
                     >
                       3 minutes
                     </SelectItem>
@@ -316,7 +316,7 @@ export function MatchmakingScreen({
 
                 {isBettingEnabled && (
                   <div>
-                    <label className="block text-sm font-light text-white/80 mb-2">
+                    <label className="block text-sm md:text-lg font-light text-white/80 mb-2">
                       Bet amount (MON)
                     </label>
                     <input
@@ -325,7 +325,7 @@ export function MatchmakingScreen({
                       pattern="^[0-9]*\.?[0-9]*$"
                       value={betAmount}
                       onChange={(e) => setBetAmount(e.target.value)}
-                      className="w-full px-4 py-2 h-12 bg-[#252525] border border-white/5 text-white rounded-lg text-lg focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                      className="w-full px-4 py-2 h-12 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
                       placeholder="1.0"
                     />
                   </div>
