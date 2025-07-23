@@ -76,4 +76,4 @@ export interface RematchInvitation {
   password: string;
 }
 
-export type GameFlow = "welcome" | "lobby" | "game";
+export type GameFlow = "welcome" | "lobby" | "game" | "matchmaking";

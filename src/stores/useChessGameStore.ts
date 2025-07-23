@@ -8,7 +8,7 @@ const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 interface ChessGameState {
   gameState: GameState;
 
-  gameFlow: GameFlow;
+  gameFlow: "welcome" | "lobby" | "game" | "matchmaking";
   isReconnecting: boolean;
   lastKnownGameState: GameState | null;
 

@@ -25,9 +25,9 @@ export const useGameState = () => {
     createdAt: Date.now(),
   });
 
-  const [gameFlow, setGameFlow] = useState<"welcome" | "lobby" | "game">(
-    "welcome"
-  );
+  const [gameFlow, setGameFlow] = useState<
+    "welcome" | "lobby" | "game" | "matchmaking"
+  >("welcome");
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [lastKnownGameState, setLastKnownGameState] =
     useState<GameState | null>(null);
