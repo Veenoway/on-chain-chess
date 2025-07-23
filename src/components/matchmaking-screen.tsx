@@ -82,18 +82,44 @@ export function MatchmakingScreen({
             Find a match, bet and win crypto while playing chess.
           </p>
 
-          <div className="mt-8 bg-[#1E1E1E] border border-white/5 rounded-lg p-3 w-full flex justify-center">
+          <div
+            className={`mt-8 border rounded-lg p-3 w-full flex justify-center ${
+              globalStats.queueCapacity.isFull
+                ? "bg-red-500/20 border-red-500/30"
+                : "bg-[#1E1E1E] border-white/5"
+            }`}
+          >
             <div className="flex items-center space-x-4 text-sm">
               <div className="flex items-center">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                <div
+                  className={`w-2 h-2 rounded-full mr-2 ${
+                    globalStats.queueCapacity.isFull
+                      ? "bg-red-500"
+                      : "bg-green-500"
+                  }`}
+                ></div>
                 <span className="text-gray-300 text-sm md:text-base">
-                  {globalStats.totalInQueue} players in queue
+                  {globalStats.queueCapacity.current}/
+                  {globalStats.queueCapacity.max} players
                 </span>
               </div>
-              <div className="text-gray-500 text-sm md:text-base">•</div>
-              <div className="text-gray-300 text-sm md:text-base">
-                Wait time: ~ {Math.floor(globalStats.estimatedWaitTime / 60)}min
-              </div>
+              {!globalStats.queueCapacity.isFull && (
+                <>
+                  <div className="text-gray-500 text-sm md:text-base">•</div>
+                  <div className="text-gray-300 text-sm md:text-base">
+                    Wait time: ~{" "}
+                    {Math.floor(globalStats.estimatedWaitTime / 60)}min
+                  </div>
+                </>
+              )}
+              {globalStats.queueCapacity.isFull && (
+                <>
+                  <div className="text-gray-500 text-sm md:text-base">•</div>
+                  <div className="text-red-400 text-sm md:text-base">
+                    Queue full
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -305,10 +331,18 @@ export function MatchmakingScreen({
                   </div>
                 )}
               </div>
-
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                  <p className="text-red-400 text-center">{error}</p>
+              {globalStats.queueCapacity.isFull && !error && (
+                <div className="bg-[#252525] border border-red-500/50 rounded-lg p-4">
+                  <div className="text-center">
+                    <p className="text-red-500 text-lg md:text-xl font-normal mb-1">
+                      Queue is full
+                    </p>
+                    <p className="text-white/80 font-light text-xs md:text-sm">
+                      {globalStats.queueCapacity.current}/
+                      {globalStats.queueCapacity.max} players connected.
+                      <br /> Please try again in a moment.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -321,10 +355,12 @@ export function MatchmakingScreen({
                 </button>
                 <button
                   onClick={handleStartSearch}
-                  disabled={status === "searching"}
+                  disabled={
+                    status === "searching" || globalStats.queueCapacity.isFull
+                  }
                   className="flex-1 bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-gray-500 disabled:to-gray-500 text-white font-medium py-4 px-6 rounded-lg text-lg transition-all"
                 >
-                  Search
+                  {globalStats.queueCapacity.isFull ? "Queue full" : "Search"}
                 </button>
               </div>
             </div>

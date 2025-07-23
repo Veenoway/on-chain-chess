@@ -18,6 +18,7 @@ export const useMatchmaking = () => {
   const [globalStats, setGlobalStats] = useState({
     totalInQueue: 0,
     estimatedWaitTime: 30,
+    queueCapacity: { current: 0, max: 80, isFull: false },
   });
 
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
@@ -42,6 +43,11 @@ export const useMatchmaking = () => {
       setGlobalStats({
         totalInQueue: data.totalInQueue,
         estimatedWaitTime: data.estimatedWaitTime,
+        queueCapacity: data.queueCapacity || {
+          current: 0,
+          max: 80,
+          isFull: false,
+        },
       });
     } catch {}
   }, []);
@@ -125,6 +131,19 @@ export const useMatchmaking = () => {
             criteria,
           }),
         });
+
+        if (response.status === 429) {
+          const data = await response.json();
+          if (data.error === "QUEUE_FULL") {
+            setError("Queue is full. Please try again in a moment.");
+            setStatus("failed");
+            setGlobalStats((prev) => ({
+              ...prev,
+              queueCapacity: data.queueCapacity,
+            }));
+            return;
+          }
+        }
 
         const data = await response.json();
 
