@@ -12,7 +12,6 @@ import {
   useWriteContract,
 } from "wagmi";
 
-// ABI du contrat (version mise à jour pour token natif)
 const CHESS_BETTING_ABI = [
   // Events
   {
@@ -236,7 +235,6 @@ const CHESS_BETTING_ABI = [
   },
 ] as const;
 
-// Constantes
 const CHESS_BETTING_CONTRACT_ADDRESS =
   "0xC17f273ff1E0aeb058e1c512d968c70CaAfa1Fd1";
 
@@ -285,7 +283,6 @@ export const GameResult = {
   DRAW: 3,
 } as const;
 
-// Hook principal pour les paris d'échecs
 export const useChessBetting = () => {
   const { address } = useAccount();
   const publicClient = usePublicClient();
@@ -296,12 +293,10 @@ export const useChessBetting = () => {
       hash,
     });
 
-  // Obtenir le solde MON de l'utilisateur
   const { data: balance, refetch: refetchBalance } = useBalance({
     address,
   });
 
-  // États spécifiques pour le claim
   const [claimState, setClaimState] = useState<{
     isLoading: boolean;
     isSuccess: boolean;
@@ -316,7 +311,6 @@ export const useChessBetting = () => {
     txHash: null,
   });
 
-  // États spécifiques pour l'annulation
   const [cancelState, setCancelState] = useState<{
     isLoading: boolean;
     isSuccess: boolean;
@@ -331,7 +325,6 @@ export const useChessBetting = () => {
     txHash: null,
   });
 
-  // Réinitialiser l'état du claim
   const resetClaimState = useCallback(() => {
     setClaimState({
       isLoading: false,
@@ -342,7 +335,6 @@ export const useChessBetting = () => {
     });
   }, []);
 
-  // Réinitialiser l'état d'annulation
   const resetCancelState = useCallback(() => {
     setCancelState({
       isLoading: false,
@@ -353,12 +345,8 @@ export const useChessBetting = () => {
     });
   }, []);
 
-  // Refetch automatique du solde après transaction réussie
   useEffect(() => {
     if (isSuccess && hash) {
-      console.log("✅ Transaction confirmée, actualisation du solde...");
-
-      // Pour les claims
       if (claimState.isLoading) {
         setClaimState((prev) => ({
           ...prev,
@@ -366,14 +354,8 @@ export const useChessBetting = () => {
           isLoading: false,
           txHash: hash,
         }));
-
-        console.log("🎉 Gains réclamés avec succès !", {
-          id: "claim-process",
-          duration: 6000,
-        });
       }
 
-      // Pour les annulations
       if (cancelState.isLoading) {
         setCancelState((prev) => ({
           ...prev,
