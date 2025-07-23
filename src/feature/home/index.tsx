@@ -145,14 +145,34 @@ export default function ChessMultisynqApp() {
 
   if (chess.gameFlow === "welcome") {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] bg-center bg-cover flex items-center justify-center p-4">
-        <div className="w-full max-w-lg">
+      <div
+        className={`min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] bg-center bg-cover flex justify-center p-4 ${
+          chess.isConnected
+            ? "pt-[50px] sm:pt-[100px] lg:pt-[200px]"
+            : "items-center"
+        }`}
+      >
+        <div
+          className={`w-[90%] ${!chess.isConnected ? "max-w-5xl" : "max-w-xl"}`}
+        >
           <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-5xl md: leading-loose font-bold text-white mb-2">
-              SynqMate
+            <h1 className="text-4xl md:text-6xl uppercase md:leading-[80px] font-bold text-white mb-2">
+              {!chess.isConnected
+                ? "Welcome to SynqMate"
+                : menuActive === "create"
+                ? "Create Game"
+                : "Join Game"}
             </h1>
-            <p className="text-white/80 text-sm md:text-lg mt-6  md:max-w-[90%] mx-auto">
-              Find a match, bet and win crypto while playing chess.
+            <p className="text-white/80 text-base md:text-xl mt-3 mx-auto md:max-w-[80%]">
+              {!chess.isConnected
+                ? "SynqMate is a chess game on Monad that allows you to find a match, bet and win crypto while playing chess."
+                : menuActive === "create"
+                ? "Create a game and invite your friends to play."
+                : menuActive === "join"
+                ? "Join a game and play with your friends."
+                : menuActive === "matchmaking"
+                ? "Join the matchmaking queue to find a match."
+                : "Find a match, bet and win crypto while playing chess."}
             </p>
           </div>
 
@@ -161,7 +181,7 @@ export default function ChessMultisynqApp() {
           </div>
 
           {!chess.isConnected ? (
-            <p className="text-white text-sm md:text-lg mx-auto text-center">
+            <p className="text-white text-sm md:text-lg mx-auto text-center mt-10">
               Connect your wallet to start playing
             </p>
           ) : (

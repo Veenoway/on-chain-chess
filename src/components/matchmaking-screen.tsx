@@ -72,10 +72,10 @@ export function MatchmakingScreen({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] pt-[50px] sm:pt-[100px] lg:pt-[200px] flex justify-center p-4">
+      <div className="w-full max-w-xl">
         <div className="text-center mb-5">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-5">
+          <h1 className="text-4xl uppercase md:leading-[80px] md:text-6xl font-bold text-white mb-3">
             Matchmaking
           </h1>
           <p className="text-white/80 text-sm md:text-lg mb-4 md:max-w-[90%] mx-auto">
@@ -208,34 +208,36 @@ export function MatchmakingScreen({
               </h2>
             </div>
 
-            {queueStatus.inQueue && (
-              <div className="bg-[#252525] rounded-lg p-4 mb-6">
-                <div className="flex justify-between items-center mb-2">
+            <div className="bg-[#252525] rounded-lg p-4 mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-white/80 font-light">
+                  Position in queue:
+                </span>
+                <span className="text-white">
+                  {queueStatus?.queuePosition
+                    ? queueStatus.queuePosition + 1
+                    : 0}
+                </span>
+              </div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-white/80 font-light">
+                  Players in queue:
+                </span>
+                <span className="text-white">
+                  {queueStatus?.totalInQueue || 0}
+                </span>
+              </div>
+              {queueStatus?.estimatedWaitTime && (
+                <div className="flex justify-between items-center">
                   <span className="text-white/80 font-light">
-                    Position in queue:
+                    Estimated wait time:
                   </span>
                   <span className="text-white">
-                    {queueStatus.queuePosition}
+                    {formatWaitTime(queueStatus?.estimatedWaitTime || 0)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-white/80 font-light">
-                    Players in queue:
-                  </span>
-                  <span className="text-white">{queueStatus.totalInQueue}</span>
-                </div>
-                {queueStatus.estimatedWaitTime && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/80 font-light">
-                      Estimated wait time:
-                    </span>
-                    <span className="text-white">
-                      {formatWaitTime(queueStatus.estimatedWaitTime)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
             <button
               onClick={leaveQueue}
