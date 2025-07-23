@@ -139,15 +139,6 @@ export default function ChessMultisynqApp() {
     chess.setGameFlow("welcome");
   };
 
-  if (chess.gameFlow === "matchmaking") {
-    return (
-      <MatchmakingScreen
-        onMatchFound={handleMatchFound}
-        onCancel={handleCancelMatchmaking}
-      />
-    );
-  }
-
   if (chess.gameFlow === "welcome") {
     return (
       <div
@@ -407,10 +398,7 @@ export default function ChessMultisynqApp() {
                     }`}
                   >
                     <div className="text-center">
-                      <MatchmakingScreen
-                        onMatchFound={handleMatchFound}
-                        onCancel={handleCancelMatchmaking}
-                      />
+                      <MatchmakingScreen onMatchFound={handleMatchFound} />
                     </div>
                   </div>
                 </div>

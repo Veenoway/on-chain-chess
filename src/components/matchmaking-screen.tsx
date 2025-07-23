@@ -12,13 +12,9 @@ import { useAccount } from "wagmi";
 
 interface MatchmakingScreenProps {
   onMatchFound: (match: MatchFound) => void;
-  onCancel: () => void;
 }
 
-export function MatchmakingScreen({
-  onMatchFound,
-  onCancel,
-}: MatchmakingScreenProps) {
+export function MatchmakingScreen({ onMatchFound }: MatchmakingScreenProps) {
   const [selectedGameTime, setSelectedGameTime] = useState(600);
   const [betAmount, setBetAmount] = useState("1");
   const [isBettingEnabled, setIsBettingEnabled] = useState(true);
@@ -340,12 +336,6 @@ export function MatchmakingScreen({
               )}
 
               <div className="flex space-x-4 mt-4">
-                <button
-                  onClick={onCancel}
-                  className="flex-1 bg-[#252525] border border-white/5 hover:bg-[#353535] text-white font-medium py-4 px-6 rounded-lg text-lg transition-all"
-                >
-                  Back
-                </button>
                 <button
                   onClick={handleStartSearch}
                   disabled={
