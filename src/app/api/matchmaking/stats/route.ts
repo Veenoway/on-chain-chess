@@ -6,10 +6,13 @@ export async function GET() {
     const totalInQueue = matchmakingQueue.getTotalInQueue();
     const totalMatches = matchmakingQueue.getMatches().length;
 
+    const queueCapacity = matchmakingQueue.getQueueCapacity();
+
     return NextResponse.json({
       totalInQueue,
       totalMatches,
       estimatedWaitTime: Math.max(30, totalInQueue * 15),
+      queueCapacity,
     });
   } catch {
     return NextResponse.json(

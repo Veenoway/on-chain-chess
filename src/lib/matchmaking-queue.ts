@@ -7,6 +7,7 @@ interface QueueData {
 
 class MatchmakingQueue {
   private static instance: MatchmakingQueue;
+  private readonly MAX_QUEUE_SIZE = 80;
   private data: QueueData = {
     entries: [],
     matches: [],
@@ -29,6 +30,11 @@ class MatchmakingQueue {
 
   addEntry(entry: QueueEntry): void {
     this.removeEntryByAddress(entry.playerAddress);
+
+    if (this.data.entries.length >= this.MAX_QUEUE_SIZE) {
+      throw new Error("QUEUE_FULL");
+    }
+
     this.data.entries.push(entry);
 
     setTimeout(() => {
@@ -149,6 +155,18 @@ class MatchmakingQueue {
 
   getTotalInQueue(): number {
     return this.data.entries.length;
+  }
+
+  isQueueFull(): boolean {
+    return this.data.entries.length >= this.MAX_QUEUE_SIZE;
+  }
+
+  getQueueCapacity(): { current: number; max: number; isFull: boolean } {
+    return {
+      current: this.data.entries.length,
+      max: this.MAX_QUEUE_SIZE,
+      isFull: this.isQueueFull(),
+    };
   }
 
   cleanupExpiredEntries(): void {

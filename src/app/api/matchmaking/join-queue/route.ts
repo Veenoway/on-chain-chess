@@ -37,21 +37,35 @@ export async function POST(request: NextRequest) {
         matchFound: true,
       });
     } else {
-      matchmakingQueue.addEntry(newEntry);
+      try {
+        matchmakingQueue.addEntry(newEntry);
 
-      setTimeout(() => {
-        matchmakingQueue.removeEntryByAddress(newEntry.playerAddress);
-      }, 120000);
+        setTimeout(() => {
+          matchmakingQueue.removeEntryByAddress(newEntry.playerAddress);
+        }, 120000);
 
-      return NextResponse.json({
-        success: true,
-        queuePosition: matchmakingQueue.getQueuePosition(playerAddress),
-        estimatedWaitTime: Math.max(
-          30,
-          matchmakingQueue.getTotalInQueue() * 15
-        ),
-        matchFound: false,
-      });
+        return NextResponse.json({
+          success: true,
+          queuePosition: matchmakingQueue.getQueuePosition(playerAddress),
+          estimatedWaitTime: Math.max(
+            30,
+            matchmakingQueue.getTotalInQueue() * 15
+          ),
+          matchFound: false,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "QUEUE_FULL") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "QUEUE_FULL",
+              queueCapacity: matchmakingQueue.getQueueCapacity(),
+            },
+            { status: 429 }
+          );
+        }
+        throw error;
+      }
     }
   } catch {
     return NextResponse.json(
