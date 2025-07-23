@@ -72,18 +72,11 @@ export function MatchmakingScreen({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#161616] to-[#191919] pt-[50px] sm:pt-[10vh] lg:pt-[14vh] flex justify-center p-4">
+    <>
       <div className="w-full max-w-xl">
-        <div className="text-center mb-5">
-          <h1 className="text-4xl uppercase md:leading-[80px] md:text-6xl font-bold text-white mb-3">
-            Matchmaking
-          </h1>
-          <p className="text-white/80 text-sm md:text-lg mb-4 md:max-w-[90%] mx-auto">
-            Find a match, bet and win crypto while playing chess.
-          </p>
-
+        <div className="text-center mb-3">
           <div
-            className={`mt-8 border rounded-lg p-3 w-full flex justify-center ${
+            className={`border rounded-lg p-3 w-full flex justify-center ${
               globalStats.queueCapacity.isFull
                 ? "bg-red-500/20 border-red-500/30"
                 : "bg-[#1E1E1E] border-white/5"
@@ -316,7 +309,7 @@ export function MatchmakingScreen({
 
                 {isBettingEnabled && (
                   <div>
-                    <label className="block text-sm md:text-lg font-light text-white/80 mb-2">
+                    <label className="block text-sm md:text-base text-left font-light text-white/80 mb-2">
                       Bet amount (MON)
                     </label>
                     <input
@@ -367,6 +360,6 @@ export function MatchmakingScreen({
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

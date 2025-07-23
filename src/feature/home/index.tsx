@@ -161,7 +161,9 @@ export default function ChessMultisynqApp() {
                 ? "Welcome to SynqMate"
                 : menuActive === "create"
                 ? "Create Game"
-                : "Join Game"}
+                : menuActive === "join"
+                ? "Join Game"
+                : "Matchmaking"}
             </h1>
             <p className="text-white/80 text-base md:text-xl mt-3 mx-auto md:max-w-[80%]">
               {!chess.isConnected
@@ -171,7 +173,7 @@ export default function ChessMultisynqApp() {
                 : menuActive === "join"
                 ? "Join a game and play with your friends."
                 : menuActive === "matchmaking"
-                ? "Join the matchmaking queue to find a match."
+                ? "Find a match, bet and win crypto while playing chess."
                 : "Find a match, bet and win crypto while playing chess."}
             </p>
           </div>
@@ -210,158 +212,196 @@ export default function ChessMultisynqApp() {
                 </button>
 
                 <button
-                  onClick={() => chess.setGameFlow("matchmaking")}
-                  className={`group rounded-lg border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E] hover:bg-[#252525] text-white/60 hover:text-white text-sm md:text-lg font-normal md:py-4 py-2 w-[190px] transition-all duration-200 px-4`}
+                  onClick={() => setMenuActive("matchmaking")}
+                  className={`group rounded-lg  ${
+                    menuActive === "matchmaking"
+                      ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525] text-white"
+                      : "border-white/10 hover:border-[#836EF9]/40 bg-[#1E1E1E] hover:bg-[#252525] text-white/60 hover:text-white"
+                  }  text-sm md:text-lg font-normal md:py-4 py-2 w-[190px] transition-all duration-200 px-4`}
                 >
                   Matchmaking
                 </button>
               </div>
 
-              {menuActive === "create" ? (
-                <div className="text-center">
-                  <div className="md:bg-[#1E1E1E] border border-white/5 rounded-lg p-0 md:p-8 pt-6">
-                    <label className="block text-lg md:text-xl font-medium text-left text-white mb-3">
-                      Game Time
-                    </label>
-                    <Select
-                      value={selectedGameTime.toString()}
-                      onValueChange={(value) =>
-                        setSelectedGameTime(parseInt(value))
-                      }
-                    >
-                      <SelectTrigger className="w-full p-4 h-12 bg-[#252525] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#252525] border border-white/10">
-                        <SelectItem
-                          value="180"
-                          className="text-white hover:bg-white/10 text-sm md:text-base"
+              {/* Container avec animation slide */}
+              <div className="relative overflow-hidden">
+                <div
+                  className="flex transition-transform duration-500 ease-in-out"
+                  style={{
+                    transform: `translateX(-${
+                      menuActive === "create"
+                        ? 0
+                        : menuActive === "join"
+                        ? 100
+                        : 200
+                    }%)`,
+                  }}
+                >
+                  {/* Section Create */}
+                  <div className="w-full flex-shrink-0">
+                    <div className="text-center">
+                      <div className="md:bg-[#1E1E1E] border border-white/5 rounded-lg p-0 md:p-8 pt-6">
+                        <label className="block text-lg md:text-xl font-medium text-left text-white mb-3">
+                          Game Time
+                        </label>
+                        <Select
+                          value={selectedGameTime.toString()}
+                          onValueChange={(value) =>
+                            setSelectedGameTime(parseInt(value))
+                          }
                         >
-                          3 minutes
-                        </SelectItem>
-                        <SelectItem
-                          value="300"
-                          className="text-white hover:bg-white/10 text-sm md:text-base"
-                        >
-                          5 minutes
-                        </SelectItem>
-                        <SelectItem
-                          value="600"
-                          className="text-white hover:bg-white/10 text-sm md:text-base"
-                        >
-                          10 minutes
-                        </SelectItem>
-                        <SelectItem
-                          value="900"
-                          className="text-white hover:bg-white/10 text-sm md:text-base"
-                        >
-                          15 minutes
-                        </SelectItem>
-                        <SelectItem
-                          value="1800"
-                          className="text-white hover:bg-white/10 text-sm md:text-base"
-                        >
-                          30 minutes
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                          <SelectTrigger className="w-full p-4 h-12 bg-[#252525] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#252525] border border-white/10">
+                            <SelectItem
+                              value="180"
+                              className="text-white hover:bg-white/10 text-sm md:text-base"
+                            >
+                              3 minutes
+                            </SelectItem>
+                            <SelectItem
+                              value="300"
+                              className="text-white hover:bg-white/10 text-sm md:text-base"
+                            >
+                              5 minutes
+                            </SelectItem>
+                            <SelectItem
+                              value="600"
+                              className="text-white hover:bg-white/10 text-sm md:text-base"
+                            >
+                              10 minutes
+                            </SelectItem>
+                            <SelectItem
+                              value="900"
+                              className="text-white hover:bg-white/10 text-sm md:text-base"
+                            >
+                              15 minutes
+                            </SelectItem>
+                            <SelectItem
+                              value="1800"
+                              className="text-white hover:bg-white/10 text-sm md:text-base"
+                            >
+                              30 minutes
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
 
-                    <div className="flex items-center justify-between mb-4 mt-5">
-                      <label className="text-lg md:text-xl font-medium text-white">
-                        Enable Betting
-                      </label>
-                      <button
-                        onClick={() =>
-                          chess.setIsBettingEnabled(!chess.isBettingEnabled)
-                        }
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          chess.isBettingEnabled
-                            ? "bg-[#836EF9]"
-                            : "bg-gray-600"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            chess.isBettingEnabled
-                              ? "translate-x-6"
-                              : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+                        <div className="flex items-center justify-between mb-4 mt-5">
+                          <label className="text-lg md:text-xl font-medium text-white">
+                            Enable Betting
+                          </label>
+                          <button
+                            onClick={() =>
+                              chess.setIsBettingEnabled(!chess.isBettingEnabled)
+                            }
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              chess.isBettingEnabled
+                                ? "bg-[#836EF9]"
+                                : "bg-gray-600"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                chess.isBettingEnabled
+                                  ? "translate-x-6"
+                                  : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {chess.isBettingEnabled && (
+                          <div className="mb-4">
+                            <label className="block text-sm md:text-base font-light text-white/80 text-left mb-3">
+                              Bet Amount (MON)
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              pattern="^[0-9]*\.?[0-9]*$"
+                              value={chess.betAmount}
+                              onChange={(e) =>
+                                chess.setBetAmount(e.target.value)
+                              }
+                              className="w-full px-4 py-2 h-12 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
+                              placeholder="1.0"
+                            />
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            if (chess.isConnected && chess.isWrongNetwork) {
+                              try {
+                                switchChain({ chainId: 10143 });
+                              } catch {}
+                            } else {
+                              chess.handleCreateRoom();
+                            }
+                          }}
+                          disabled={
+                            chess.isCreatingRoom || !chess.multisynqReady
+                          }
+                          className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-sm md:text-lg transition-all"
+                        >
+                          {chess.isWrongNetwork
+                            ? "Switch to Monad & Create"
+                            : chess.isCreatingRoom
+                            ? "Creating..."
+                            : !chess.multisynqReady
+                            ? "Loading Multisynq..."
+                            : "Create Game"}
+                        </button>
+                      </div>
                     </div>
+                  </div>
 
-                    {chess.isBettingEnabled && (
-                      <div className="mb-4">
-                        <label className="block text-sm md:text-base font-light text-white/80 text-left mb-3">
-                          Bet Amount (MON)
+                  {/* Section Join */}
+                  <div className="w-full flex-shrink-0">
+                    <div className="text-center">
+                      <div className="md:bg-[#1E1E1E] border border-white/5 rounded-lg p-0 md:p-8 pt-6">
+                        <label className="block text-lg md:text-xl font-medium text-left text-white  mb-3">
+                          Room Code
                         </label>
                         <input
                           type="text"
-                          inputMode="decimal"
-                          pattern="^[0-9]*\.?[0-9]*$"
-                          value={chess.betAmount}
-                          onChange={(e) => chess.setBetAmount(e.target.value)}
-                          className="w-full px-4 py-2 h-12 bg-[#2b2b2b] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
-                          placeholder="1.0"
+                          placeholder="Enter room code (e.g. room:password)"
+                          value={chess.roomInput}
+                          onChange={(e) => chess.setRoomInput(e.target.value)}
+                          className="w-full p-4 bg-[#252525] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
                         />
+                        <button
+                          onClick={chess.handleJoinRoom}
+                          disabled={
+                            !chess.roomInput.trim() ||
+                            !chess.multisynqReady ||
+                            chess.isPending ||
+                            chess.isWrongNetwork
+                          }
+                          className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[#252525] disabled:to-[#252525] text-white font-medium py-4 px-6 rounded-xl text-sm md:text-lg transition-all"
+                        >
+                          {chess.isWrongNetwork
+                            ? "Switch to Monad & Join"
+                            : chess.isPending
+                            ? "Processing..."
+                            : "Join Game"}
+                        </button>
                       </div>
-                    )}
+                    </div>
+                  </div>
 
-                    <button
-                      onClick={() => {
-                        if (chess.isConnected && chess.isWrongNetwork) {
-                          try {
-                            switchChain({ chainId: 10143 });
-                          } catch {}
-                        } else {
-                          chess.handleCreateRoom();
-                        }
-                      }}
-                      disabled={chess.isCreatingRoom || !chess.multisynqReady}
-                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[rgba(255,255,255,0.07)] disabled:to-[rgba(255,255,255,0.07)] text-white font-medium py-4 px-6 rounded-xl text-sm md:text-lg transition-all"
-                    >
-                      {chess.isWrongNetwork
-                        ? "Switch to Monad & Create"
-                        : chess.isCreatingRoom
-                        ? "Creating..."
-                        : !chess.multisynqReady
-                        ? "Loading Multisynq..."
-                        : "Create Game"}
-                    </button>
+                  {/* Section Matchmaking */}
+                  <div className="w-full flex-shrink-0">
+                    <div className="text-center">
+                      <MatchmakingScreen
+                        onMatchFound={handleMatchFound}
+                        onCancel={handleCancelMatchmaking}
+                      />
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className=" text-center">
-                  <div className="md:bg-[#1E1E1E] border border-white/5 rounded-lg p-0 md:p-8 pt-6">
-                    <label className="block text-lg md:text-xl font-medium text-left text-white  mb-3">
-                      Room Code
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Enter room code (e.g. room:password)"
-                      value={chess.roomInput}
-                      onChange={(e) => chess.setRoomInput(e.target.value)}
-                      className="w-full p-4 bg-[#252525] focus:outline-none border border-white/5 text-white rounded-lg text-sm md:text-lg mb-4 focus:ring-2 focus:ring-[#836EF9] focus:border-transparent"
-                    />
-                    <button
-                      onClick={chess.handleJoinRoom}
-                      disabled={
-                        !chess.roomInput.trim() ||
-                        !chess.multisynqReady ||
-                        chess.isPending ||
-                        chess.isWrongNetwork
-                      }
-                      className="w-full bg-gradient-to-r from-[#836EF9] to-[#836EF9]/80 hover:from-[#836EF9]/80 hover:to-[#836EF9] disabled:from-[#252525] disabled:to-[#252525] text-white font-medium py-4 px-6 rounded-xl text-sm md:text-lg transition-all"
-                    >
-                      {chess.isWrongNetwork
-                        ? "Switch to Monad & Join"
-                        : chess.isPending
-                        ? "Processing..."
-                        : "Join Game"}
-                    </button>
-                  </div>
-                </div>
-              )}
+              </div>
             </>
           )}
         </div>
