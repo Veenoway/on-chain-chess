@@ -104,6 +104,11 @@ export default function ChessMultisynqApp() {
   const [copied, setCopied] = useState(false);
   const { switchChain } = useSwitchChain();
 
+  const handleMenuChange = (newMenu: "create" | "join" | "matchmaking") => {
+    if (newMenu === menuActive) return;
+    setMenuActive(newMenu);
+  };
+
   const handleSendMessage = () => {
     handleSendMessageWrapper(newMessage);
   };
@@ -190,7 +195,7 @@ export default function ChessMultisynqApp() {
             <>
               <div className="mx-auto w-full flex items-center justify-center mb-3 gap-3 mt-5">
                 <button
-                  onClick={() => setMenuActive("create")}
+                  onClick={() => handleMenuChange("create")}
                   className={`group rounded-lg  ${
                     menuActive === "create"
                       ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525] text-white "
@@ -201,7 +206,7 @@ export default function ChessMultisynqApp() {
                 </button>
 
                 <button
-                  onClick={() => setMenuActive("join")}
+                  onClick={() => handleMenuChange("join")}
                   className={`group rounded-lg  ${
                     menuActive === "join"
                       ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525] text-white"
@@ -212,7 +217,7 @@ export default function ChessMultisynqApp() {
                 </button>
 
                 <button
-                  onClick={() => setMenuActive("matchmaking")}
+                  onClick={() => handleMenuChange("matchmaking")}
                   className={`group rounded-lg  ${
                     menuActive === "matchmaking"
                       ? "border-white/10 hover:border-[#836EF9]/40 bg-[#252525] text-white"
@@ -223,7 +228,6 @@ export default function ChessMultisynqApp() {
                 </button>
               </div>
 
-              {/* Container avec animation slide */}
               <div className="relative overflow-hidden">
                 <div
                   className="flex transition-transform duration-500 ease-in-out"
@@ -237,8 +241,11 @@ export default function ChessMultisynqApp() {
                     }%)`,
                   }}
                 >
-                  {/* Section Create */}
-                  <div className="w-full flex-shrink-0">
+                  <div
+                    className={`w-full flex-shrink-0 transition-opacity duration-500 ease-in-out ${
+                      menuActive === "create" ? "opacity-100" : "opacity-0"
+                    }`}
+                  >
                     <div className="text-center">
                       <div className="md:bg-[#1E1E1E] border border-white/5 rounded-lg p-0 md:p-8 pt-6">
                         <label className="block text-lg md:text-xl font-medium text-left text-white mb-3">
@@ -357,8 +364,11 @@ export default function ChessMultisynqApp() {
                     </div>
                   </div>
 
-                  {/* Section Join */}
-                  <div className="w-full flex-shrink-0">
+                  <div
+                    className={`w-full flex-shrink-0 transition-opacity duration-500 ease-in-out ${
+                      menuActive === "join" ? "opacity-100" : "opacity-0"
+                    }`}
+                  >
                     <div className="text-center">
                       <div className="md:bg-[#1E1E1E] border border-white/5 rounded-lg p-0 md:p-8 pt-6">
                         <label className="block text-lg md:text-xl font-medium text-left text-white  mb-3">
@@ -391,8 +401,11 @@ export default function ChessMultisynqApp() {
                     </div>
                   </div>
 
-                  {/* Section Matchmaking */}
-                  <div className="w-full flex-shrink-0">
+                  <div
+                    className={`w-full flex-shrink-0 transition-opacity duration-500 ease-in-out ${
+                      menuActive === "matchmaking" ? "opacity-100" : "opacity-0"
+                    }`}
+                  >
                     <div className="text-center">
                       <MatchmakingScreen
                         onMatchFound={handleMatchFound}
