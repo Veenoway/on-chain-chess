@@ -213,6 +213,11 @@ export const useRoomManagement = (
         setSelectedGameTime(gameTime);
       }
 
+      const newUrl = password
+        ? `${window.location.pathname}?room=${roomName}&password=${password}`
+        : `${window.location.pathname}?room=${roomName}`;
+      window.history.pushState({}, "", newUrl);
+
       setGameFlow("game");
       setConnectionStatus(`Connecté à: ${roomName}`);
     } catch {
